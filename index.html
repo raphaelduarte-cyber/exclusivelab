@@ -1590,17 +1590,11 @@ function casoFormHTML(caso){
   </div>
 
   ${isEdit && tipoProducao==="alinhadores" ? `
-  <div class="section-title">Outras informações (opcional)</div>
+  <div class="section-title">Observações laboratoriais</div>
   <div class="form-grid">
-    <div class="field"><label>Observações laboratoriais</label><textarea id="f-obs-lab">${esc(caso?.obsLaboratoriais||"")}</textarea></div>
-    <div class="field"><label>Placa de attachment superior?</label>
-      <select id="f-attach-sup"><option value="nao" ${!caso?.attachSuperior?"selected":""}>Não</option><option value="sim" ${caso?.attachSuperior?"selected":""}>Sim</option></select>
-    </div>
-    <div class="field"><label>Placa de attachment inferior?</label>
-      <select id="f-attach-inf"><option value="nao" ${!caso?.attachInferior?"selected":""}>Não</option><option value="sim" ${caso?.attachInferior?"selected":""}>Sim</option></select>
-    </div>
+    <div class="field full"><label>Observações laboratoriais</label><textarea id="f-obs-lab">${esc(caso?.obsLaboratoriais||"")}</textarea></div>
   </div>
-  <p style="font-size:11.5px;color:var(--text-light);margin-top:8px;">A quantidade de placas e a placa 0 são definidas na ação "Definir placas do planejamento", disponível na ficha do caso.</p>
+  <p style="font-size:11.5px;color:var(--text-light);margin-top:8px;">Placas (quantidade, placa 0, attachment) são definidas na ação "Definir placas do planejamento", disponível na ficha do caso.</p>
   ` : (tipoProducao==="alinhadores" ? `
   <p style="font-size:11.5px;color:var(--text-light);margin-top:14px;">A quantidade de placas só será definida mais tarde, na etapa de planejamento.</p>
   ` : "")}
@@ -1701,10 +1695,6 @@ async function salvarCaso(){
 
   const obsLabEl = document.getElementById("f-obs-lab");
   if (obsLabEl) caso.obsLaboratoriais = obsLabEl.value;
-  const attachSupEl = document.getElementById("f-attach-sup");
-  if (attachSupEl) caso.attachSuperior = attachSupEl.value==="sim";
-  const attachInfEl = document.getElementById("f-attach-inf");
-  if (attachInfEl) caso.attachInferior = attachInfEl.value==="sim";
 
   if (!id){
     if (caso.tipoProducao==="contencao"){
@@ -1755,6 +1745,12 @@ function promptPlanejamento(id){
       <div class="field"><label>Tem placa 0 inferior?</label>
         <select id="p-placa0-inf"><option value="nao" ${p.placa0Inferior===false?"selected":""}>Não</option><option value="sim" ${p.placa0Inferior===true?"selected":""}>Sim</option></select>
       </div>
+      <div class="field"><label>Placa de attachment superior?</label>
+        <select id="p-attach-sup"><option value="nao" ${!caso.attachSuperior?"selected":""}>Não</option><option value="sim" ${caso.attachSuperior?"selected":""}>Sim</option></select>
+      </div>
+      <div class="field"><label>Placa de attachment inferior?</label>
+        <select id="p-attach-inf"><option value="nao" ${!caso.attachInferior?"selected":""}>Não</option><option value="sim" ${caso.attachInferior?"selected":""}>Sim</option></select>
+      </div>
     </div>
     <p style="font-size:12px;color:var(--text-light);margin-top:10px;">O sistema soma automaticamente a placa 0 (quando houver) ao total de modelos obrigatórios para validar a impressão.</p>
   `, `<button class="btn outline" onclick="App.abrirFicha('${id}')">Cancelar</button>
@@ -1771,6 +1767,8 @@ function __submitPlanejamento(id){
     placa0Inferior: document.getElementById("p-placa0-inf").value==="sim",
     definidoEm: new Date().toISOString()
   };
+  caso.attachSuperior = document.getElementById("p-attach-sup").value==="sim";
+  caso.attachInferior = document.getElementById("p-attach-inf").value==="sim";
   logHistorico(caso, caso.statusAtual, caso.statusAtual, "Planejamento de placas definido/atualizado");
   persist(caso).then(()=>{ abrirFicha(id); toast("Planejamento de placas salvo."); });
 }
