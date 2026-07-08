@@ -1,0 +1,2512 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laboratório Exclusive — Controle de Produção</title>
+<style>
+:root{
+  /* ---- Identidade Exclusive Odontologia ---- */
+  --gold:#c6a15b; --gold-dark:#a3813f; --gold-light:#f6ecd8;
+  --graphite:#20232b; --graphite-light:#565f72; --slate:#4b5468;
+  --bg:#f8f6f2; --bg-alt:#efece4; --card-bg:#ffffff; --border:#e6e1d4;
+  --text:#20232b; --text-light:#767b87;
+  --navy:var(--graphite-light);
+  --teal:#0d9488; --teal-dark:#0f766e; --teal-light:#ccfbf1;
+  --blue:#2563eb; --blue-light:#dde9ff;
+  --orange:#d97706; --orange-light:#fdf0da;
+  --red:#c0392b; --red-light:#fbe6e2;
+  --purple:#7c5cbf; --purple-light:#ece6f7;
+  --green:#1f8a52; --green-light:#e2f4e9;
+  --yellow:#b8860b; --yellow-light:#fbf1d3;
+  --gray-recebido:#8b93a1;
+  --radius:14px; --radius-sm:9px;
+  --shadow:0 1px 2px rgba(32,35,43,.05),0 3px 12px rgba(32,35,43,.06);
+  --shadow-lg:0 16px 44px rgba(32,35,43,.24);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;
+  background:var(--bg); color:var(--text); font-size:14px; line-height:1.45;
+}
+button{font-family:inherit; cursor:pointer;}
+input,select,textarea{font-family:inherit; font-size:14px;}
+h1,h2,h3,h4{margin:0;}
+.hidden{display:none !important;}
+::-webkit-scrollbar{height:10px;width:10px;}
+::-webkit-scrollbar-thumb{background:#d8d2c2;border-radius:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+
+/* ---------- HEADER ---------- */
+.app-header{
+  position:sticky; top:0; z-index:40; background:#fffdf9; border-bottom:1px solid var(--border);
+  box-shadow:0 1px 2px rgba(32,35,43,.04);
+}
+.header-row{display:flex; align-items:center; gap:16px; padding:10px 22px; flex-wrap:wrap;}
+.header-row-top{padding-bottom:8px;}
+.header-row-bottom{padding-top:8px; border-top:1px solid var(--bg-alt);}
+.brand{display:flex; align-items:center; gap:12px; margin-right:auto;}
+.logo-exclusive{height:38px; width:auto; display:block;}
+.brand-text{display:flex; flex-direction:column; line-height:1.3;}
+.brand-text strong{font-size:14.5px; letter-spacing:.4px; color:var(--graphite); font-weight:700;}
+.brand-text span{font-size:10.5px; color:var(--text-light); letter-spacing:.2px;}
+.header-actions{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+.operador-box{display:flex; align-items:center; gap:8px; background:var(--bg-alt); padding:6px 12px; border-radius:20px; border:1px solid var(--border);}
+.operador-box label{font-size:10.5px; font-weight:700; text-transform:uppercase; color:var(--text-light); letter-spacing:.3px;}
+.operador-box select{border:none; border-radius:6px; padding:4px 6px; min-width:150px; background:transparent; font-weight:600; color:var(--graphite);}
+.linkbtn{background:none;border:none;color:var(--gold-dark);text-decoration:underline;font-size:11px;padding:0; font-weight:600;}
+.search-box{flex:1; min-width:180px; max-width:320px;}
+.search-box input{width:100%; padding:8px 12px; border-radius:20px; border:1px solid var(--border); background:var(--bg-alt);}
+.topbar-actions{display:flex; gap:8px; margin-left:auto; flex-wrap:wrap;}
+.btn{
+  border:1px solid var(--border); background:var(--bg-alt); color:var(--graphite); font-weight:600;
+  padding:8px 14px; border-radius:var(--radius-sm); font-size:12.5px; white-space:nowrap;
+  transition:filter .12s ease, transform .05s ease;
+}
+.btn:hover{filter:brightness(0.96);}
+.btn:active{transform:translateY(1px);}
+.btn.primary{background:linear-gradient(135deg,#d3b378,var(--gold)); color:var(--graphite); border-color:var(--gold-dark); font-weight:700;}
+.btn.ghost{background:transparent; color:var(--graphite); border-color:var(--border);}
+.btn.small{padding:6px 10px; font-size:11.5px;}
+.btn.danger{background:var(--red); color:#fff; border-color:var(--red);}
+.btn.warn{background:var(--orange); color:#fff; border-color:var(--orange);}
+.btn.outline{background:#fff; border-color:var(--border); color:var(--text);}
+.btn.ready{background:var(--green); color:#fff; border-color:var(--green); font-weight:700;}
+.btn.locked{background:var(--red-light); color:var(--red); border-color:var(--red);}
+.btn:disabled{opacity:.45; cursor:not-allowed; filter:none;}
+
+/* ---------- INDICATORS ---------- */
+.indicators{
+  display:flex; gap:10px; overflow-x:auto; padding:14px 22px; background:#fff; border-bottom:1px solid var(--border);
+}
+.ind-card{
+  min-width:118px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-sm);
+  padding:9px 11px; flex-shrink:0;
+}
+.ind-card .num{font-size:20px; font-weight:700; color:var(--graphite);}
+.ind-card .lbl{font-size:10.5px; color:var(--text-light); text-transform:uppercase; letter-spacing:.3px;}
+.ind-card.alert-red{background:var(--red-light);} .ind-card.alert-red .num{color:var(--red);}
+.ind-card.alert-orange{background:var(--orange-light);} .ind-card.alert-orange .num{color:var(--orange);}
+.ind-card.alert-teal{background:var(--gold-light);} .ind-card.alert-teal .num{color:var(--gold-dark);}
+.ind-card.alert-purple{background:var(--purple-light);} .ind-card.alert-purple .num{color:var(--purple);}
+.ind-card.alert-green{background:var(--green-light);} .ind-card.alert-green .num{color:var(--green);}
+
+/* ---------- FILTERS ---------- */
+.filters{
+  display:flex; gap:8px; flex-wrap:wrap; padding:11px 22px; background:#fff; border-bottom:1px solid var(--border);
+  align-items:center;
+}
+.filters select, .filters .chip{padding:6px 10px; border-radius:20px; border:1px solid var(--border); background:var(--bg); font-size:12.5px;}
+.chip{display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none;}
+.chip input{margin:0;}
+.filters .spacer{flex:1;}
+
+/* ---------- ALERTS PANEL ---------- */
+.alerts-wrap{padding:11px 22px; background:#fdf9f1; border-bottom:1px solid var(--border);}
+.alerts-header{display:flex; align-items:center; gap:8px; cursor:pointer;}
+.alerts-header h3{font-size:13px; color:var(--red); font-weight:700;}
+.alerts-list{display:flex; flex-direction:column; gap:6px; margin-top:8px; max-height:220px; overflow-y:auto;}
+.alert-row{
+  display:flex; align-items:center; gap:8px; background:#fff; border-left:4px solid var(--red);
+  border-radius:8px; padding:7px 11px; font-size:12.5px; cursor:pointer; box-shadow:var(--shadow);
+}
+.alert-row.sev-warn{border-left-color:var(--orange);}
+.alert-row.sev-info{border-left-color:var(--blue);}
+.alert-row b{color:var(--graphite);}
+.alert-empty{font-size:12.5px; color:var(--text-light); padding:4px 0;}
+
+/* ---------- KANBAN ---------- */
+.kanban-board{display:flex; gap:14px; padding:16px 22px; overflow-x:auto; align-items:flex-start;}
+.kanban-col{
+  min-width:280px; max-width:280px; background:var(--bg-alt); border-radius:var(--radius); flex-shrink:0;
+  display:flex; flex-direction:column; max-height:calc(100vh - 260px);
+}
+.kanban-col-header{
+  padding:11px 14px; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.4px;
+  color:var(--graphite); display:flex; justify-content:space-between; align-items:center;
+  border-bottom:1px solid #e2ddce; position:sticky; top:0; background:var(--bg-alt); border-radius:var(--radius) var(--radius) 0 0;
+}
+.kanban-col-header .count{background:#fff; border-radius:20px; padding:1px 9px; font-size:11.5px; border:1px solid var(--border);}
+.kanban-col-body{padding:10px; display:flex; flex-direction:column; gap:10px; overflow-y:auto;}
+
+/* ---------- CARD ---------- */
+.case-card{
+  background:var(--card-bg); border-radius:var(--radius); box-shadow:var(--shadow); padding:13px;
+  border:1px solid var(--border); border-left:4px solid var(--slate); position:relative;
+}
+.case-card.prio-urgente{border-left-color:var(--orange);}
+.case-card.status-yellow{background:var(--yellow-light); border-left-color:var(--yellow);}
+.case-card.status-red{background:var(--red-light); border-left-color:var(--red);}
+.case-card.status-green{background:var(--green-light); border-left-color:var(--green);}
+.card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:6px;}
+.card-patient{font-weight:700; font-size:14px; color:var(--graphite);}
+.badge{display:inline-block; font-size:9.5px; font-weight:700; padding:2px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:.3px;}
+.badge.interno{background:var(--gold-light); color:var(--gold-dark);}
+.badge.externo{background:var(--purple-light); color:var(--purple);}
+.badge.urgente{background:var(--orange-light); color:var(--orange);}
+.badge.atrasado{background:var(--red-light); color:var(--red);}
+.badge.parcial{background:var(--blue-light); color:var(--blue);}
+.badge.refinamento{background:var(--yellow-light); color:var(--yellow);}
+.card-status{font-size:11px; color:var(--text-light); margin:4px 0;}
+.card-meta{display:flex; flex-wrap:wrap; gap:5px; margin:4px 0;}
+.plates-row{display:flex; gap:6px; margin:6px 0;}
+.plate-box{flex:1; background:var(--bg); border-radius:8px; padding:6px 6px; text-align:center;}
+.plate-box .n{font-size:16px; font-weight:800; color:var(--slate);}
+.plate-box .l{font-size:9px; color:var(--text-light); text-transform:uppercase;}
+.progress-line{font-size:10.5px; color:var(--text-light); margin:2px 0;}
+.progress-bar{height:5px; background:var(--bg-alt); border-radius:4px; overflow:hidden; margin:3px 0;}
+.progress-bar > div{height:100%; background:var(--gold);}
+.attach-row{display:flex; gap:6px; font-size:10px; margin:4px 0; color:var(--text-light);}
+.attach-row .on{color:var(--gold-dark); font-weight:700;}
+.card-flags{display:flex; flex-wrap:wrap; gap:4px; margin:4px 0;}
+.flag{font-size:9.5px; background:var(--red-light); color:var(--red); padding:1px 7px; border-radius:10px; font-weight:700;}
+.flag.blue{background:var(--blue-light); color:var(--blue);}
+.flag.warn{background:var(--orange-light); color:var(--orange);}
+.flag.crit{background:var(--red); color:#fff;}
+.card-actions{display:flex; gap:5px; margin-top:9px; flex-wrap:wrap;}
+.card-actions .btn{flex:1; min-width:0;}
+.deadline{font-size:10.5px;}
+.warn-box{background:var(--orange-light); border:1px solid var(--orange); border-radius:10px; padding:9px 11px; font-size:12px; color:#7c3400; margin:8px 0;}
+.crit-box{background:var(--red-light); border:1px solid var(--red); border-radius:10px; padding:9px 11px; font-size:12px; color:#7f1d1d; margin:8px 0;}
+.info-box{background:var(--blue-light); border:1px solid var(--blue); border-radius:10px; padding:9px 11px; font-size:12px; color:#1e3a8a; margin:8px 0;}
+.impressao-panel{background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:11px 13px; margin:8px 0;}
+.plate-chip{display:inline-flex; align-items:center; justify-content:center; min-width:27px; height:25px; padding:0 6px; border-radius:8px; font-size:11.5px; font-weight:800; border:1px solid var(--border); background:var(--bg); color:var(--text-light);}
+.plate-chip.done{background:var(--green-light); color:var(--green); border-color:var(--green);}
+.plate-chip.reimp{background:var(--red); color:#fff; border-color:var(--red);}
+.plate-chip.reimpresso{background:var(--orange-light); color:var(--orange); border-color:var(--orange);}
+.plate-chip.confeccionado{background:var(--blue-light); color:var(--blue); border-color:var(--blue);}
+.plate-chip.entregue{background:var(--yellow-light); color:var(--yellow); border-color:var(--yellow);}
+.plate-chip.recebido{background:var(--gray-recebido); color:#fff; border-color:var(--gray-recebido);}
+.plate-legend{display:flex; flex-wrap:wrap; gap:12px; font-size:11px; color:var(--text-light); margin:6px 0;}
+.plate-legend span{display:inline-flex; align-items:center; gap:4px;}
+
+/* ---------- MODAL ---------- */
+.modal-overlay{
+  position:fixed; inset:0; background:rgba(32,35,43,.55); display:flex; align-items:flex-start;
+  justify-content:center; padding:30px 12px; overflow-y:auto; z-index:100;
+}
+.modal-box{
+  background:#fff; border-radius:var(--radius); width:100%; max-width:760px; box-shadow:var(--shadow-lg);
+  animation:pop .12s ease-out; border-top:3px solid var(--gold);
+}
+@keyframes pop{from{transform:translateY(6px); opacity:.6;} to{transform:translateY(0); opacity:1;}}
+.modal-head{
+  display:flex; justify-content:space-between; align-items:center; padding:14px 18px; border-bottom:1px solid var(--border);
+  position:sticky; top:0; background:#fff; border-radius:var(--radius) var(--radius) 0 0;
+}
+.modal-head h2{font-size:16px; color:var(--graphite);}
+.modal-close{background:none; border:none; font-size:20px; color:var(--text-light); line-height:1;}
+.modal-body{padding:16px 18px;}
+.modal-foot{padding:12px 18px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px;}
+.form-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px 14px;}
+.form-grid .full{grid-column:1/-1;}
+.field label{display:block; font-size:11.5px; font-weight:700; color:var(--text-light); margin-bottom:3px; text-transform:uppercase; letter-spacing:.2px;}
+.field input, .field select, .field textarea{
+  width:100%; padding:7px 9px; border:1px solid var(--border); border-radius:8px; background:#fbfaf7;
+}
+.field textarea{min-height:56px; resize:vertical;}
+.radio-group{display:flex; gap:14px;}
+.radio-group label{display:flex; align-items:center; gap:5px; font-weight:600; font-size:13px; text-transform:none;}
+fieldset{border:1px dashed var(--border); border-radius:10px; padding:10px 12px; margin:0;}
+fieldset legend{font-size:11.5px; font-weight:700; color:var(--purple); padding:0 6px;}
+fieldset.refinamento legend{color:var(--yellow);}
+.section-title{font-size:12.5px; font-weight:800; color:var(--gold-dark); text-transform:uppercase; letter-spacing:.3px; margin:16px 0 8px; border-bottom:2px solid var(--gold-light); padding-bottom:4px;}
+.section-title:first-child{margin-top:0;}
+.actions-grid{display:flex; flex-wrap:wrap; gap:8px;}
+table.hist{width:100%; border-collapse:collapse; font-size:12px;}
+table.hist th, table.hist td{border-bottom:1px solid var(--border); padding:5px 6px; text-align:left;}
+table.hist th{color:var(--text-light); font-weight:700; font-size:10.5px; text-transform:uppercase;}
+.readonly-grid{display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; font-size:12.5px;}
+.readonly-grid div span.k{color:var(--text-light); display:block; font-size:10.5px; text-transform:uppercase;}
+.readonly-grid div span.v{font-weight:600;}
+.toast-wrap{position:fixed; bottom:16px; right:16px; z-index:200; display:flex; flex-direction:column; gap:8px;}
+.toast{background:var(--graphite); color:#fff; padding:10px 16px; border-radius:9px; font-size:13px; box-shadow:var(--shadow-lg); animation:pop .12s;}
+
+@media (max-width:720px){
+  .form-grid{grid-template-columns:1fr;}
+  .readonly-grid{grid-template-columns:1fr;}
+  .kanban-col{min-width:82vw; max-width:82vw;}
+  .header-row{flex-direction:column; align-items:stretch;}
+  .brand{margin-right:0;}
+  .topbar-actions{margin-left:0; justify-content:flex-start;}
+  .btn{padding:10px 14px; font-size:13px;}
+  .card-actions .btn{min-height:38px;}
+}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-row header-row-top">
+    <div class="brand">
+      <!-- Logomarca da Exclusive Odontologia. Para trocar, substitua o arquivo logo-exclusive.png nesta mesma pasta. -->
+      <img src="logo-exclusive.png" alt="Exclusive Odontologia" class="logo-exclusive">
+      <div class="brand-text">
+        <strong>Laboratório Exclusive — Controle de Produção</strong>
+        <span>Alinhadores | Contenções | Modelos de Estudo</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="operador-box">
+        <label>Operando como</label>
+        <select id="sel-operador" onchange="App.setOperador(this.value)"></select>
+        <button class="linkbtn" onclick="App.gerenciarProfissionais()">cadastro de profissionais</button>
+      </div>
+      <button class="btn primary" onclick="App.novoCaso()">+ Novo caso</button>
+    </div>
+  </div>
+  <div class="header-row header-row-bottom">
+    <div class="search-box"><input id="busca" type="text" placeholder="Buscar por paciente ou nº do caso..." oninput="App.setBusca(this.value)"></div>
+    <div class="topbar-actions">
+      <button class="btn outline small" onclick="App.__clickAtualizarDados()">🔄 Atualizar dados</button>
+      <button class="btn outline small" onclick="App.exportar('csv')">Exportar CSV</button>
+      <button class="btn outline small" onclick="App.exportar('json')">Exportar / Backup JSON</button>
+    </div>
+  </div>
+</header>
+
+<div class="indicators" id="indicators"></div>
+
+<div class="filters" id="filters">
+  <!-- preenchido via JS -->
+</div>
+
+<div class="alerts-wrap">
+  <div class="alerts-header" onclick="App.toggleAlerts()">
+    <h3>⚠ Central de alertas (<span id="alerts-count">0</span>)</h3>
+    <span id="alerts-toggle-label" style="font-size:11px;color:var(--text-light);">clique para mostrar/ocultar</span>
+  </div>
+  <div class="alerts-list" id="alerts-list"></div>
+</div>
+
+<div class="kanban-board" id="kanban-board"></div>
+
+<div id="modal-root"></div>
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script>
+/* =========================================================================
+   CONFIGURAÇÃO DE BACKEND
+   "local"  — cada navegador guarda os dados sozinho (não compartilha).
+   "mysql"  — API PHP própria (pasta /api) gravando num MySQL (Hostinger).
+              Preencha API_URL (ex.: "/api" ou "https://seudominio.com/api")
+              e API_KEY com a mesma chave definida em api/config.php.
+   "sheets" — legado: Google Apps Script + planilha (ver backend-appsscript/Code.gs).
+   ========================================================================= */
+const CONFIG = {
+  STORAGE_MODE: "sheets",
+  API_URL: "https://script.google.com/macros/s/AKfycbyEldyneK2xpeKBdplB05FbIT1J02NgydLh9sB6pLeQ6SDoGIvNWUt82Q4S5lvzL_n8/exec",
+  API_KEY: "",             // só usado em STORAGE_MODE:"mysql" — precisa bater com api/config.php
+  POLL_INTERVAL_MS: 20000, // intervalo de sincronização quando o modo não é "local"
+  STALL_DAYS: 3            // dias parado na mesma etapa até virar alerta
+};
+
+/* =========================================================================
+   FLUXOS
+   Toda a produção (impressão, reimpressão, plastificação, corte, acabamento,
+   conferência, envio, recebimento) agora acontece DENTRO de LOTES — cada
+   lote é uma unidade de placas que percorre esse funil sozinha (ver seção
+   "LOTES DE PRODUÇÃO"). O status do caso só marca as macro-fases: cadastro,
+   planejamento, (aprovação externa) e produção — e "Finalizado", que só
+   acontece automaticamente quando todos os lotes necessários já foram
+   recebidos.
+   ========================================================================= */
+const STATUS_PRODUCAO = "Em produção (lotes)";
+
+const FLOW_INTERNO = [
+  "Caso recebido","Planejamento pendente","Planejamento em execução","Planejamento concluído",
+  STATUS_PRODUCAO,
+  "Finalizado"
+];
+
+const FLOW_EXTERNO = [
+  "Caso externo recebido","Dados conferidos","Planejamento pendente","Planejamento em execução",
+  "Planejamento enviado para aprovação","Aguardando aprovação do cliente/dentista externo",
+  "Planejamento aprovado","Ajustes solicitados no planejamento",
+  STATUS_PRODUCAO,
+  "Finalizado"
+];
+
+// Contenção e Modelo de estudo não têm etapa de planejamento ortodôntico nem
+// aprovação — são ordens de produção diretas. Os itens já saem prontos do
+// cadastro (ver "PRODUÇÃO POR ITENS"), então o fluxo é só 3 macro-etapas.
+const STATUS_PRODUCAO_ITENS = "Em produção";
+const FLOW_ITENS = ["Caso recebido", STATUS_PRODUCAO_ITENS, "Finalizado"];
+
+const COLS = [
+  {key:"recebido", label:"Recebido"},
+  {key:"planejamento", label:"Planejamento"},
+  {key:"aprovacao", label:"Aprovação (externo)"},
+  {key:"producao", label:"Em produção"},
+  {key:"finalizado", label:"Finalizado"}
+];
+
+const STATUS_TO_COL = {
+  "Caso recebido":"recebido","Caso externo recebido":"recebido","Dados conferidos":"recebido",
+  "Planejamento pendente":"planejamento","Planejamento em execução":"planejamento","Planejamento concluído":"planejamento",
+  "Planejamento enviado para aprovação":"aprovacao","Aguardando aprovação do cliente/dentista externo":"aprovacao",
+  "Planejamento aprovado":"aprovacao","Ajustes solicitados no planejamento":"aprovacao",
+  [STATUS_PRODUCAO]:"producao",
+  [STATUS_PRODUCAO_ITENS]:"producao",
+  "Finalizado":"finalizado"
+};
+
+const ADVANCE_OVERRIDE = {
+  "Ajustes solicitados no planejamento":"Planejamento em execução"
+};
+
+// Etapas em que o botão genérico "Avançar" é bloqueado — a mudança de etapa
+// só pode acontecer por uma ação específica (evita avanço indevido).
+const BLOCK_GENERIC_ADVANCE = {
+  interno: new Set([STATUS_PRODUCAO, STATUS_PRODUCAO_ITENS]),
+  externo: new Set([STATUS_PRODUCAO, STATUS_PRODUCAO_ITENS, "Aguardando aprovação do cliente/dentista externo"])
+};
+
+const SETORES = ["Recepção","Laboratório - Planejamento","Laboratório - Produção (lotes)","ASB / Clínica","Comercial / Externo"];
+
+const COL_TO_SETOR = {
+  recebido:"Recepção", planejamento:"Laboratório - Planejamento", aprovacao:"Comercial / Externo",
+  producao:"Laboratório - Produção (lotes)", finalizado:"ASB / Clínica"
+};
+
+/* =========================================================================
+   ADAPTADOR DE ARMAZENAMENTO — troca local <-> Google Sheets sem mexer no resto
+   ========================================================================= */
+// Requisição JSON autenticada para a API PHP própria (modo "mysql") — mesma
+// origem do domínio, então não há preflight de CORS a evitar (diferente do
+// Apps Script, que usa text/plain de propósito por causa disso).
+function apiFetch(path, body){
+  const opts = body ? { method:"POST", headers:{"Content-Type":"application/json","X-Api-Key":CONFIG.API_KEY}, body: JSON.stringify(body) }
+                     : { headers:{"X-Api-Key":CONFIG.API_KEY} };
+  return fetch(`${CONFIG.API_URL}/${path}`, opts).then(r=>r.json());
+}
+const STORAGE = {
+  async getAll(){
+    if (CONFIG.STORAGE_MODE === "mysql"){
+      const data = await apiFetch("casos.php");
+      return data.casos || [];
+    }
+    if (CONFIG.STORAGE_MODE === "sheets"){
+      const res = await fetch(CONFIG.API_URL);
+      const data = await res.json();
+      return data.casos || [];
+    }
+    return JSON.parse(localStorage.getItem("casos_v1") || "[]");
+  },
+  async upsert(caso){
+    if (CONFIG.STORAGE_MODE === "mysql"){
+      await apiFetch("casos.php", {action:"upsert", caso});
+      return;
+    }
+    if (CONFIG.STORAGE_MODE === "sheets"){
+      await fetch(CONFIG.API_URL, {
+        method:"POST",
+        headers:{"Content-Type":"text/plain;charset=utf-8"}, // evita preflight CORS no Apps Script
+        body: JSON.stringify({action:"upsert", caso})
+      });
+      return;
+    }
+    const all = JSON.parse(localStorage.getItem("casos_v1") || "[]");
+    const idx = all.findIndex(c=>c.id===caso.id);
+    if (idx===-1) all.push(caso); else all[idx]=caso;
+    localStorage.setItem("casos_v1", JSON.stringify(all));
+  },
+  async remove(id){
+    if (CONFIG.STORAGE_MODE === "mysql"){
+      await apiFetch("casos.php", {action:"delete", id});
+      return;
+    }
+    if (CONFIG.STORAGE_MODE === "sheets"){
+      await fetch(CONFIG.API_URL, {
+        method:"POST",
+        headers:{"Content-Type":"text/plain;charset=utf-8"},
+        body: JSON.stringify({action:"delete", id})
+      });
+      return;
+    }
+    const all = JSON.parse(localStorage.getItem("casos_v1") || "[]").filter(c=>c.id!==id);
+    localStorage.setItem("casos_v1", JSON.stringify(all));
+  },
+  async getAllProfissionais(){
+    if (CONFIG.STORAGE_MODE === "mysql"){
+      const data = await apiFetch("profissionais.php");
+      return data.profissionais || null;
+    }
+    return null; // "local"/"sheets": profissionaisAtuais() continua lendo do localStorage direto
+  },
+  async saveProfissionais(lista){
+    if (CONFIG.STORAGE_MODE === "mysql"){
+      await apiFetch("profissionais.php", {profissionais: lista});
+      return true;
+    }
+    return false;
+  }
+};
+
+/* =========================================================================
+   ESTADO
+   ========================================================================= */
+let CASOS = [];
+let PROFISSIONAIS = null; // preenchido por profissionaisAtuais()/loadProfissionais() na primeira leitura
+let OPERADOR = localStorage.getItem("operador_v1") || "";
+let ALERTS_OPEN = true;
+let FILTERS = { texto:"", tipo:"todos", status:"todos", prioridade:"todos", planejador:"todos", setor:"todos",
+  atrasados:false, parcial:false, pendentePlacas:false };
+
+function uuid(){ return "c-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8); }
+function esc(str){
+  return String(str??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function nowTime(){ return new Date().toTimeString().slice(0,5); }
+function fmtDate(iso){ if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; }
+function fmtDateTime(iso){ if(!iso) return "—"; const d=new Date(iso); return d.toLocaleString("pt-BR"); }
+function findCaso(id){ return CASOS.find(c=>c.id===id); }
+// Tipo de produção: "alinhadores" (padrão/compatível com casos antigos),
+// "contencao" ou "modeloEstudo" — os dois últimos usam o fluxo simplificado
+// por itens (ver "PRODUÇÃO POR ITENS"), sem planejamento/lotes/aprovação.
+function ehTipoItens(caso){ return caso.tipoProducao==="contencao" || caso.tipoProducao==="modeloEstudo"; }
+function ehTipoAlinhadores(caso){ return !ehTipoItens(caso); }
+function getFlow(caso){
+  if (ehTipoItens(caso)) return FLOW_ITENS;
+  return caso.tipoCaso==="externo" ? FLOW_EXTERNO : FLOW_INTERNO;
+}
+function currentIndex(caso){ return getFlow(caso).indexOf(caso.statusAtual); }
+function toast(msg){
+  const el = document.createElement("div");
+  el.className="toast"; el.textContent=msg;
+  document.getElementById("toast-wrap").appendChild(el);
+  setTimeout(()=>el.remove(), 3800);
+}
+
+/* =========================================================================
+   PLANEJAMENTO DE PLACAS (definido na etapa de planejamento, não no cadastro)
+   ========================================================================= */
+function pQtdSup(c){ return c.planejamento?.qtdSuperior ?? 0; }
+function pQtdInf(c){ return c.planejamento?.qtdInferior ?? 0; }
+function pPlaca0Sup(c){ return !!c.planejamento?.placa0Superior; }
+function pPlaca0Inf(c){ return !!c.planejamento?.placa0Inferior; }
+function totalRealSup(c){ return pQtdSup(c) + (pPlaca0Sup(c)?1:0); }
+function totalRealInf(c){ return pQtdInf(c) + (pPlaca0Inf(c)?1:0); }
+function totalRealPlacas(c){ return totalRealSup(c) + totalRealInf(c); }
+function planejamentoValido(c){
+  const p = c.planejamento;
+  return !!p && typeof p.qtdSuperior==="number" && typeof p.qtdInferior==="number"
+    && typeof p.placa0Superior==="boolean" && typeof p.placa0Inferior==="boolean"
+    && (p.qtdSuperior + p.qtdInferior) > 0;
+}
+// Sequência de modelos realmente necessários, incluindo a placa 0 quando existir.
+function reqSeqSup(c){
+  if (!planejamentoValido(c)) return [];
+  const start = pPlaca0Sup(c) ? 0 : 1;
+  const end = pQtdSup(c);
+  const arr=[]; for(let i=start;i<=end;i++) arr.push(i); return arr;
+}
+function reqSeqInf(c){
+  if (!planejamentoValido(c)) return [];
+  const start = pPlaca0Inf(c) ? 0 : 1;
+  const end = pQtdInf(c);
+  const arr=[]; for(let i=start;i<=end;i++) arr.push(i); return arr;
+}
+function seqStartSup(c){ return pPlaca0Sup(c) ? 0 : 1; }
+function seqStartInf(c){ return pPlaca0Inf(c) ? 0 : 1; }
+
+/* =========================================================================
+   IMPRESSÃO — lotes impressos, reimpressões pendentes, validação
+   ========================================================================= */
+function rangeArr(de, ate){
+  de = parseInt(de); ate = parseInt(ate);
+  if (isNaN(de) || isNaN(ate) || ate<de) return [];
+  const arr=[]; for(let i=de;i<=ate;i++) arr.push(i); return arr;
+}
+function fmtRanges(arr, emptyLabel){
+  emptyLabel = emptyLabel===undefined ? "—" : emptyLabel;
+  if (!arr || !arr.length) return emptyLabel;
+  const s = [...new Set(arr)].sort((a,b)=>a-b);
+  const parts=[]; let start=s[0], prev=s[0];
+  for (let i=1;i<=s.length;i++){
+    if (i<s.length && s[i]===prev+1){ prev=s[i]; continue; }
+    parts.push(start===prev ? `${start}` : `${start} a ${prev}`);
+    if (i<s.length){ start=s[i]; prev=s[i]; }
+  }
+  return parts.join(", ");
+}
+// Placas individuais (não faixas): reimpressão necessária desmarca a placa da
+// lista de "impressas corretamente" e só volta a contar quando o operador
+// registrar explicitamente "Reimpressão concluída" para aquela placa específica.
+function collectChecked(idPrefix, numbers){
+  return numbers.filter(n=>{ const el=document.getElementById(`${idPrefix}-${n}`); return el && el.checked; });
+}
+function checkboxGridHTML(idPrefix, numbers, checkedSet){
+  if (!numbers.length) return `<p style="font-size:12px;color:var(--text-light);">Nenhuma placa nesta arcada.</p>`;
+  return `<div style="display:flex;flex-wrap:wrap;gap:6px;">${numbers.map(n=>`
+    <label style="display:flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12.5px;font-weight:600;text-transform:none;">
+      <input type="checkbox" id="${idPrefix}-${n}" value="${n}" ${checkedSet&&checkedSet.has(n)?"checked":""}> ${n}
+    </label>`).join("")}</div>`;
+}
+// Seletor de 3 opções por placa (OK / Reimprimir / Foi impresso novamente)
+// usado na conferência da impressão do lote — pré-seleciona a opção conforme
+// o estado atual da placa. "Foi impresso novamente" é um estado intermediário
+// (laranja): a placa já foi reimpressa, mas ainda precisa ser reconferida e
+// marcada OK antes de contar como liberada.
+function conferenciaGridHTML(idPrefix, numbers, reimprimirSet, reimpressoSet){
+  if (!numbers.length) return `<p style="font-size:12px;color:var(--text-light);">Nenhuma placa nesta arcada.</p>`;
+  return numbers.map(n=>{
+    const name = `${idPrefix}-${n}`;
+    const atual = reimprimirSet.has(n) ? "reimprimir" : (reimpressoSet.has(n) ? "reimpresso" : "ok");
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);border-radius:8px;padding:6px 10px;margin-bottom:5px;">
+      <b style="font-size:13px;">${n}</b>
+      <div class="radio-group">
+        <label><input type="radio" name="${name}" value="ok" ${atual==="ok"?"checked":""}> ✅ OK</label>
+        <label><input type="radio" name="${name}" value="reimprimir" ${atual==="reimprimir"?"checked":""}> 🔁 Reimprimir</label>
+        <label><input type="radio" name="${name}" value="reimpresso" ${atual==="reimpresso"?"checked":""}> 🟠 Foi impresso novamente</label>
+      </div>
+    </div>`;
+  }).join("");
+}
+function readConferenciaValue(idPrefix, n){
+  const el = document.querySelector(`input[name="${idPrefix}-${n}"]:checked`);
+  return el ? el.value : "ok";
+}
+// Visualização somente-leitura do andamento da impressão, placa por placa.
+function plateStatusGridHTML(numbers, impressosSet, pendReimpSet){
+  if (!numbers.length) return `<p style="font-size:12px;color:var(--text-light);">Nenhuma placa nesta arcada.</p>`;
+  return `<div style="display:flex;flex-wrap:wrap;gap:5px;">${numbers.map(n=>{
+    const isPend = pendReimpSet.has(n);
+    const isDone = impressosSet.has(n) && !isPend;
+    const cls = isPend ? "reimp" : (isDone ? "done" : "");
+    const title = isPend ? "Reimpressão pendente" : (isDone ? "Impresso corretamente" : "Ainda não impresso");
+    return `<span class="plate-chip ${cls}" title="${title}">${n}</span>`;
+  }).join("")}</div>`;
+}
+/* =========================================================================
+   LOTES DE PRODUÇÃO
+   Cada lote é uma unidade fixa de placas (definida na criação) que percorre
+   sozinha o funil: impressão → reimpressão (se precisar) → plastificação →
+   corte → acabamento → conferência → envio → recebimento. O caso pode ter
+   vários lotes simultâneos em estágios diferentes. Placas ainda não
+   incluídas em nenhum lote ficam disponíveis para formar um novo lote.
+   ========================================================================= */
+const FINALIZACAO_ITENS = [
+  ["plastificacao","Plastificação"], ["corte","Corte"], ["acabamento","Acabamento"], ["conferencia","Conferência final"]
+];
+const LOTE_ETAPA_LABEL = {
+  impressao: "Aguardando conferência da impressão",
+  finalizacao: "Finalização (plastificação/corte/acabamento/conferência)",
+  envio: "Pronto para envio",
+  recebimento: "Enviado — aguardando recebimento",
+  concluido: "Recebido"
+};
+
+// Placas já alocadas a QUALQUER lote do caso (independente do estágio dele).
+function placasAlocadas(caso){
+  const sup = new Set(), inf = new Set();
+  (caso.lotes||[]).forEach(l=>{ l.superiores.forEach(n=>sup.add(n)); l.inferiores.forEach(n=>inf.add(n)); });
+  return {sup, inf};
+}
+// Placas do planejamento que ainda não entraram em nenhum lote — disponíveis
+// para formar um lote novo.
+function placasPendentesNovoLote(caso){
+  const alloc = placasAlocadas(caso);
+  const reqSup = reqSeqSup(caso), reqInf = reqSeqInf(caso);
+  return {
+    sup: reqSup.filter(n=>!alloc.sup.has(n)),
+    inf: reqInf.filter(n=>!alloc.inf.has(n))
+  };
+}
+// Estado de conferência de impressão de UM lote específico (escopado às
+// placas dele). Cada placa tem 3 estados possíveis, definidos só por eventos
+// explícitos registrados na "Conferência da impressão do lote" — o evento
+// "impresso" da criação do lote não conta como conferência, só como registro
+// histórico de que a placa entrou impressa no lote:
+//   "ok"        — conferida e liberada para confecção (verde).
+//   "reimprimir"— conferida e reprovada, precisa ser reimpressa (vermelho).
+//   "reimpresso"— já foi reimpressa, mas ainda não foi reconferida (laranja).
+// Placas sem nenhum desses eventos ainda ("não conferidas") bloqueiam a
+// confecção da mesma forma que "reimprimir"/"reimpresso", mesmo aparecendo
+// visualmente em verde (ver placaStatus) — a conferência é obrigatória.
+function computeLoteImpressaoState(lote){
+  const events = (lote.eventosImpressao||[]).slice().sort((a,b)=> new Date(a.criadoEm||0) - new Date(b.criadoEm||0));
+  const statusSup = new Map(), statusInf = new Map();
+  events.forEach(e=>{
+    let val;
+    if (e.tipo==="ok") val = "ok";
+    else if (e.tipo==="reimprimir") val = "reimprimir";
+    else if (e.tipo==="reimpresso") val = "reimpresso";
+    else return; // "impresso" (criação do lote) não define status de conferência
+    (e.superiores||[]).forEach(n=> statusSup.set(n, val));
+    (e.inferiores||[]).forEach(n=> statusInf.set(n, val));
+  });
+  const classificar = (numbers, statusMap)=>{
+    const ok = new Set(), reimprimir = new Set(), reimpresso = new Set(), naoConferido = new Set();
+    numbers.forEach(n=>{
+      const v = statusMap.get(n);
+      if (v==="ok") ok.add(n);
+      else if (v==="reimprimir") reimprimir.add(n);
+      else if (v==="reimpresso") reimpresso.add(n);
+      else naoConferido.add(n);
+    });
+    return { ok, reimprimir, reimpresso, naoConferido };
+  };
+  const sup = classificar(lote.superiores, statusSup);
+  const inf = classificar(lote.inferiores, statusInf);
+  const completo = sup.reimprimir.size===0 && sup.reimpresso.size===0 && sup.naoConferido.size===0
+    && inf.reimprimir.size===0 && inf.reimpresso.size===0 && inf.naoConferido.size===0;
+  return {
+    okSup: sup.ok, okInf: inf.ok,
+    reimprimirSup: sup.reimprimir, reimprimirInf: inf.reimprimir,
+    reimpressoSup: sup.reimpresso, reimpressoInf: inf.reimpresso,
+    naoConferidoSup: sup.naoConferido, naoConferidoInf: inf.naoConferido,
+    completo
+  };
+}
+function loteFinalizacaoOk(lote){ return FINALIZACAO_ITENS.every(([k])=>lote[k]?.concluida); }
+// Estágio atual do lote — derivado, nunca guardado como campo separado.
+function loteEtapaAtual(lote){
+  if (!computeLoteImpressaoState(lote).completo) return "impressao";
+  if (!loteFinalizacaoOk(lote)) return "finalizacao";
+  if (!lote.envio?.enviado) return "envio";
+  if (!lote.recebimento?.recebido) return "recebimento";
+  return "concluido";
+}
+function algumaReimpressaoPendenteCaso(caso){
+  if (ehTipoItens(caso)) return algumaReimpressaoPendenteItens(caso);
+  return (caso.lotes||[]).some(l=>{ const st=computeLoteImpressaoState(l); return st.reimprimirSup.size>0 || st.reimprimirInf.size>0; });
+}
+// Placa 0 é considerada pendente até estar conferida e marcada OK dentro do
+// lote que a contém (ou até ser alocada a algum lote, se ainda não estiver).
+function placa0Pendente(caso, arco){
+  const existe = arco==="sup" ? pPlaca0Sup(caso) : pPlaca0Inf(caso);
+  if (!existe) return false;
+  const lote = (caso.lotes||[]).find(l => (arco==="sup"?l.superiores:l.inferiores).includes(0));
+  if (!lote) return true;
+  const st = computeLoteImpressaoState(lote);
+  const ok = arco==="sup" ? st.okSup : st.okInf;
+  return !ok.has(0);
+}
+// Gate final do caso: nenhuma placa fora de um lote, e todo lote concluído
+// (impresso, finalizado, enviado e recebido).
+function completoTotal(caso){
+  if (ehTipoItens(caso)) return completoTotalItens(caso);
+  const pend = placasPendentesNovoLote(caso);
+  if (pend.sup.length || pend.inf.length) return false;
+  const lotes = caso.lotes || [];
+  if (!lotes.length) return false;
+  return lotes.every(l => loteEtapaAtual(l)==="concluido");
+}
+
+/* =========================================================================
+   PRODUÇÃO POR ITENS — usada por Contenção e Modelo de estudo. Mais simples
+   que o modelo de lotes dos alinhadores: não existe agrupamento em lotes,
+   cada item (ex. "Superior — via 1") é rastreado individualmente por eventos
+   (mesmo padrão de impressão/reimpressão dos alinhadores). Contenção passa
+   por confecção (plastificação/corte/acabamento/conferência); Modelo de
+   estudo pula direto de impresso para entrega — não tem etapa de confecção.
+   ========================================================================= */
+function itensDoCaso(caso){ return caso.itensProducao || []; }
+// Gera os itens a partir das quantidades informadas no cadastro (ex.: sup=2,
+// inf=1 => "Superior — via 1", "Superior — via 2", "Inferior — via 1").
+function buildItensProducao(labelSup, labelInf, temSup, qtdSup, temInf, qtdInf){
+  const itens = [];
+  if (temSup) for (let i=1;i<=qtdSup;i++) itens.push({ id: uuid(), label: `${labelSup} — via ${i}` });
+  if (temInf) for (let i=1;i<=qtdInf;i++) itens.push({ id: uuid(), label: `${labelInf} — via ${i}` });
+  return itens;
+}
+// Estado de impressão de TODOS os itens do caso (não há lotes para separar).
+function computeItensImpressaoState(caso){
+  const events = (caso.eventosImpressaoItens||[]).slice().sort((a,b)=> new Date(a.criadoEm||0) - new Date(b.criadoEm||0));
+  const impressos = new Set(), pendReimp = new Set();
+  events.forEach(e=>{
+    if (e.tipo==="impresso") (e.itens||[]).forEach(id=>{ if(!pendReimp.has(id)) impressos.add(id); });
+    else if (e.tipo==="reimp_pendente") (e.itens||[]).forEach(id=>{ pendReimp.add(id); impressos.delete(id); });
+    else if (e.tipo==="reimp_concluida") (e.itens||[]).forEach(id=>{ pendReimp.delete(id); impressos.add(id); });
+  });
+  return { impressos, pendReimp };
+}
+function itemConfeccaoOk(caso, itemId){
+  const conf = caso.confeccaoPorItem?.[itemId];
+  return !!conf && FINALIZACAO_ITENS.every(([k])=>conf[k]?.concluida);
+}
+function itemEntregue(caso, itemId){ return (caso.eventosEntregaItens||[]).some(e=>(e.itens||[]).includes(itemId)); }
+function itemRecebido(caso, itemId){ return (caso.eventosRecebimentoItens||[]).some(e=>(e.itens||[]).includes(itemId)); }
+// Estágio/cor de UM item — mesma paleta de cores dos alinhadores; a cor azul
+// (confeccionado) só existe para contenção, já que modelo de estudo não tem
+// etapa de confecção.
+function itemStatus(caso, itemId){
+  if (itemRecebido(caso, itemId)) return "cinza";
+  if (itemEntregue(caso, itemId)) return "amarelo";
+  if (caso.tipoProducao==="contencao" && itemConfeccaoOk(caso, itemId)) return "azul";
+  const st = computeItensImpressaoState(caso);
+  if (st.pendReimp.has(itemId)) return "vermelho";
+  if (st.impressos.has(itemId)) return "verde";
+  return "branco";
+}
+function algumaReimpressaoPendenteItens(caso){ return computeItensImpressaoState(caso).pendReimp.size > 0; }
+// Gate final: todo item cadastrado precisa estar recebido pela ASB.
+function completoTotalItens(caso){
+  const itens = itensDoCaso(caso);
+  if (!itens.length) return false;
+  return itens.every(it => itemStatus(caso, it.id)==="cinza");
+}
+function algumItemRecebido(caso){ return itensDoCaso(caso).some(it => itemStatus(caso, it.id)==="cinza"); }
+// Usado no card/ficha para o aviso de "continuação do caso" — funciona tanto
+// para lotes (alinhadores) quanto para itens (contenção/modelo de estudo).
+function algumaProducaoConcluidaParcial(caso){
+  return ehTipoItens(caso) ? algumItemRecebido(caso) : (caso.lotes||[]).some(l=>loteEtapaAtual(l)==="concluido");
+}
+
+/* =========================================================================
+   STATUS GERAL DAS PLACAS — visão fixa, por placa individual, do andamento
+   completo do caso (branco/verde/vermelho/azul/cinza), independente de qual
+   lote cada placa pertence. Serve para "bater o olho" no card e na ficha.
+   ========================================================================= */
+// Retorna: "branco" (pendente/não alocada), "verde" (OK — inclui placas
+// ainda não conferidas, que aparentam corretas até a conferência dizer o
+// contrário), "vermelho" (precisa reimprimir), "laranja" (foi reimpressa mas
+// ainda aguarda nova conferência), "azul" (confeccionada, aguardando entrega
+// à clínica), "amarelo" (entregue à clínica, aguardando recebimento pela
+// ASB), "cinza" (recebida).
+function placaStatus(caso, arco, n){
+  const lote = (caso.lotes||[]).find(l => (arco==="sup"?l.superiores:l.inferiores).includes(n));
+  if (!lote) return "branco";
+  const etapa = loteEtapaAtual(lote);
+  if (etapa==="concluido") return "cinza";
+  if (etapa==="recebimento") return "amarelo";
+  if (etapa==="envio") return "azul";
+  const st = computeLoteImpressaoState(lote);
+  const reimprimir = arco==="sup" ? st.reimprimirSup : st.reimprimirInf;
+  if (reimprimir.has(n)) return "vermelho";
+  const reimpresso = arco==="sup" ? st.reimpressoSup : st.reimpressoInf;
+  if (reimpresso.has(n)) return "laranja";
+  return "verde";
+}
+const PLACA_STATUS_CLASS = { branco:"", verde:"done", vermelho:"reimp", laranja:"reimpresso", azul:"confeccionado", amarelo:"entregue", cinza:"recebido" };
+const PLACA_STATUS_LABEL = {
+  branco:"Pendente / não alocada a nenhum lote", verde:"OK — impressa e liberada para confecção",
+  vermelho:"Precisa reimprimir", laranja:"Foi impressa novamente — aguardando nova conferência",
+  azul:"Confeccionada — aguardando entrega à clínica",
+  amarelo:"Entregue à clínica — aguardando recebimento pela ASB",
+  cinza:"Recebida pela ASB / cliente externo"
+};
+function statusGeralPlacasHTML(caso){
+  if (!planejamentoValido(caso)) return "";
+  const reqSup = reqSeqSup(caso), reqInf = reqSeqInf(caso);
+  const chip = (arco,n) => { const s = placaStatus(caso,arco,n); return `<span class="plate-chip ${PLACA_STATUS_CLASS[s]}" title="${PLACA_STATUS_LABEL[s]}">${n}</span>`; };
+  return `
+  <div style="font-size:10.5px;font-weight:700;color:var(--text-light);text-transform:uppercase;margin-top:6px;">Status geral das placas — Superior</div>
+  <div style="display:flex;flex-wrap:wrap;gap:4px;">${reqSup.map(n=>chip("sup",n)).join("")}</div>
+  <div style="font-size:10.5px;font-weight:700;color:var(--text-light);text-transform:uppercase;margin-top:6px;">Status geral das placas — Inferior</div>
+  <div style="display:flex;flex-wrap:wrap;gap:4px;">${reqInf.map(n=>chip("inf",n)).join("")}</div>
+  `;
+}
+function statusGeralLegendaHTML(){
+  return `
+  <div class="plate-legend">
+    <span><span class="plate-chip">0</span> pendente</span>
+    <span><span class="plate-chip done">0</span> impressa</span>
+    <span><span class="plate-chip reimp">0</span> precisa reimprimir</span>
+    <span><span class="plate-chip reimpresso">0</span> impressa novamente — aguardando conferência</span>
+    <span><span class="plate-chip confeccionado">0</span> confeccionada</span>
+    <span><span class="plate-chip entregue">0</span> entregue à clínica</span>
+    <span><span class="plate-chip recebido">0</span> recebida pela ASB</span>
+  </div>`;
+}
+
+/* =========================================================================
+   STATUS DOS ITENS — mesma ideia do "status geral das placas", mas para
+   Contenção e Modelo de estudo (itens nomeados em vez de placas numeradas).
+   ========================================================================= */
+function itemChip(caso, item){
+  const s = itemStatus(caso, item.id);
+  return `<span class="plate-chip ${PLACA_STATUS_CLASS[s]}" title="${esc(PLACA_STATUS_LABEL[s])}" style="min-width:0;height:auto;padding:3px 9px;">${esc(item.label)}</span>`;
+}
+function itensStatusHTML(caso){
+  const itens = itensDoCaso(caso);
+  if (!itens.length) return "";
+  return `
+  <div style="font-size:10.5px;font-weight:700;color:var(--text-light);text-transform:uppercase;margin-top:6px;">Status dos itens</div>
+  <div style="display:flex;flex-wrap:wrap;gap:5px;">${itens.map(it=>itemChip(caso,it)).join("")}</div>
+  `;
+}
+function itensLegendaHTML(caso){
+  const temConfeccao = caso.tipoProducao==="contencao";
+  return `
+  <div class="plate-legend">
+    <span><span class="plate-chip">•</span> pendente</span>
+    <span><span class="plate-chip done">•</span> impresso</span>
+    <span><span class="plate-chip reimp">•</span> reimpressão pendente</span>
+    ${temConfeccao?'<span><span class="plate-chip confeccionado">•</span> confeccionado</span>':""}
+    <span><span class="plate-chip entregue">•</span> entregue à clínica</span>
+    <span><span class="plate-chip recebido">•</span> recebido pela ASB</span>
+  </div>`;
+}
+function itemCheckboxGridHTML(idPrefix, itens){
+  if (!itens.length) return `<p style="font-size:12px;color:var(--text-light);">Nenhum item disponível.</p>`;
+  return `<div style="display:flex;flex-wrap:wrap;gap:6px;">${itens.map(it=>`
+    <label style="display:flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12.5px;font-weight:600;text-transform:none;">
+      <input type="checkbox" id="${idPrefix}-${it.id}" value="${it.id}"> ${esc(it.label)}
+    </label>`).join("")}</div>`;
+}
+function collectCheckedItens(idPrefix, itens){
+  return itens.filter(it=>{ const el=document.getElementById(`${idPrefix}-${it.id}`); return el && el.checked; }).map(it=>it.id);
+}
+function labelsDosItens(caso, ids){
+  const itens = itensDoCaso(caso);
+  return ids.map(id=>itens.find(it=>it.id===id)?.label || id).join(", ");
+}
+
+/* =========================================================================
+   CAMPOS DERIVADOS (prazos, alertas, indicador geral de pendência)
+   ========================================================================= */
+function computeDerived(caso){
+  const totalPlacas = totalRealPlacas(caso);
+  const completo = completoTotal(caso);
+  const statusFinal = caso.statusAtual === "Finalizado";
+  const atrasado = caso.dataPrevistaEntrega && caso.dataPrevistaEntrega < todayISO() && !statusFinal;
+  const parcialEntregue = algumaProducaoConcluidaParcial(caso) && !completo;
+  const semPlacasPendentes = completo;
+  let paradoDias = 0;
+  const hist = caso.historico||[];
+  if (hist.length){
+    const last = hist[hist.length-1];
+    paradoDias = Math.floor((new Date(todayISO()) - new Date(last.data)) / 86400000);
+  }
+  return { totalPlacas, atrasado, parcialEntregue, semPlacasPendentes, paradoDias };
+}
+
+/* =========================================================================
+   HISTÓRICO / MUDANÇA DE STATUS
+   ========================================================================= */
+function logHistorico(caso, etapaAnterior, etapaNova, observacao){
+  const now = new Date();
+  caso.historico = caso.historico || [];
+  caso.historico.push({
+    responsavel: OPERADOR || "(não informado)",
+    data: now.toISOString().slice(0,10),
+    hora: now.toTimeString().slice(0,5),
+    etapaAnterior: etapaAnterior||"", etapaNova: etapaNova||"", observacao: observacao||""
+  });
+}
+function changeStatus(caso, novoStatus, observacao){
+  const anterior = caso.statusAtual;
+  caso.statusAtual = novoStatus;
+  caso.responsavelEtapaAtual = OPERADOR || caso.responsavelEtapaAtual || "";
+  caso.setorResponsavelEtapaAtual = COL_TO_SETOR[STATUS_TO_COL[novoStatus]] || caso.setorResponsavelEtapaAtual || "";
+  logHistorico(caso, anterior, novoStatus, observacao);
+  caso.atualizadoEm = new Date().toISOString();
+}
+async function persist(caso){
+  await STORAGE.upsert(caso);
+  await loadCasos();
+}
+
+/* =========================================================================
+   REGRAS DE ALERTA
+   ========================================================================= */
+const ALERT_RULES = [
+  {sev:"alta", test:(c,d)=>d.atrasado, msg:c=>`Caso atrasado (prazo ${fmtDate(c.dataPrevistaEntrega)})`},
+  {sev:"media", test:(c,d)=>c.prioridade==="urgente", msg:()=>`Caso marcado como urgente`},
+  {sev:"alta", test:(c)=>planejamentoValido(c) && placa0Pendente(c,"sup"), msg:()=>`Placa 0 superior pendente`},
+  {sev:"alta", test:(c)=>planejamentoValido(c) && placa0Pendente(c,"inf"), msg:()=>`Placa 0 inferior pendente`},
+  {sev:"alta", test:(c)=>ehTipoAlinhadores(c) && algumaReimpressaoPendenteCaso(c),
+    msg:(c)=>`Reimpressão pendente: ${(c.lotes||[]).filter(l=>{const st=computeLoteImpressaoState(l); return st.reimprimirSup.size||st.reimprimirInf.size;}).map(l=>"Lote "+l.numero).join(", ")}`},
+  {sev:"media", test:(c)=>{ const p=placasPendentesNovoLote(c); return ehTipoAlinhadores(c) && planejamentoValido(c) && (c.lotes||[]).length>0 && (p.sup.length||p.inf.length); },
+    msg:(c)=>{ const p=placasPendentesNovoLote(c); return `Placas pendentes para novo lote: superior ${fmtRanges(p.sup,"nenhuma")} / inferior ${fmtRanges(p.inf,"nenhuma")}`; }},
+  {sev:"media", test:(c)=>ehTipoAlinhadores(c) && (c.lotes||[]).some(l=>loteEtapaAtual(l)==="envio"),
+    msg:(c)=>`Lote(s) pronto(s) para envio: ${(c.lotes||[]).filter(l=>loteEtapaAtual(l)==="envio").map(l=>l.numero).join(", ")}`},
+  {sev:"media", test:(c)=>ehTipoAlinhadores(c) && (c.lotes||[]).some(l=>loteEtapaAtual(l)==="recebimento"),
+    msg:(c)=>`Lote(s) enviado(s) aguardando recebimento: ${(c.lotes||[]).filter(l=>loteEtapaAtual(l)==="recebimento").map(l=>l.numero).join(", ")}`},
+  {sev:"alta", test:(c)=>ehTipoItens(c) && algumaReimpressaoPendenteCaso(c),
+    msg:(c)=>`Reimpressão pendente: ${itensDoCaso(c).filter(it=>itemStatus(c,it.id)==="vermelho").map(it=>it.label).join(", ")}`},
+  {sev:"media", test:(c)=>ehTipoItens(c) && itensDoCaso(c).some(it=>itemStatus(c,it.id)==="azul"),
+    msg:(c)=>`Item(ns) pronto(s) para entrega: ${itensDoCaso(c).filter(it=>itemStatus(c,it.id)==="azul").map(it=>it.label).join(", ")}`},
+  {sev:"media", test:(c)=>ehTipoItens(c) && itensDoCaso(c).some(it=>itemStatus(c,it.id)==="amarelo"),
+    msg:(c)=>`Item(ns) entregue(s) aguardando recebimento pela ASB: ${itensDoCaso(c).filter(it=>itemStatus(c,it.id)==="amarelo").map(it=>it.label).join(", ")}`},
+  {sev:"media", test:(c,d)=>d.parcialEntregue, msg:()=>`Caso com produção já recebida, mas ainda incompleto`},
+  {sev:"media", test:(c,d)=>d.paradoDias>=CONFIG.STALL_DAYS && c.statusAtual!=="Finalizado", msg:(c,d)=>`Parado há ${d.paradoDias} dias na etapa "${c.statusAtual}"`},
+  {sev:"alta", test:(c)=>c.tipoCaso==="externo" && c.statusAtual==="Aguardando aprovação do cliente/dentista externo", msg:()=>`Aguardando aprovação do planejamento externo`},
+  {sev:"baixa", test:(c)=>getFlow(c).indexOf(c.statusAtual)===-1, msg:()=>`Etapa atual não reconhecida no fluxo — revisar cadastro`},
+  {sev:"baixa", test:(c)=>!c.responsavelEtapaAtual, msg:()=>`Sem responsável definido para a etapa atual`}
+];
+
+function computeAlerts(){
+  const list = [];
+  CASOS.forEach(c=>{
+    if (c.statusAtual==="Finalizado") return;
+    const d = computeDerived(c);
+    ALERT_RULES.forEach(rule=>{
+      if (rule.test(c,d)){
+        list.push({ id:c.id, paciente:c.paciente, sev:rule.sev, msg:rule.msg(c,d) });
+      }
+    });
+  });
+  const order = {alta:0, media:1, baixa:2};
+  list.sort((a,b)=>order[a.sev]-order[b.sev]);
+  return list;
+}
+
+/* =========================================================================
+   CARREGAR / SALVAR
+   ========================================================================= */
+async function loadCasos(){
+  try{
+    CASOS = await STORAGE.getAll();
+  }catch(err){
+    console.error(err);
+    toast("Falha ao carregar dados do backend — verificando modo local.");
+  }
+  render();
+}
+
+/* =========================================================================
+   RENDER — INDICADORES
+   ========================================================================= */
+function renderIndicators(){
+  const el = document.getElementById("indicators");
+  const total = CASOS.filter(c=>c.statusAtual!=="Finalizado").length;
+  const internos = CASOS.filter(c=>c.tipoCaso==="interno" && c.statusAtual!=="Finalizado").length;
+  const externos = CASOS.filter(c=>c.tipoCaso==="externo" && c.statusAtual!=="Finalizado").length;
+  const byCol = key=>CASOS.filter(c=>STATUS_TO_COL[c.statusAtual]===key).length;
+  const aprovacao = byCol("aprovacao");
+  const emProducao = byCol("producao");
+  let lotesImpressao=0, lotesFinalizacao=0, lotesEnvio=0, lotesRecebimento=0, lotesConcluidos=0;
+  let casosPendenciaNovoLote=0, casosReimpressaoPendente=0, finalizados=0;
+  let placasSup=0, placasInf=0, placasRecebidasTot=0, placasPendentesTot=0;
+  let urgentes=0, atrasados=0;
+  CASOS.forEach(c=>{
+    const d = computeDerived(c);
+    (c.lotes||[]).forEach(l=>{
+      const e = loteEtapaAtual(l);
+      if (e==="impressao") lotesImpressao++;
+      else if (e==="finalizacao") lotesFinalizacao++;
+      else if (e==="envio") lotesEnvio++;
+      else if (e==="recebimento") lotesRecebimento++;
+      else lotesConcluidos++;
+    });
+    const pend = placasPendentesNovoLote(c);
+    if (planejamentoValido(c) && (c.lotes||[]).length>0 && (pend.sup.length||pend.inf.length)) casosPendenciaNovoLote++;
+    if (algumaReimpressaoPendenteCaso(c)) casosReimpressaoPendente++;
+    if (c.statusAtual==="Finalizado") finalizados++;
+    placasSup += totalRealSup(c); placasInf += totalRealInf(c);
+    let recSup=0, recInf=0;
+    (c.lotes||[]).forEach(l=>{ if (l.recebimento?.recebido){ recSup+=l.superiores.length; recInf+=l.inferiores.length; } });
+    placasRecebidasTot += recSup+recInf;
+    placasPendentesTot += Math.max(0, totalRealPlacas(c) - (recSup+recInf));
+    if (c.prioridade==="urgente" && c.statusAtual!=="Finalizado") urgentes++;
+    if (d.atrasado) atrasados++;
+  });
+  const cards = [
+    ["Em andamento", total, ""],
+    ["Internos", internos, "teal"],
+    ["Externos", externos, "purple"],
+    ["Aguard. planejamento", CASOS.filter(c=>["Planejamento pendente","Planejamento em execução"].includes(c.statusAtual)).length, ""],
+    ["Em aprovação externa", aprovacao, "purple"],
+    ["Em produção", emProducao, ""],
+    ["Lotes em impressão", lotesImpressao, ""],
+    ["Lotes em finalização", lotesFinalizacao, ""],
+    ["Lotes p/ enviar", lotesEnvio, "teal"],
+    ["Lotes aguard. recebimento", lotesRecebimento, "orange"],
+    ["Lotes recebidos", lotesConcluidos, "green"],
+    ["Casos c/ reimpressão pendente", casosReimpressaoPendente, "red"],
+    ["Casos c/ placas p/ novo lote", casosPendenciaNovoLote, "orange"],
+    ["Finalizados", finalizados, "green"],
+    ["Placas superiores", placasSup, ""],
+    ["Placas inferiores", placasInf, ""],
+    ["Placas recebidas", placasRecebidasTot, "teal"],
+    ["Placas pendentes", placasPendentesTot, "orange"],
+    ["Urgentes", urgentes, "orange"],
+    ["Atrasados", atrasados, "red"]
+  ];
+  el.innerHTML = cards.map(([lbl,num,cls])=>`
+    <div class="ind-card ${cls?`alert-${cls}`:""}"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>
+  `).join("");
+}
+
+/* =========================================================================
+   RENDER — FILTROS
+   ========================================================================= */
+function renderFilters(){
+  const el = document.getElementById("filters");
+  const planejadores = [...new Set(CASOS.map(c=>c.dentistaPlanejador).filter(Boolean))];
+  const statusesAll = [...new Set([...FLOW_INTERNO, ...FLOW_EXTERNO, ...FLOW_ITENS])];
+  el.innerHTML = `
+    <select onchange="App.setFilter('tipo', this.value)">
+      <option value="todos" ${FILTERS.tipo==="todos"?"selected":""}>Todos os casos</option>
+      <option value="interno" ${FILTERS.tipo==="interno"?"selected":""}>Apenas internos</option>
+      <option value="externo" ${FILTERS.tipo==="externo"?"selected":""}>Apenas externos</option>
+    </select>
+    <select onchange="App.setFilter('status', this.value)">
+      <option value="todos">Todos os status</option>
+      ${statusesAll.map(s=>`<option value="${s}" ${FILTERS.status===s?"selected":""}>${s}</option>`).join("")}
+    </select>
+    <select onchange="App.setFilter('prioridade', this.value)">
+      <option value="todos">Toda prioridade</option>
+      <option value="normal" ${FILTERS.prioridade==="normal"?"selected":""}>Normal</option>
+      <option value="urgente" ${FILTERS.prioridade==="urgente"?"selected":""}>Urgente</option>
+      <option value="atrasado" ${FILTERS.prioridade==="atrasado"?"selected":""}>Atrasado</option>
+    </select>
+    <select onchange="App.setFilter('planejador', this.value)">
+      <option value="todos">Todo planejador</option>
+      ${planejadores.map(p=>`<option value="${p}" ${FILTERS.planejador===p?"selected":""}>${p}</option>`).join("")}
+    </select>
+    <select onchange="App.setFilter('setor', this.value)">
+      <option value="todos">Todo setor</option>
+      ${SETORES.map(s=>`<option value="${s}" ${FILTERS.setor===s?"selected":""}>${s}</option>`).join("")}
+    </select>
+    <label class="chip"><input type="checkbox" ${FILTERS.atrasados?"checked":""} onchange="App.setFilter('atrasados', this.checked)"> Atrasados</label>
+    <label class="chip"><input type="checkbox" ${FILTERS.parcial?"checked":""} onchange="App.setFilter('parcial', this.checked)"> Entrega parcial</label>
+    <label class="chip"><input type="checkbox" ${FILTERS.pendentePlacas?"checked":""} onchange="App.setFilter('pendentePlacas', this.checked)"> Placas pendentes</label>
+    <div class="spacer"></div>
+    <button class="btn outline small" onclick="App.limparFiltros()">Limpar filtros</button>
+  `;
+}
+
+function casoPassaFiltro(c){
+  const d = computeDerived(c);
+  if (FILTERS.texto){
+    const t = FILTERS.texto.toLowerCase();
+    if (!(c.paciente||"").toLowerCase().includes(t) && !(c.numeroCaso||"").toLowerCase().includes(t)) return false;
+  }
+  if (FILTERS.tipo!=="todos" && c.tipoCaso!==FILTERS.tipo) return false;
+  if (FILTERS.status!=="todos" && c.statusAtual!==FILTERS.status) return false;
+  if (FILTERS.prioridade!=="todos"){
+    if (FILTERS.prioridade==="atrasado" && !d.atrasado) return false;
+    if (FILTERS.prioridade!=="atrasado" && c.prioridade!==FILTERS.prioridade) return false;
+  }
+  if (FILTERS.planejador!=="todos" && c.dentistaPlanejador!==FILTERS.planejador) return false;
+  if (FILTERS.setor!=="todos" && c.setorResponsavelEtapaAtual!==FILTERS.setor) return false;
+  if (FILTERS.atrasados && !d.atrasado) return false;
+  if (FILTERS.parcial && !d.parcialEntregue) return false;
+  if (FILTERS.pendentePlacas && d.semPlacasPendentes) return false;
+  return true;
+}
+
+/* =========================================================================
+   RENDER — ALERTAS
+   ========================================================================= */
+function renderAlerts(){
+  const list = computeAlerts();
+  document.getElementById("alerts-count").textContent = list.length;
+  const box = document.getElementById("alerts-list");
+  box.classList.toggle("hidden", !ALERTS_OPEN);
+  if (!list.length){ box.innerHTML = `<div class="alert-empty">Nenhum alerta no momento. ✅</div>`; return; }
+  box.innerHTML = list.slice(0,60).map(a=>`
+    <div class="alert-row ${a.sev==='media'?'sev-warn':a.sev==='baixa'?'sev-info':''}" onclick="App.abrirFicha('${a.id}')">
+      <span><b>${esc(a.paciente)}</b> — ${esc(a.msg)}</span>
+    </div>
+  `).join("");
+}
+function toggleAlerts(){ ALERTS_OPEN = !ALERTS_OPEN; renderAlerts(); }
+
+/* =========================================================================
+   RENDER — KANBAN / CARD
+   ========================================================================= */
+// Cor geral do card: branco/neutro (ativo com pendência normal), amarelo
+// (algum lote já recebido mas o caso ainda não está 100% completo), vermelho
+// (atrasado ou reimpressão pendente), verde (100% finalizado/recebido).
+function cardColorClass(c, d){
+  if (c.statusAtual === "Finalizado") return "status-green";
+  if (d.atrasado || algumaReimpressaoPendenteCaso(c)) return "status-red";
+  if (d.parcialEntregue) return "status-yellow";
+  return "";
+}
+function loteResumoLinhaHTML(lote){
+  const etapa = loteEtapaAtual(lote);
+  return `<div class="progress-line">Lote ${lote.numero}: <b>${LOTE_ETAPA_LABEL[etapa]}</b> — sup. ${fmtRanges(lote.superiores,"—")} / inf. ${fmtRanges(lote.inferiores,"—")}</div>`;
+}
+const TIPO_PRODUCAO_LABEL = { alinhadores:"", contencao:"Contenção", modeloEstudo:"Modelo de estudo" };
+
+function cardHTML(c){
+  const d = computeDerived(c);
+  const colorClass = cardColorClass(c, d);
+  const prioClass = colorClass ? "" : (c.prioridade==="urgente" ? "prio-urgente" : "");
+  const blocked = BLOCK_GENERIC_ADVANCE[c.tipoCaso]?.has(c.statusAtual);
+  const idx = currentIndex(c);
+  const canAdvance = !blocked && c.statusAtual!=="Finalizado";
+  const canBack = idx>0 && c.statusAtual!=="Finalizado";
+  const isItens = ehTipoItens(c);
+  const tipoProducaoLabel = TIPO_PRODUCAO_LABEL[c.tipoProducao] || "";
+
+  const platesBlock = isItens ? "" : (planejamentoValido(c) ? `
+    <div class="plates-row">
+      <div class="plate-box"><div class="n">${pQtdSup(c)}</div><div class="l">Sup. (placa0 ${pPlaca0Sup(c)?"sim":"não"})</div></div>
+      <div class="plate-box"><div class="n">${pQtdInf(c)}</div><div class="l">Inf. (placa0 ${pPlaca0Inf(c)?"sim":"não"})</div></div>
+      <div class="plate-box"><div class="n">${totalRealPlacas(c)}</div><div class="l">Total real</div></div>
+    </div>
+  ` : `<div class="progress-line" style="color:var(--red);font-weight:700;">⚠ Planejamento de placas ainda não definido</div>`);
+
+  const attachBlock = (!isItens && (c.attachSuperior || c.attachInferior)) ? `
+    <div class="attach-row">
+      <span class="${c.attachSuperior?'on':''}">Attach. Sup: ${c.attachSuperior?"Sim":"Não"}</span>
+      <span class="${c.attachInferior?'on':''}">Attach. Inf: ${c.attachInferior?"Sim":"Não"}</span>
+    </div>` : "";
+
+  const producaoStatusBlock = isItens ? itensStatusHTML(c) : statusGeralPlacasHTML(c);
+
+  const lotes = c.lotes||[];
+  const lotesAtivos = lotes.filter(l=>loteEtapaAtual(l)!=="concluido");
+  const pendNovoLote = planejamentoValido(c) ? placasPendentesNovoLote(c) : {sup:[],inf:[]};
+  const lotesBlock = isItens ? "" : ((lotes.length || pendNovoLote.sup.length || pendNovoLote.inf.length) ? `
+    <div style="font-size:10.5px;font-weight:700;color:var(--text-light);text-transform:uppercase;margin-top:6px;">Lotes de produção</div>
+    ${lotesAtivos.map(loteResumoLinhaHTML).join("")}
+    ${(pendNovoLote.sup.length||pendNovoLote.inf.length) ? `<div class="progress-line">Pendente p/ novo lote: sup. ${fmtRanges(pendNovoLote.sup,"nenhuma")} · inf. ${fmtRanges(pendNovoLote.inf,"nenhuma")}</div>` : ""}
+  ` : "");
+
+  const continuacaoBlock = (algumaProducaoConcluidaParcial(c) && !completoTotal(c)) ? `
+    <div class="warn-box" style="margin-top:6px;padding:5px 8px;font-size:10.5px;">🔄 <b>Continuação do caso</b> — já há ${isItens?"item(ns)":"lote(s)"} recebido(s), mas ainda falta produção.</div>
+  ` : "";
+
+  return `
+  <div class="case-card ${prioClass} ${colorClass}">
+    <div class="card-top">
+      <div>
+        <span class="badge ${c.tipoCaso}">${c.tipoCaso}</span>
+        ${tipoProducaoLabel?`<span class="badge" style="background:var(--gold-light);color:var(--gold-dark);">${tipoProducaoLabel}</span>`:""}
+        ${c.prioridade==="urgente"?'<span class="badge urgente">urgente</span>':""}
+        ${d.atrasado?'<span class="badge atrasado">atrasado</span>':""}
+        ${d.parcialEntregue?'<span class="badge parcial">parcial</span>':""}
+        ${c.refinamento?.isRefinamento?`<span class="badge refinamento">Refinamento nº ${esc(c.refinamento.numero??"?")}</span>`:""}
+        <div class="card-patient">${esc(c.paciente) || "(sem nome)"}</div>
+      </div>
+      <div class="deadline">📅 ${fmtDate(c.dataPrevistaEntrega)}</div>
+    </div>
+    <div class="card-status">#${esc(c.numeroCaso)||"—"}${isItens?"":` · Planejador: ${esc(c.dentistaPlanejador)||"—"}`}<br>Status: <b>${c.statusAtual}</b></div>
+    ${platesBlock}
+    ${attachBlock}
+    ${producaoStatusBlock}
+    ${lotesBlock}
+    ${continuacaoBlock}
+    <div class="card-flags">
+      ${algumaReimpressaoPendenteCaso(c)?'<span class="flag crit">Reimpressão pendente</span>':""}
+      ${!isItens && planejamentoValido(c) && placa0Pendente(c,"sup")?'<span class="flag crit">Placa 0 superior pendente</span>':""}
+      ${!isItens && planejamentoValido(c) && placa0Pendente(c,"inf")?'<span class="flag crit">Placa 0 inferior pendente</span>':""}
+      ${d.parcialEntregue?`<span class="flag">${isItens?"Item(ns)":"Lote(s)"} recebido(s), caso incompleto</span>`:""}
+      ${d.paradoDias>=CONFIG.STALL_DAYS?`<span class="flag">Parado ${d.paradoDias}d</span>`:""}
+    </div>
+    <div class="card-actions">
+      <button class="btn small outline" onclick="App.abrirFicha('${c.id}')">Ver ficha</button>
+      <button class="btn small" ${canBack?"":"disabled"} onclick="App.voltar('${c.id}')" title="Voltar etapa">« Voltar</button>
+      <button class="btn small primary" ${canAdvance?"":"disabled"} onclick="App.avancar('${c.id}')" title="${canAdvance?'Avançar etapa':'Use a ficha para as ações específicas desta etapa'}">Avançar »</button>
+    </div>
+  </div>`;
+}
+
+function renderKanban(){
+  const board = document.getElementById("kanban-board");
+  const casosFiltrados = CASOS.filter(casoPassaFiltro);
+  board.innerHTML = COLS.map(col=>{
+    const casosCol = casosFiltrados.filter(c=>STATUS_TO_COL[c.statusAtual]===col.key);
+    return `
+      <div class="kanban-col">
+        <div class="kanban-col-header"><span>${col.label}</span><span class="count">${casosCol.length}</span></div>
+        <div class="kanban-col-body">
+          ${casosCol.map(cardHTML).join("") || `<div style="font-size:11.5px;color:var(--text-light);padding:8px;">Sem casos</div>`}
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function render(){
+  renderIndicators();
+  renderFilters();
+  renderAlerts();
+  renderKanban();
+}
+
+/* =========================================================================
+   AÇÕES DE FLUXO GENÉRICAS
+   ========================================================================= */
+function canAdvanceGeneric(caso){
+  const blocked = BLOCK_GENERIC_ADVANCE[caso.tipoCaso];
+  return !(blocked && blocked.has(caso.statusAtual)) && caso.statusAtual!=="Finalizado";
+}
+
+async function avancar(id){
+  const caso = findCaso(id);
+  if (!requireOperador()) return;
+  if (!canAdvanceGeneric(caso)){ toast("Esta etapa exige uma ação específica — abra a ficha do caso."); return; }
+  const flow = getFlow(caso);
+  let novo = ADVANCE_OVERRIDE[caso.statusAtual];
+  if (!novo){
+    const idx = currentIndex(caso);
+    if (idx<0 || idx>=flow.length-1) return;
+    novo = flow[idx+1];
+  }
+  if (caso.tipoCaso==="externo" && novo===STATUS_PRODUCAO && !(caso.externo && caso.externo.dataAprovacaoPlanejamento)){
+    toast("Bloqueado: planejamento externo ainda não foi aprovado.");
+    return;
+  }
+  if (novo===STATUS_PRODUCAO && !planejamentoValido(caso)){
+    toast("Bloqueado: defina a quantidade de placas do planejamento (superior/inferior e placa 0) antes de avançar para produção.");
+    return;
+  }
+  changeStatus(caso, novo, "");
+  await persist(caso);
+  toast(`Caso avançado para "${novo}"`);
+}
+
+async function voltar(id){
+  const caso = findCaso(id);
+  if (!requireOperador()) return;
+  const flow = getFlow(caso);
+  const idx = currentIndex(caso);
+  if (idx<=0) return;
+  changeStatus(caso, flow[idx-1], "Retorno manual de etapa");
+  await persist(caso);
+  toast(`Caso retornado para "${flow[idx-1]}"`);
+}
+
+function requireOperador(){
+  if (!OPERADOR){ toast("Selecione o profissional responsável antes de continuar."); return false; }
+  return true;
+}
+
+/* -- ações contextuais (aprovação externa) -- */
+async function aprovarPlanejamento(id, aprovador){
+  const caso = findCaso(id);
+  caso.externo = caso.externo || {};
+  caso.externo.responsavelAprovacao = aprovador;
+  caso.externo.dataAprovacaoPlanejamento = new Date().toISOString();
+  changeStatus(caso, "Planejamento aprovado", "Aprovado por "+aprovador);
+  await persist(caso);
+  abrirFicha(id); toast("Planejamento aprovado.");
+}
+async function solicitarAjuste(id, obs){
+  const caso = findCaso(id);
+  changeStatus(caso, "Ajustes solicitados no planejamento", obs);
+  changeStatus(caso, "Planejamento em execução", "Retorno automático após solicitação de ajuste");
+  await persist(caso);
+  abrirFicha(id); toast("Ajuste solicitado — caso retornado ao planejamento.");
+}
+async function excluirCaso(id){
+  if (!confirm("Tem certeza que deseja excluir este caso? Esta ação não pode ser desfeita.")) return;
+  await STORAGE.remove(id);
+  await loadCasos();
+  closeModal(); toast("Caso excluído.");
+}
+
+/* =========================================================================
+   MODAL — infraestrutura
+   ========================================================================= */
+function openModal(title, bodyHtml, footHtml){
+  document.getElementById("modal-root").innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this) App.closeModal()">
+      <div class="modal-box">
+        <div class="modal-head"><h2>${title}</h2><button class="modal-close" onclick="App.closeModal()">✕</button></div>
+        <div class="modal-body">${bodyHtml}</div>
+        ${footHtml?`<div class="modal-foot">${footHtml}</div>`:""}
+      </div>
+    </div>`;
+}
+function closeModal(){ document.getElementById("modal-root").innerHTML = ""; }
+
+/* =========================================================================
+   MODAL — NOVO CASO / EDITAR (cadastro inicial enxuto)
+   ========================================================================= */
+function casoFormHTML(caso){
+  const isEdit = !!caso;
+  const tipo = caso?.tipoCaso || "interno";
+  const tipoProducao = caso?.tipoProducao || "alinhadores";
+  const isRef = caso?.refinamento?.isRefinamento;
+  const itensResumo = (caso?.itensProducao||[]).map(it=>it.label).join(", ");
+  const hideAlinh = tipoProducao==="alinhadores" ? "" : "hidden";
+  const hideRefinamento = (tipo==="interno" && tipoProducao==="alinhadores") ? "" : "hidden";
+
+  return `
+  <input type="hidden" id="f-id" value="${caso?.id||""}">
+
+  <div class="section-title">Tipo de produção</div>
+  <div class="radio-group">
+    <label><input type="radio" name="f-tipo-producao" value="alinhadores" ${tipoProducao==="alinhadores"?"checked":""} onchange="App.toggleTipoProducao('alinhadores')" ${isEdit?"disabled":""}> Alinhadores</label>
+    <label><input type="radio" name="f-tipo-producao" value="contencao" ${tipoProducao==="contencao"?"checked":""} onchange="App.toggleTipoProducao('contencao')" ${isEdit?"disabled":""}> Contenção</label>
+    <label><input type="radio" name="f-tipo-producao" value="modeloEstudo" ${tipoProducao==="modeloEstudo"?"checked":""} onchange="App.toggleTipoProducao('modeloEstudo')" ${isEdit?"disabled":""}> Modelo de estudo</label>
+  </div>
+
+  <div class="section-title">Tipo de caso</div>
+  <div class="radio-group">
+    <label><input type="radio" name="f-tipo" value="interno" ${tipo==="interno"?"checked":""} onchange="App.toggleExterno(false)" ${isEdit?"disabled":""}> Interno (demanda da própria Exclusive)</label>
+    <label><input type="radio" name="f-tipo" value="externo" ${tipo==="externo"?"checked":""} onchange="App.toggleExterno(true)" ${isEdit?"disabled":""}> Externo (outro profissional/clínica/cliente)</label>
+  </div>
+
+  <div class="section-title">Dados básicos do caso</div>
+  <div class="form-grid">
+    <div class="field"><label>Paciente</label><input id="f-paciente" value="${esc(caso?.paciente||"")}"></div>
+    <div class="field"><label>Número do caso</label><input id="f-numero" value="${esc(caso?.numeroCaso||("C-"+(CASOS.length+1).toString().padStart(4,"0")))}"></div>
+    <div class="field"><label>Dentista responsável</label><input id="f-dentista-resp" value="${esc(caso?.dentistaResponsavel||"")}"></div>
+    <div class="field campo-alinhadores ${hideAlinh}"><label>Dentista planejador</label><input id="f-dentista-plan" value="${esc(caso?.dentistaPlanejador||"")}"></div>
+    <div class="field"><label>Data de entrada</label><input type="date" id="f-data-entrada" value="${caso?.dataEntrada||todayISO()}"></div>
+    <div class="field"><label>Prazo desejado</label><input type="date" id="f-data-prevista" value="${caso?.dataPrevistaEntrega||""}"></div>
+    <div class="field"><label>Prioridade</label>
+      <select id="f-prioridade">
+        <option value="normal" ${caso?.prioridade==="normal"?"selected":""}>Normal</option>
+        <option value="urgente" ${caso?.prioridade==="urgente"?"selected":""}>Urgente</option>
+        <option value="atrasado" ${caso?.prioridade==="atrasado"?"selected":""}>Atrasado</option>
+      </select>
+    </div>
+    <div class="field full"><label>Observações clínicas</label><textarea id="f-obs-iniciais">${esc(caso?.obsClinicas||"")}</textarea></div>
+    <div class="field full campo-item ${hideAlinh==="hidden"?"":"hidden"}"><label>Observações laboratoriais</label><textarea id="f-obs-lab-item">${esc(caso?.obsLaboratoriais||"")}</textarea></div>
+  </div>
+
+  <div id="campo-contencao" class="${tipoProducao==="contencao"?"":"hidden"}" style="margin-top:14px;">
+    <fieldset>
+      <legend>Itens de contenção</legend>
+      ${isEdit ? `
+        <p style="font-size:12.5px;">Itens já criados: <b>${esc(itensResumo || "nenhum")}</b></p>
+        <p style="font-size:11.5px;color:var(--text-light);">Os itens são definidos apenas no cadastro e não podem ser alterados depois — use as ações da ficha para acompanhar a produção.</p>
+      ` : `
+      <div class="form-grid">
+        <div class="field"><label>Contenção superior?</label>
+          <select id="f-cont-sup" onchange="App.toggleQtdItem('cont-sup', this.value==='sim')">
+            <option value="nao" selected>Não</option><option value="sim">Sim</option>
+          </select>
+        </div>
+        <div class="field" id="cont-sup-qtd-wrap" style="display:none;">
+          <label>Quantidade de contenções superiores</label>
+          <input type="number" min="1" id="f-cont-sup-qtd" value="1">
+        </div>
+        <div class="field"><label>Contenção inferior?</label>
+          <select id="f-cont-inf" onchange="App.toggleQtdItem('cont-inf', this.value==='sim')">
+            <option value="nao" selected>Não</option><option value="sim">Sim</option>
+          </select>
+        </div>
+        <div class="field" id="cont-inf-qtd-wrap" style="display:none;">
+          <label>Quantidade de contenções inferiores</label>
+          <input type="number" min="1" id="f-cont-inf-qtd" value="1">
+        </div>
+      </div>
+      `}
+    </fieldset>
+  </div>
+
+  <div id="campo-modelo" class="${tipoProducao==="modeloEstudo"?"":"hidden"}" style="margin-top:14px;">
+    <fieldset>
+      <legend>Itens de modelo de estudo</legend>
+      ${isEdit ? `
+        <p style="font-size:12.5px;">Itens já criados: <b>${esc(itensResumo || "nenhum")}</b></p>
+        <p style="font-size:11.5px;color:var(--text-light);">Os itens são definidos apenas no cadastro e não podem ser alterados depois — use as ações da ficha para acompanhar a produção.</p>
+      ` : `
+      <div class="form-grid">
+        <div class="field"><label>Modelo superior?</label>
+          <select id="f-mod-sup" onchange="App.toggleQtdItem('mod-sup', this.value==='sim')">
+            <option value="nao" selected>Não</option><option value="sim">Sim</option>
+          </select>
+        </div>
+        <div class="field" id="mod-sup-qtd-wrap" style="display:none;">
+          <label>Quantidade de modelos superiores</label>
+          <input type="number" min="1" id="f-mod-sup-qtd" value="1">
+        </div>
+        <div class="field"><label>Modelo inferior?</label>
+          <select id="f-mod-inf" onchange="App.toggleQtdItem('mod-inf', this.value==='sim')">
+            <option value="nao" selected>Não</option><option value="sim">Sim</option>
+          </select>
+        </div>
+        <div class="field" id="mod-inf-qtd-wrap" style="display:none;">
+          <label>Quantidade de modelos inferiores</label>
+          <input type="number" min="1" id="f-mod-inf-qtd" value="1">
+        </div>
+      </div>
+      `}
+    </fieldset>
+  </div>
+
+  <div id="refinamento-fieldset" class="${hideRefinamento} campo-alinhadores" style="margin-top:14px;">
+    <fieldset class="refinamento">
+      <legend>Refinamento interno</legend>
+      <div class="form-grid">
+        <div class="field"><label>É refinamento interno?</label>
+          <select id="f-refinamento" onchange="App.toggleRefinamentoNumero(this.value==='sim')">
+            <option value="nao" ${!isRef?"selected":""}>Não</option>
+            <option value="sim" ${isRef?"selected":""}>Sim</option>
+          </select>
+        </div>
+        <div class="field" id="refinamento-numero-wrap" style="${isRef?"":"display:none;"}">
+          <label>Número do refinamento</label>
+          <input type="number" min="1" id="f-refinamento-numero" value="${caso?.refinamento?.numero??1}">
+        </div>
+      </div>
+    </fieldset>
+  </div>
+
+  <div id="externo-fieldset" class="${tipo==="externo"?"":"hidden"}" style="margin-top:14px;">
+    <fieldset>
+      <legend>Dados exclusivos do caso externo</legend>
+      <div class="form-grid">
+        <div class="field"><label>Nome do dentista externo</label><input id="f-ext-dentista" value="${esc(caso?.externo?.dentistaExterno||"")}"></div>
+        <div class="field"><label>Clínica externa</label><input id="f-ext-clinica" value="${esc(caso?.externo?.clinicaExterna||"")}"></div>
+        <div class="field"><label>Telefone / WhatsApp</label><input id="f-ext-telefone" value="${esc(caso?.externo?.telefone||"")}"></div>
+        <div class="field"><label>E-mail</label><input id="f-ext-email" value="${esc(caso?.externo?.email||"")}"></div>
+        <div class="field"><label>Cidade</label><input id="f-ext-cidade" value="${esc(caso?.externo?.cidade||"")}"></div>
+        <div class="field"><label>Forma de envio</label><input id="f-ext-envio" value="${esc(caso?.externo?.formaEnvio||"")}"></div>
+        <div class="field"><label>Código de rastreio</label><input id="f-ext-rastreio" value="${esc(caso?.externo?.codigoRastreio||"")}"></div>
+        <div class="field full"><label>Observações comerciais / logísticas</label><textarea id="f-ext-obs">${esc(caso?.externo?.obsComerciais||"")}</textarea></div>
+      </div>
+    </fieldset>
+  </div>
+
+  ${isEdit && tipoProducao==="alinhadores" ? `
+  <div class="section-title">Outras informações (opcional)</div>
+  <div class="form-grid">
+    <div class="field"><label>Observações laboratoriais</label><textarea id="f-obs-lab">${esc(caso?.obsLaboratoriais||"")}</textarea></div>
+    <div class="field"><label>Placa de attachment superior?</label>
+      <select id="f-attach-sup"><option value="nao" ${!caso?.attachSuperior?"selected":""}>Não</option><option value="sim" ${caso?.attachSuperior?"selected":""}>Sim</option></select>
+    </div>
+    <div class="field"><label>Placa de attachment inferior?</label>
+      <select id="f-attach-inf"><option value="nao" ${!caso?.attachInferior?"selected":""}>Não</option><option value="sim" ${caso?.attachInferior?"selected":""}>Sim</option></select>
+    </div>
+  </div>
+  <p style="font-size:11.5px;color:var(--text-light);margin-top:8px;">A quantidade de placas e a placa 0 são definidas na ação "Definir placas do planejamento", disponível na ficha do caso.</p>
+  ` : (tipoProducao==="alinhadores" ? `
+  <p style="font-size:11.5px;color:var(--text-light);margin-top:14px;">A quantidade de placas só será definida mais tarde, na etapa de planejamento.</p>
+  ` : "")}
+  `;
+}
+
+function novoCaso(){
+  openModal("Cadastrar novo caso", casoFormHTML(null), `
+    <button class="btn outline" onclick="App.closeModal()">Cancelar</button>
+    <button class="btn primary" onclick="App.salvarCaso()">Salvar caso</button>
+  `);
+}
+
+function toggleExterno(show){
+  document.getElementById("externo-fieldset").classList.toggle("hidden", !show);
+  const tipoProducaoEl = document.querySelector('input[name="f-tipo-producao"]:checked');
+  const tipoProducao = tipoProducaoEl ? tipoProducaoEl.value : "alinhadores";
+  document.getElementById("refinamento-fieldset").classList.toggle("hidden", show || tipoProducao!=="alinhadores");
+}
+function toggleRefinamentoNumero(show){
+  document.getElementById("refinamento-numero-wrap").style.display = show ? "" : "none";
+}
+// Alterna os grupos de campos do cadastro conforme o tipo de produção
+// escolhido (Alinhadores / Contenção / Modelo de estudo).
+function toggleTipoProducao(tipo){
+  document.getElementById("campo-contencao").classList.toggle("hidden", tipo!=="contencao");
+  document.getElementById("campo-modelo").classList.toggle("hidden", tipo!=="modeloEstudo");
+  document.querySelectorAll(".campo-alinhadores").forEach(el=>el.classList.toggle("hidden", tipo!=="alinhadores"));
+  document.querySelectorAll(".campo-item").forEach(el=>el.classList.toggle("hidden", tipo==="alinhadores"));
+  const tipoCasoEl = document.querySelector('input[name="f-tipo"]:checked');
+  toggleExterno(tipoCasoEl ? tipoCasoEl.value==="externo" : false);
+}
+function toggleQtdItem(key, show){
+  const wrap = document.getElementById(`${key}-qtd-wrap`);
+  if (wrap) wrap.style.display = show ? "" : "none";
+}
+
+async function salvarCaso(){
+  const id = document.getElementById("f-id").value;
+  const tipoCaso = document.querySelector('input[name="f-tipo"]:checked').value;
+  const tipoProducaoEl = document.querySelector('input[name="f-tipo-producao"]:checked');
+  const paciente = document.getElementById("f-paciente").value.trim();
+  if (!paciente){ toast("Informe o nome do paciente."); return; }
+  if (!requireOperador()) return;
+
+  let caso = id ? findCaso(id) : (()=>{
+    const tipoProducao = tipoProducaoEl ? tipoProducaoEl.value : "alinhadores";
+    return {
+      id: uuid(), tipoCaso, tipoProducao, statusAtual: getFlow({tipoCaso, tipoProducao})[0],
+      historico: [], planejamento: null,
+      lotes: [], itensProducao: [],
+      refinamento: {isRefinamento:false, numero:null},
+      criadoEm: new Date().toISOString()
+    };
+  })();
+
+  caso.paciente = paciente;
+  caso.numeroCaso = document.getElementById("f-numero").value.trim();
+  caso.dentistaResponsavel = document.getElementById("f-dentista-resp").value.trim();
+  const dentistaPlanEl = document.getElementById("f-dentista-plan");
+  if (ehTipoAlinhadores(caso) && dentistaPlanEl) caso.dentistaPlanejador = dentistaPlanEl.value.trim();
+  caso.dataEntrada = document.getElementById("f-data-entrada").value;
+  caso.dataPrevistaEntrega = document.getElementById("f-data-prevista").value;
+  caso.prioridade = document.getElementById("f-prioridade").value;
+  caso.obsClinicas = document.getElementById("f-obs-iniciais").value;
+  const obsLabItemEl = document.getElementById("f-obs-lab-item");
+  if (ehTipoItens(caso) && obsLabItemEl) caso.obsLaboratoriais = obsLabItemEl.value;
+
+  if (tipoCaso==="interno" && ehTipoAlinhadores(caso)){
+    const refSel = document.getElementById("f-refinamento");
+    if (refSel){
+      const isRef = refSel.value==="sim";
+      caso.refinamento = { isRefinamento:isRef, numero: isRef ? parseInt(document.getElementById("f-refinamento-numero").value||1) : null };
+    }
+  } else if (tipoCaso==="interno"){
+    caso.refinamento = { isRefinamento:false, numero:null };
+  }
+  if (tipoCaso==="externo"){
+    caso.refinamento = { isRefinamento:false, numero:null };
+    caso.externo = caso.externo || {};
+    caso.externo.dentistaExterno = document.getElementById("f-ext-dentista").value;
+    caso.externo.clinicaExterna = document.getElementById("f-ext-clinica").value;
+    caso.externo.telefone = document.getElementById("f-ext-telefone").value;
+    caso.externo.email = document.getElementById("f-ext-email").value;
+    caso.externo.cidade = document.getElementById("f-ext-cidade").value;
+    caso.externo.formaEnvio = document.getElementById("f-ext-envio").value;
+    caso.externo.codigoRastreio = document.getElementById("f-ext-rastreio").value;
+    caso.externo.obsComerciais = document.getElementById("f-ext-obs").value;
+  }
+
+  const obsLabEl = document.getElementById("f-obs-lab");
+  if (obsLabEl) caso.obsLaboratoriais = obsLabEl.value;
+  const attachSupEl = document.getElementById("f-attach-sup");
+  if (attachSupEl) caso.attachSuperior = attachSupEl.value==="sim";
+  const attachInfEl = document.getElementById("f-attach-inf");
+  if (attachInfEl) caso.attachInferior = attachInfEl.value==="sim";
+
+  if (!id){
+    if (caso.tipoProducao==="contencao"){
+      caso.itensProducao = buildItensProducao("Superior","Inferior",
+        document.getElementById("f-cont-sup").value==="sim", parseInt(document.getElementById("f-cont-sup-qtd")?.value)||0,
+        document.getElementById("f-cont-inf").value==="sim", parseInt(document.getElementById("f-cont-inf-qtd")?.value)||0);
+    } else if (caso.tipoProducao==="modeloEstudo"){
+      caso.itensProducao = buildItensProducao("Modelo superior","Modelo inferior",
+        document.getElementById("f-mod-sup").value==="sim", parseInt(document.getElementById("f-mod-sup-qtd")?.value)||0,
+        document.getElementById("f-mod-inf").value==="sim", parseInt(document.getElementById("f-mod-inf-qtd")?.value)||0);
+    }
+    if (ehTipoItens(caso) && !caso.itensProducao.length){
+      toast("Selecione ao menos uma arcada (superior ou inferior) para gerar os itens de produção.");
+      return;
+    }
+    caso.responsavelEtapaAtual = OPERADOR;
+    caso.setorResponsavelEtapaAtual = COL_TO_SETOR[STATUS_TO_COL[caso.statusAtual]] || "";
+    logHistorico(caso, "", caso.statusAtual, "Caso cadastrado");
+  }
+  caso.atualizadoEm = new Date().toISOString();
+  await persist(caso);
+  closeModal();
+  toast(id ? "Caso atualizado." : "Caso cadastrado.");
+}
+
+function editarCaso(id){
+  const caso = findCaso(id);
+  openModal("Editar ficha do caso", casoFormHTML(caso), `
+    <button class="btn outline" onclick="App.closeModal()">Cancelar</button>
+    <button class="btn danger" onclick="App.excluirCaso('${id}')">Excluir caso</button>
+    <button class="btn primary" onclick="App.salvarCaso()">Salvar alterações</button>
+  `);
+}
+
+/* =========================================================================
+   MODAL — DEFINIR PLACAS DO PLANEJAMENTO
+   ========================================================================= */
+function promptPlanejamento(id){
+  const caso = findCaso(id);
+  const p = caso.planejamento || {};
+  openModal("Definir placas do planejamento", `
+    <div class="form-grid">
+      <div class="field"><label>Quantidade de placas superiores (sem contar a placa 0)</label><input type="number" min="0" id="p-qtd-sup" value="${p.qtdSuperior??""}"></div>
+      <div class="field"><label>Quantidade de placas inferiores (sem contar a placa 0)</label><input type="number" min="0" id="p-qtd-inf" value="${p.qtdInferior??""}"></div>
+      <div class="field"><label>Tem placa 0 superior?</label>
+        <select id="p-placa0-sup"><option value="nao" ${p.placa0Superior===false?"selected":""}>Não</option><option value="sim" ${p.placa0Superior===true?"selected":""}>Sim</option></select>
+      </div>
+      <div class="field"><label>Tem placa 0 inferior?</label>
+        <select id="p-placa0-inf"><option value="nao" ${p.placa0Inferior===false?"selected":""}>Não</option><option value="sim" ${p.placa0Inferior===true?"selected":""}>Sim</option></select>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--text-light);margin-top:10px;">O sistema soma automaticamente a placa 0 (quando houver) ao total de modelos obrigatórios para validar a impressão.</p>
+  `, `<button class="btn outline" onclick="App.abrirFicha('${id}')">Cancelar</button>
+      <button class="btn primary" onclick="App.__submitPlanejamento('${id}')">Salvar planejamento de placas</button>`);
+}
+function __submitPlanejamento(id){
+  const qtdSup = parseInt(document.getElementById("p-qtd-sup").value);
+  const qtdInf = parseInt(document.getElementById("p-qtd-inf").value);
+  if (isNaN(qtdSup) || isNaN(qtdInf)){ toast("Informe a quantidade de placas superiores e inferiores."); return; }
+  const caso = findCaso(id);
+  caso.planejamento = {
+    qtdSuperior: qtdSup, qtdInferior: qtdInf,
+    placa0Superior: document.getElementById("p-placa0-sup").value==="sim",
+    placa0Inferior: document.getElementById("p-placa0-inf").value==="sim",
+    definidoEm: new Date().toISOString()
+  };
+  logHistorico(caso, caso.statusAtual, caso.statusAtual, "Planejamento de placas definido/atualizado");
+  persist(caso).then(()=>{ abrirFicha(id); toast("Planejamento de placas salvo."); });
+}
+
+/* =========================================================================
+   FICHA COMPLETA (visão + painéis de produção + ações + histórico)
+   ========================================================================= */
+function getActionsForCaso(caso){
+  const actions = [];
+  const s = caso.statusAtual;
+  const ext = caso.tipoCaso==="externo";
+  // "Definir/editar placas do planejamento" só aparece enquanto o caso está
+  // na coluna Planejamento — depois que avança (aprovação, produção...), as
+  // placas já podem estar alocadas em lotes e não devem ser alteradas livremente.
+  const naEtapaPlanejamento = STATUS_TO_COL[s] === "planejamento";
+
+  if (naEtapaPlanejamento){
+    actions.push({label: planejamentoValido(caso) ? "Editar placas do planejamento" : "Definir placas do planejamento", fn:()=>promptPlanejamento(caso.id)});
+  }
+  if (ext && s==="Aguardando aprovação do cliente/dentista externo"){
+    actions.push({label:"Aprovar planejamento", fn:()=>promptAprovacao(caso.id)});
+    actions.push({label:"Solicitar ajuste no planejamento", fn:()=>promptAjuste(caso.id)});
+  }
+  if (ext && s==="Planejamento aprovado"){
+    actions.push({label:"Solicitar ajuste no planejamento", fn:()=>promptAjuste(caso.id)});
+  }
+  return actions;
+}
+
+// Renderiza UM lote ativo (ainda não concluído) com seus controles de acordo
+// com o estágio em que ele está — impressão/reimpressão, finalização, envio
+// ou aguardando recebimento.
+function loteBlockHTML(caso, lote){
+  const etapa = loteEtapaAtual(lote);
+  const st = computeLoteImpressaoState(lote);
+  let corpo = "";
+  if (etapa==="impressao"){
+    const totalPlacas = lote.superiores.length + lote.inferiores.length;
+    const totalOk = st.okSup.size + st.okInf.size;
+    const conferenciaStatus = totalOk===totalPlacas ? "concluída" : (totalOk>0 ? "em andamento" : "pendente");
+    corpo = `
+      <div class="readonly-grid">
+        <div><span class="k">Conferência da impressão</span><span class="v">${conferenciaStatus}</span></div>
+        <div><span class="k">Placas OK</span><span class="v">Sup. ${fmtRanges([...st.okSup],"nenhuma")} · Inf. ${fmtRanges([...st.okInf],"nenhuma")}</span></div>
+        <div><span class="k">Placas para reimprimir</span><span class="v">Sup. ${fmtRanges([...st.reimprimirSup],"nenhuma")} · Inf. ${fmtRanges([...st.reimprimirInf],"nenhuma")}</span></div>
+        <div><span class="k">Impressas novamente, aguardando OK</span><span class="v">Sup. ${fmtRanges([...st.reimpressoSup],"nenhuma")} · Inf. ${fmtRanges([...st.reimpressoInf],"nenhuma")}</span></div>
+      </div>
+      <div class="actions-grid" style="margin-top:6px;">
+        <button class="btn small primary" onclick="App.promptConferenciaImpressaoLote('${caso.id}','${lote.id}')">Conferir impressão do lote</button>
+        <button class="btn small ready" disabled title="Bloqueado até todas as placas do lote estarem conferidas e marcadas OK">Confecção de placas</button>
+      </div>`;
+  } else if (etapa==="finalizacao"){
+    corpo = `
+      <div class="readonly-grid">
+        ${FINALIZACAO_ITENS.map(([k,label])=>`<div><span class="k">${label}</span><span class="v">${lote[k]?.concluida?"✅ concluído":"⏳ pendente"}${lote[k]?.observacao?` — ${esc(lote[k].observacao)}`:""}</span></div>`).join("")}
+      </div>
+      <div class="actions-grid" style="margin-top:6px;">
+        <button class="btn small ready" onclick="App.promptFinalizacaoLote('${caso.id}','${lote.id}')">Confecção de placas</button>
+      </div>`;
+  } else if (etapa==="envio"){
+    corpo = `<div class="actions-grid" style="margin-top:6px;">
+      <button class="btn small ready" onclick="App.promptEnvioLote('${caso.id}','${lote.id}')">Entrega do lote à clínica</button>
+    </div>`;
+  } else if (etapa==="recebimento"){
+    corpo = `<div class="warn-box">Enviado em ${fmtDate(lote.envio?.data)} por ${esc(lote.envio?.responsavel)}. Aguardando recebimento.</div>
+      <div class="actions-grid" style="margin-top:6px;">
+        <button class="btn small ready" onclick="App.promptRecebimentoLote('${caso.id}','${lote.id}')">Recebimento pela ASB</button>
+      </div>`;
+  }
+  return `
+  <div class="impressao-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <b>Lote ${lote.numero}</b>
+      <span class="badge" style="background:var(--blue-light);color:var(--blue);">${LOTE_ETAPA_LABEL[etapa]}</span>
+    </div>
+    <div class="progress-line">Superior: ${fmtRanges(lote.superiores,"nenhuma")} · Inferior: ${fmtRanges(lote.inferiores,"nenhuma")}</div>
+    ${corpo}
+  </div>`;
+}
+function historicoLotesHTML(caso){
+  const concluidos = (caso.lotes||[]).filter(l=>loteEtapaAtual(l)==="concluido");
+  if (!concluidos.length) return `<div class="alert-empty">Nenhum lote entregue ainda.</div>`;
+  return `<table class="hist"><tr><th>Lote</th><th>Superior</th><th>Inferior</th><th>Envio</th><th>Recebimento</th></tr>
+  ${concluidos.map(l=>`<tr><td>Lote ${l.numero}</td><td>${fmtRanges(l.superiores,"—")}</td><td>${fmtRanges(l.inferiores,"—")}</td>
+    <td>${fmtDate(l.envio?.data)} — ${esc(l.envio?.responsavel)||""}</td>
+    <td>${fmtDate(l.recebimento?.data)} — ${esc(l.recebimento?.responsavel)||""}</td></tr>`).join("")}
+  </table>`;
+}
+function lotesProducaoSectionHTML(caso){
+  if (!planejamentoValido(caso)) return "";
+  if (currentIndex(caso) < getFlow(caso).indexOf(STATUS_PRODUCAO)) return "";
+  const ativos = (caso.lotes||[]).filter(l=>loteEtapaAtual(l)!=="concluido");
+  const pend = placasPendentesNovoLote(caso);
+  return `
+  <div class="section-title">Lotes em produção</div>
+  ${ativos.length ? ativos.map(l=>loteBlockHTML(caso,l)).join("") : `<div class="alert-empty">Nenhum lote em produção no momento.</div>`}
+  <div class="impressao-panel">
+    <div class="readonly-grid">
+      <div><span class="k">Placas pendentes para novo lote</span><span class="v">Sup. ${fmtRanges(pend.sup,"nenhuma")} · Inf. ${fmtRanges(pend.inf,"nenhuma")}</span></div>
+    </div>
+    ${(pend.sup.length||pend.inf.length) ? `<button class="btn small primary" onclick="App.promptCriarLote('${caso.id}')">Criar novo lote</button>` : `<div class="alert-empty">Todas as placas planejadas já foram alocadas a algum lote.</div>`}
+  </div>
+
+  <div class="section-title">Histórico de lotes entregues</div>
+  ${historicoLotesHTML(caso)}
+  `;
+}
+
+/* =========================================================================
+   AÇÕES DE PRODUÇÃO POR ITENS — painel único (sem lotes) mostrando só os
+   botões relevantes ao estágio de cada item, conforme o tipo de produção.
+   ========================================================================= */
+function itensProducaoSectionHTML(caso){
+  const itens = itensDoCaso(caso);
+  if (!itens.length) return `<div class="alert-empty">Nenhum item de produção cadastrado.</div>`;
+  const st = computeItensImpressaoState(caso);
+  const naoImpressos = itens.filter(it=>!st.impressos.has(it.id) && !st.pendReimp.has(it.id));
+  const reimpPendentes = itens.filter(it=>st.pendReimp.has(it.id));
+  const elegiveisReimpNecessaria = itens.filter(it=>{ const s=itemStatus(caso,it.id); return s==="verde"||s==="azul"; });
+  const prontosConfeccao = caso.tipoProducao==="contencao" ? itens.filter(it=>itemStatus(caso,it.id)==="verde") : [];
+  const prontosEntrega = itens.filter(it=>{
+    const s = itemStatus(caso,it.id);
+    return caso.tipoProducao==="contencao" ? s==="azul" : s==="verde";
+  });
+  const prontosRecebimento = itens.filter(it=>itemStatus(caso,it.id)==="amarelo");
+
+  return `
+  <div class="impressao-panel">
+    <div class="readonly-grid">
+      <div><span class="k">Pendentes de impressão</span><span class="v">${naoImpressos.length ? naoImpressos.map(it=>esc(it.label)).join(", ") : "nenhum"}</span></div>
+      <div><span class="k">Reimpressão pendente</span><span class="v">${reimpPendentes.length ? reimpPendentes.map(it=>esc(it.label)).join(", ") : "nenhuma"}</span></div>
+    </div>
+    <div class="actions-grid" style="margin-top:6px;">
+      ${naoImpressos.length ? `<button class="btn small primary" onclick="App.promptRegistrarImpressaoItens('${caso.id}')">Registrar impressão</button>` : ""}
+      ${elegiveisReimpNecessaria.length ? `<button class="btn small danger" onclick="App.promptReimpressaoNecessariaItens('${caso.id}')">Registrar reimpressão necessária</button>` : ""}
+      ${reimpPendentes.length ? `<button class="btn small ready" onclick="App.promptReimpressaoConcluidaItens('${caso.id}')">Registrar reimpressão concluída</button>` : ""}
+    </div>
+  </div>
+  ${caso.tipoProducao==="contencao" ? `
+  <div class="impressao-panel">
+    <div class="readonly-grid">
+      <div><span class="k">Prontos para confecção</span><span class="v">${prontosConfeccao.length ? prontosConfeccao.map(it=>esc(it.label)).join(", ") : "nenhum"}</span></div>
+    </div>
+    ${prontosConfeccao.length ? `<div class="actions-grid" style="margin-top:6px;"><button class="btn small ready" onclick="App.promptConfeccaoItens('${caso.id}')">Confecção da contenção</button></div>` : ""}
+  </div>` : ""}
+  <div class="impressao-panel">
+    <div class="readonly-grid">
+      <div><span class="k">Prontos para entrega</span><span class="v">${prontosEntrega.length ? prontosEntrega.map(it=>esc(it.label)).join(", ") : "nenhum"}</span></div>
+      <div><span class="k">Entregues, aguardando ASB</span><span class="v">${prontosRecebimento.length ? prontosRecebimento.map(it=>esc(it.label)).join(", ") : "nenhum"}</span></div>
+    </div>
+    <div class="actions-grid" style="margin-top:6px;">
+      ${prontosEntrega.length ? `<button class="btn small ready" onclick="App.promptEntregaItens('${caso.id}')">Entrega à clínica</button>` : ""}
+      ${prontosRecebimento.length ? `<button class="btn small ready" onclick="App.promptRecebimentoItens('${caso.id}')">Recebimento pela ASB</button>` : ""}
+    </div>
+  </div>
+  `;
+}
+
+function fichaCompletaHTML(caso){
+  const actions = getActionsForCaso(caso);
+  return `
+    <div class="readonly-grid">
+      <div><span class="k">Paciente</span><span class="v">${esc(caso.paciente)}</span></div>
+      <div><span class="k">Nº do caso</span><span class="v">${esc(caso.numeroCaso)||"—"}</span></div>
+      <div><span class="k">Tipo</span><span class="v">${caso.tipoCaso}${caso.refinamento?.isRefinamento?` (refinamento nº ${esc(caso.refinamento.numero)})`:""}</span></div>
+      <div><span class="k">Tipo de produção</span><span class="v">${TIPO_PRODUCAO_LABEL[caso.tipoProducao]||"Alinhadores"}</span></div>
+      <div><span class="k">Status atual</span><span class="v">${caso.statusAtual}</span></div>
+      <div><span class="k">Dentista responsável</span><span class="v">${esc(caso.dentistaResponsavel)||"—"}</span></div>
+      ${ehTipoAlinhadores(caso) ? `<div><span class="k">Dentista planejador</span><span class="v">${esc(caso.dentistaPlanejador)||"—"}</span></div>` : ""}
+      <div><span class="k">Entrada no laboratório</span><span class="v">${fmtDate(caso.dataEntrada)}</span></div>
+      <div><span class="k">Previsão de entrega</span><span class="v">${fmtDate(caso.dataPrevistaEntrega)}</span></div>
+      <div><span class="k">Conclusão real</span><span class="v">${fmtDate(caso.dataConclusaoReal)}</span></div>
+      <div><span class="k">Prioridade</span><span class="v">${caso.prioridade}</span></div>
+      <div><span class="k">Setor responsável</span><span class="v">${esc(caso.setorResponsavelEtapaAtual)||"—"}</span></div>
+      <div><span class="k">Responsável pela etapa</span><span class="v">${esc(caso.responsavelEtapaAtual)||"—"}</span></div>
+    </div>
+
+    ${ehTipoAlinhadores(caso) ? `
+    <div class="section-title">Planejamento de placas</div>
+    ${planejamentoValido(caso) ? `
+    <div class="readonly-grid">
+      <div><span class="k">Superiores / Inferiores</span><span class="v">${pQtdSup(caso)} / ${pQtdInf(caso)}</span></div>
+      <div><span class="k">Placa 0 sup. / inf.</span><span class="v">${pPlaca0Sup(caso)?"Sim":"Não"} / ${pPlaca0Inf(caso)?"Sim":"Não"}</span></div>
+      <div><span class="k">Total real de modelos</span><span class="v">${totalRealSup(caso)} sup. + ${totalRealInf(caso)} inf. = ${totalRealPlacas(caso)}</span></div>
+      <div><span class="k">Attachment sup. / inf.</span><span class="v">${caso.attachSuperior?"Sim":"Não"} / ${caso.attachInferior?"Sim":"Não"}</span></div>
+    </div>
+    ` : `<div class="alert-empty">Planejamento de placas ainda não definido.</div>`}
+
+    ${planejamentoValido(caso) ? `
+    <div class="section-title">Status geral das placas</div>
+    ${statusGeralPlacasHTML(caso)}
+    ${statusGeralLegendaHTML()}
+    ` : ""}
+    ` : `
+    <div class="section-title">Itens de produção — ${caso.tipoProducao==="contencao"?"Contenção":"Modelo de estudo"}</div>
+    ${itensStatusHTML(caso)}
+    ${itensLegendaHTML(caso)}
+    `}
+
+    ${algumaProducaoConcluidaParcial(caso) && !completoTotal(caso) ? `
+    <div class="section-title">🔄 Continuação do caso</div>
+    <div class="info-box">Já existe ${ehTipoAlinhadores(caso)?"pelo menos um lote":"pelo menos um item"} <b>recebido</b> — isso não finaliza o caso. Veja abaixo
+    exatamente o que ainda falta produzir e entregar. O card só fica verde quando tudo for recebido.</div>
+    ` : ""}
+
+    ${ehTipoAlinhadores(caso) ? lotesProducaoSectionHTML(caso) : `
+    <div class="section-title">Produção dos itens</div>
+    ${itensProducaoSectionHTML(caso)}
+    `}
+
+    ${caso.tipoCaso==="externo" ? `
+    <div class="section-title">Dados do caso externo</div>
+    <div class="readonly-grid">
+      <div><span class="k">Dentista externo</span><span class="v">${esc(caso.externo?.dentistaExterno)||"—"}</span></div>
+      <div><span class="k">Clínica externa</span><span class="v">${esc(caso.externo?.clinicaExterna)||"—"}</span></div>
+      <div><span class="k">Telefone</span><span class="v">${esc(caso.externo?.telefone)||"—"}</span></div>
+      <div><span class="k">E-mail</span><span class="v">${esc(caso.externo?.email)||"—"}</span></div>
+      <div><span class="k">Cidade</span><span class="v">${esc(caso.externo?.cidade)||"—"}</span></div>
+      <div><span class="k">Aprovado por</span><span class="v">${esc(caso.externo?.responsavelAprovacao)||"—"}</span></div>
+      <div><span class="k">Data aprovação</span><span class="v">${fmtDateTime(caso.externo?.dataAprovacaoPlanejamento)}</span></div>
+      <div><span class="k">Forma de envio</span><span class="v">${esc(caso.externo?.formaEnvio)||"—"}</span></div>
+      <div><span class="k">Rastreio</span><span class="v">${esc(caso.externo?.codigoRastreio)||"—"}</span></div>
+    </div>` : ""}
+
+    <div class="section-title">Observações</div>
+    <div class="readonly-grid">
+      <div><span class="k">Iniciais / clínicas</span><span class="v">${esc(caso.obsClinicas)||"—"}</span></div>
+      <div><span class="k">Laboratoriais</span><span class="v">${esc(caso.obsLaboratoriais)||"—"}</span></div>
+      <div><span class="k">Motivo do erro</span><span class="v">${esc(caso.motivoErro)||"—"}</span></div>
+    </div>
+
+    <div class="section-title">Ações desta etapa</div>
+    <div class="actions-grid" id="ficha-actions">
+      <button class="btn small outline" onclick="App.voltar('${caso.id}')" ${currentIndex(caso)<=0?"disabled":""}>« Voltar etapa</button>
+      <button class="btn small primary" onclick="App.avancar('${caso.id}')" ${canAdvanceGeneric(caso)?"":"disabled"}>Avançar etapa »</button>
+      ${actions.map((a,i)=>`<button class="btn small warn" onclick="App.__runAction(${i})">${a.label}</button>`).join("")}
+      <button class="btn small outline" onclick="App.editarCaso('${caso.id}')">Editar ficha</button>
+    </div>
+
+    <div class="section-title">Histórico completo de movimentações</div>
+    <table class="hist"><tr><th>Data</th><th>Hora</th><th>Responsável</th><th>De</th><th>Para</th><th>Obs.</th></tr>
+    ${(caso.historico||[]).slice().reverse().map(h=>`<tr><td>${fmtDate(h.data)}</td><td>${h.hora}</td><td>${esc(h.responsavel)}</td><td>${h.etapaAnterior||"—"}</td><td>${h.etapaNova}</td><td>${esc(h.observacao)||""}</td></tr>`).join("")}
+    </table>
+  `;
+}
+
+let __currentActions = [];
+function abrirFicha(id){
+  const caso = findCaso(id);
+  if (!caso){ toast("Caso não encontrado."); return; }
+  __currentActions = getActionsForCaso(caso);
+  openModal(`Ficha do caso — ${esc(caso.paciente)}`, fichaCompletaHTML(caso), `<button class="btn outline" onclick="App.closeModal()">Fechar</button>`);
+}
+function __runAction(i){ __currentActions[i].fn(); }
+
+/* ---- Criar novo lote ---- */
+function promptCriarLote(id){
+  const caso = findCaso(id);
+  const pend = placasPendentesNovoLote(caso);
+  if (!pend.sup.length && !pend.inf.length){ toast("Não há placas pendentes para formar um novo lote."); return; }
+  openModal("Criar novo lote", `
+    <p style="font-size:12px;color:var(--text-light);">Selecione quais placas farão parte deste novo lote de produção.</p>
+    <div class="section-title" style="margin-top:0;">Superior pendente</div>
+    ${checkboxGridHTML("nl-sup", pend.sup)}
+    <div class="section-title">Inferior pendente</div>
+    ${checkboxGridHTML("nl-inf", pend.inf)}
+    <div class="form-grid" style="margin-top:12px;">
+      <div class="field"><label>Responsável pela criação</label>${profissionalSelectHTML("p-resp", OPERADOR)}</div>
+      <div class="field"><label>Data</label><input type="date" id="p-data" value="${todayISO()}"></div>
+      <div class="field full"><label>Observações (opcional)</label><textarea id="p-obs"></textarea></div>
+    </div>
+  `, `<button class="btn outline" onclick="App.abrirFicha('${id}')">Cancelar</button>
+      <button class="btn primary" onclick="App.__submitCriarLote('${id}')">Criar lote</button>`);
+}
+function __submitCriarLote(id){
+  const caso = findCaso(id);
+  const pend = placasPendentesNovoLote(caso);
+  const superiores = collectChecked("nl-sup", pend.sup);
+  const inferiores = collectChecked("nl-inf", pend.inf);
+  if (!superiores.length && !inferiores.length){ toast("Selecione ao menos uma placa para o novo lote."); return; }
+  caso.lotes = caso.lotes || [];
+  const numero = caso.lotes.length + 1;
+  const criadoEm = new Date().toISOString();
+  const responsavelCriacao = document.getElementById("p-resp").value;
+  caso.lotes.push({
+    id: uuid(), numero, criadoEm,
+    responsavelCriacao,
+    superiores, inferiores,
+    // A criação do lote já representa que essas placas entraram em produção
+    // e foram impressas — não existe uma ação separada de "registrar impressão".
+    eventosImpressao: [{
+      id: uuid(), criadoEm, tipo:"impresso", superiores, inferiores,
+      responsavel: responsavelCriacao, data: document.getElementById("p-data").value,
+      observacao: "Impressão automática na criação do lote"
+    }],
+    plastificacao:{concluida:false,observacao:"",responsavel:null,data:null,hora:null},
+    corte:{concluida:false,observacao:"",responsavel:null,data:null,hora:null},
+    acabamento:{concluida:false,observacao:"",responsavel:null,data:null,hora:null},
+    conferencia:{concluida:false,observacao:"",responsavel:null,data:null,hora:null},
+    envio: null, recebimento: null,
+    observacoes: document.getElementById("p-obs").value
+  });
+  logHistorico(caso, caso.statusAtual, caso.statusAtual, `Lote ${numero} criado e impresso: superior ${fmtRanges(superiores,"nenhum")} / inferior ${fmtRanges(inferiores,"nenhum")}`);
+  persist(caso).then(()=>{ abrirFicha(id); toast(`Lote ${numero} criado.`); });
+}
+
+/* ---- Conferência da impressão do lote (obrigatória antes da confecção) ----
+   Concentra aqui toda a lógica de reimpressão: cada placa recebe OK,
+   Reimprimir ou Foi impresso novamente nesta mesma tela — não existem
+   botões avulsos de "reimpressão necessária/concluída". */
+function promptConferenciaImpressaoLote(casoId, loteId){
+  const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);
+  const st = computeLoteImpressaoState(lote);
+  openModal(`Conferência da impressão — Lote ${lote.numero}`, `
+    <p style="font-size:12px;color:var(--text-light);">Confira cada modelo do lote antes de liberar a confecção (plastificação/corte/acabamento/conferência final). Marque ✅ OK, 🔁 Reimprimir ou 🟠 Foi impresso novamente para cada placa.</p>
+    <div class="section-title" style="margin-top:0;">Superior</div>
+    ${conferenciaGridHTML("conf-sup", lote.superiores, st.reimprimirSup, st.reimpressoSup)}
+    <div class="section-title">Inferior</div>
+    ${conferenciaGridHTML("conf-inf", lote.inferiores, st.reimprimirInf, st.reimpressoInf)}
+    <div class="form-grid" style="margin-top:12px;">
+      <div class="field"><label>Responsável pela conferência</label>${profissionalSelectHTML("p-resp", OPERADOR)}</div>
+      <div class="field"><label>Data</label><input type="date" id="p-data" value="${todayISO()}"></div>
+      <div class="field full"><label>Observação (opcional)</label><textarea id="p-obs"></textarea></div>
+    </div>
+  `, `<button class="btn outline" onclick="App.abrirFicha('${casoId}')">Cancelar</button>
+      <button class="btn primary" onclick="App.__submitConferenciaImpressaoLote('${casoId}','${loteId}')">Salvar conferência da impressão</button>`);
+}
+function __submitConferenciaImpressaoLote(casoId, loteId){
+  const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);
+  const st = computeLoteImpressaoState(lote);
+  const responsavel = document.getElementById("p-resp").value;
+  const data = document.getElementById("p-data").value;
+  const observacao = document.getElementById("p-obs").value;
+  const okSup=[], okInf=[], reimprimirSup=[], reimprimirInf=[], reimpressoSup=[], reimpressoInf=[];
+  // Para cada placa, registra um evento explícito sempre que o valor mudar em
+  // relação ao estado atual — inclusive placas nunca conferidas antes (cujo
+  // "atual" não existe), garantindo que toda placa precise passar por esta
+  // tela ao menos uma vez antes de contar como OK.
+  const classificar = (numbers, okSet, reimprimirSet, reimpressoSet, prefix, novoOk, novoReimprimir, novoReimpresso)=>{
+    numbers.forEach(n=>{
+      const val = readConferenciaValue(prefix, n);
+      const atual = okSet.has(n) ? "ok" : (reimprimirSet.has(n) ? "reimprimir" : (reimpressoSet.has(n) ? "reimpresso" : null));
+      if (val===atual) return;
+      if (val==="ok") novoOk.push(n);
+      else if (val==="reimprimir") novoReimprimir.push(n);
+      else if (val==="reimpresso") novoReimpresso.push(n);
+    });
+  };
+  classificar(lote.superiores, st.okSup, st.reimprimirSup, st.reimpressoSup, "conf-sup", okSup, reimprimirSup, reimpressoSup);
+  classificar(lote.inferiores, st.okInf, st.reimprimirInf, st.reimpressoInf, "conf-inf", okInf, reimprimirInf, reimpressoInf);
+
+  const criadoEm = new Date().toISOString();
+  if (okSup.length || okInf.length) lote.eventosImpressao.push({ id:uuid(), criadoEm, tipo:"ok", superiores:okSup, inferiores:okInf, responsavel, data, observacao });
+  if (reimprimirSup.length || reimprimirInf.length) lote.eventosImpressao.push({ id:uuid(), criadoEm, tipo:"reimprimir", superiores:reimprimirSup, inferiores:reimprimirInf, responsavel, data, observacao });
+  if (reimpressoSup.length || reimpressoInf.length) lote.eventosImpressao.push({ id:uuid(), criadoEm, tipo:"reimpresso", superiores:reimpressoSup, inferiores:reimpressoInf, responsavel, data, observacao });
+
+  const stNovo = computeLoteImpressaoState(lote);
+  if (stNovo.completo){
+    logHistorico(caso, caso.statusAtual, caso.statusAtual, `Lote ${lote.numero} — todas as placas conferidas e OK, confecção liberada`);
+  } else {
+    const partes = [];
+    if (stNovo.reimprimirSup.size || stNovo.reimprimirInf.size) partes.push(`para reimprimir: superior ${fmtRanges([...stNovo.reimprimirSup],"nenhuma")} / inferior ${fmtRanges([...stNovo.reimprimirInf],"nenhuma")}`);
+    if (stNovo.reimpressoSup.size || stNovo.reimpressoInf.size) partes.push(`impressas novamente, aguardando OK: superior ${fmtRanges([...stNovo.reimpressoSup],"nenhuma")} / inferior ${fmtRanges([...stNovo.reimpressoInf],"nenhuma")}`);
+    if (stNovo.naoConferidoSup.size || stNovo.naoConferidoInf.size) partes.push(`ainda não conferidas: superior ${fmtRanges([...stNovo.naoConferidoSup],"nenhuma")} / inferior ${fmtRanges([...stNovo.naoConferidoInf],"nenhuma")}`);
+    logHistorico(caso, caso.statusAtual, caso.statusAtual, `Lote ${lote.numero} — conferência da impressão com pendências (${partes.join("; ")})`);
+  }
+  persist(caso).then(()=>{ abrirFicha(casoId); toast(stNovo.completo ? "Conferência registrada — confecção liberada." : "Conferência registrada — ainda há pendências, confecção bloqueada."); });
+}
+
+/* ---- Finalização do lote (plastificação, corte, acabamento, conferência) ---- */
+function promptFinalizacaoLote(casoId, loteId){
+  const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);
+  openModal(`Confecção de placas — Lote ${lote.numero}`, `
+    <p style="font-size:12px;color:var(--text-light);">Lote ${lote.numero}: superior ${fmtRanges(lote.superiores,"nenhuma")} · inferior ${fmtRanges(lote.inferiores,"nenhuma")}. Marque cada parte conforme for concluída. As observações são opcionais.</p>
+    ${FINALIZACAO_ITENS.map(([k,label])=>`
+      <div class="field full" style="margin-bottom:10px;">
+        <label style="text-transform:none;font-size:13px;display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="fin-${k}" ${lote[k]?.concluida?"checked":""}> ${label} concluído(a)
+        </label>
+        <textarea id="fin-${k}-obs" placeholder="Observação (opcional)">${esc(lote[k]?.observacao||"")}</textarea>
+      </div>
+    `).join("")}
+  `, `<button class="btn outline" onclick="App.abrirFicha('${casoId}')">Cancelar</button>
+      <button class="btn ready" onclick="App.__submitFinalizacaoLote('${casoId}','${loteId}')">Salvar confecção do lote</button>`);
+}
+function __submitFinalizacaoLote(casoId, loteId){
+  const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);
+  FINALIZACAO_ITENS.forEach(([k,label])=>{
+    const chk = document.getElementById(`fin-${k}`).checked;
+    const obs = document.getElementById(`fin-${k}-obs`).value;
+    const prev = lote[k] || {concluida:false};
+    if (chk && !prev.concluida){
+      lote[k] = { concluida:true, observacao:obs, responsavel:OPERADOR, data:todayISO(), hora:nowTime() };
+      logHistorico(caso, caso.statusAtual, caso.statusAtual, `Lote ${lote.numero} — ${label} concluído(a)${obs?": "+obs:""}`);
+    } else if (!chk && prev.concluida){
+      lote[k] = { concluida:false, observacao:obs, responsavel:null, data:null, hora:null };
+      logHistorico(caso, caso.statusAtual, caso.statusAtual, `Lote ${lote.numero} — ${label} desmarcado(a)`);
+    } else {
+      lote[k] = { ...prev, observacao:obs };
+    }
+  });
+  persist(caso).then(()=>{ abrirFicha(casoId); toast("Lote atualizado."); });
+}
+
+/* ---- Envio do lote (para a clínica / cliente externo) ---- */
+function promptEnvioLote(casoId, loteId){
+  const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);
+  const destino = caso.tipoCaso==="externo" ? "ao cliente / clínica externa" : "à clínica";
+  openModal(`Entrega do Lote ${lote.numero} ${destino}`, `
+    <p style="font-size:12px;color:var(--text-light);">Lote ${lote.numero}: superior ${fmtRanges(lote.superiores,"nenhuma")} · inferior ${fmtRanges(lote.inferiores,"nenhuma")}.</p>
+    <div class="form-grid">
+      <div class="field"><label>Responsável pela entrega</label>${profissionalSelectHTML("p-resp", OPERADOR)}</div>
+      <div class="field"><label>Data</label><input type="date" id="p-data" value="${todayISO()}"></div>
+      <div class="field full"><label>Observação</label><textarea id="p-obs">${esc(lote.observacoes||"")}</textarea></div>
+    </div>
+  `, `<button class="btn outline" onclick="App.abrirFicha('${casoId}')">Cancelar</button>
+      <button class="btn ready" onclick="App.__submitEnvioLote('${casoId}','${loteId}')">Registrar entrega do lote</button>`);
+}
+function __submitEnvioLote(casoId, loteId){
+  const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);
+  lote.envio = { enviado:true, data:document.getElementById("p-data").value, responsavel:document.getElementById("p-resp").value, observacao:document.getElementById("p-obs").value };
+  logHistorico(caso, caso.statusAtual, caso.statusAtual, `Lote ${lote.numero} — enviado`);
+  persist(caso).then(()=>{ abrirFicha(casoId); toast("Entrega do lote registrada."); });
+}
+
+/* ---- Recebimento do lote pela ASB / cliente externo ---- */
+function promptRecebimentoLote(casoId, loteId){
+  const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);
+  const quem = caso.tipoCaso==="externo" ? "pelo cliente / clínica externa" : "pela ASB";
+  openModal(`Recebimento ${quem} — Lote ${lote.numero}`, `
+    <p style="font-size:12px;color:var(--text-light);">Lote ${lote.numero}: superior ${fmtRanges(lote.superiores,"nenhuma")} · inferior ${fmtRanges(lote.inferiores,"nenhuma")}. Receber este lote não finaliza o caso sozinho se ainda houver outros lotes/placas pendentes.</p>
+    <div class="form-grid">
+      <div class="field"><label>Responsável pelo recebimento</label>${profissionalSelectHTML("p-resp", OPERADOR)}</div>
+      <div class="field"><label>Data</label><input type="date" id="p-data" value="${todayISO()}"></div>
+      <div class="field full"><label>Observação</label><textarea id="p-obs"></textarea></div>
+    </div>
+  `, `<button class="btn outline" onclick="App.abrirFicha('${casoId}')">Cancelar</button>
+      <button class="btn ready" onclick="App.__submitRecebimentoLote('${casoId}','${loteId}')">Registrar recebimento</button>`);
+}
+function __submitRecebimentoLote(casoId, loteId){
+  const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);
+  lote.recebimento = { recebido:true, data:document.getElementById("p-data").value, responsavel:document.getElementById("p-resp").value, observacao:document.getElementById("p-obs").value };
+  logHistorico(caso, caso.statusAtual, caso.statusAtual, `Lote ${lote.numero} — recebido`);
+  if (completoTotal(caso)){
+    caso.dataConclusaoReal = todayISO();
+    caso.finalizadoPor = OPERADOR;
+    changeStatus(caso, "Finalizado", "Todos os lotes produzidos, enviados e recebidos — caso finalizado");
+  }
+  persist(caso).then(()=>{ abrirFicha(casoId); toast(caso.statusAtual==="Finalizado" ? "Caso finalizado!" : "Recebimento do lote registrado — caso continua ativo."); });
+}
+
+/* =========================================================================
+   AÇÕES DE PRODUÇÃO POR ITENS (Contenção / Modelo de estudo)
+   Sem lotes — cada ação atua diretamente sobre um subconjunto de itens do
+   caso, escolhido por checkbox, com o mesmo padrão de eventos já usado nos
+   alinhadores (impresso/reimp_pendente/reimp_concluida).
+   ========================================================================= */
+function promptRegistrarImpressaoItens(id){
+  const caso = findCaso(id);
+  const st = computeItensImpressaoState(caso);
+  const elegiveis = itensDoCaso(caso).filter(it=>!st.impressos.has(it.id) && !st.pendReimp.has(it.id));
+  if (!elegiveis.length){ toast("Não há itens pendentes de impressão."); return; }
+  openModal("Registrar impressão", `
+    <p style="font-size:12px;color:var(--text-light);">Marque os itens já impressos.</p>
+    ${itemCheckboxGridHTML("ri", elegiveis)}
+    <div class="form-grid" style="margin-top:12px;">
+      <div class="field"><label>Responsável</label>${profissionalSelectHTML("p-resp", OPERADOR)}</div>
+      <div class="field"><label>Data</label><input type="date" id="p-data" value="${todayISO()}"></div>
+    </div>
+  `, `<button class="btn outline" onclick="App.abrirFicha('${id}')">Cancelar</button>
+      <button class="btn primary" onclick="App.__submitRegistrarImpressaoItens('${id}')">Registrar impressão</button>`);
+}
+function __submitRegistrarImpressaoItens(id){
+  const caso = findCaso(id);
+  const st = computeItensImpressaoState(caso);
+  const elegiveis = itensDoCaso(caso).filter(it=>!st.impressos.has(it.id) && !st.pendReimp.has(it.id));
+  const marcados = collectCheckedItens("ri", elegiveis);
+  if (!marcados.length){ toast("Marque ao menos um item."); return; }
+  caso.eventosImpressaoItens = caso.eventosImpressaoItens || [];
+  const responsavel = document.getElementById("p-resp").value;
+  caso.eventosImpressaoItens.push({ id:uuid(), criadoEm:new Date().toISOString(), tipo:"impresso", itens:marcados, responsavel, data:document.getElementById("p-data").value });
+  logHistorico(caso, caso.statusAtual, caso.statusAtual, `Impressão registrada: ${labelsDosItens(caso,marcados)}`);
+  persist(caso).then(()=>{ abrirFicha(id); toast("Impressão registrada."); });
+}
+
+function promptReimpressaoNecessariaItens(id){
+  const caso = findCaso(id);
+  const elegiveis = itensDoCaso(caso).filter(it=>{ const s=itemStatus(caso,it.id); return s==="verde"||s==="azul"; });
+  if (!elegiveis.length){ toast("Não há itens elegíveis para reimpressão."); return; }
+  openModal("Registrar reimpressão necessária", `
+    <p style="font-size:12px;color:var(--text-light);">Marque os itens que precisam ser reimpressos.</p>
+    ${itemCheckboxGridHTML("rni", elegiveis)}
+    <div class="form-grid" style="margin-top:12px;">
+      <div class="field full"><label>Motivo (opcional)</label><textarea id="p-motivo"></textarea></div>
+    </div>
+  `, `<button class="btn outline" onclick="App.abrirFicha('${id}')">Cancelar</button>
+      <button class="btn danger" onclick="App.__submitReimpressaoNecessariaItens('${id}')">Registrar reimpressão necessária</button>`);
+}
+function __submitReimpressaoNecessariaItens(id){
+  const caso = findCaso(id);
+  const elegiveis = itensDoCaso(caso).filter(it=>{ const s=itemStatus(caso,it.id); return s==="verde"||s==="azul"; });
+  const marcados = collectCheckedItens("rni", elegiveis);
+  if (!marcados.length){ toast("Marque ao menos um item."); return; }
+  const motivo = document.getElementById("p-motivo").value.trim();
+  caso.eventosImpressaoItens = caso.eventosImpressaoItens || [];
+  caso.eventosImpressaoItens.push({ id:uuid(), criadoEm:new Date().toISOString(), tipo:"reimp_pendente", itens:marcados, responsavel:OPERADOR, data:todayISO(), motivo });
+  if (motivo) caso.motivoErro = motivo;
+  logHistorico(caso, caso.statusAtual, caso.statusAtual, `Reimpressão necessária: ${labelsDosItens(caso,marcados)}${motivo?": "+motivo:""}`);
+  persist(caso).then(()=>{ abrirFicha(id); toast("Reimpressão necessária registrada."); });
+}
+function promptReimpressaoConcluidaItens(id){
+  const caso = findCaso(id);
+  const st = computeItensImpressaoState(caso);
+  const elegiveis = itensDoCaso(caso).filter(it=>st.pendReimp.has(it.id));
+  if (!elegiveis.length){ toast("Não há reimpressão pendente."); return; }
+  openModal("Registrar reimpressão concluída", `
+    ${itemCheckboxGridHTML("rci", elegiveis)}
+  `, `<button class="btn outline" onclick="App.abrirFicha('${id}')">Cancelar</button>
+      <button class="btn primary" onclick="App.__submitReimpressaoConcluidaItens('${id}')">Registrar reimpressão concluída</button>`);
+}
+function __submitReimpressaoConcluidaItens(id){
+  const caso = findCaso(id);
+  const st = computeItensImpressaoState(caso);
+  const elegiveis = itensDoCaso(caso).filter(it=>st.pendReimp.has(it.id));
+  const marcados = collectCheckedItens("rci", elegiveis);
+  if (!marcados.length){ toast("Marque ao menos um item reimpresso."); return; }
+  caso.eventosImpressaoItens.push({ id:uuid(), criadoEm:new Date().toISOString(), tipo:"reimp_concluida", itens:marcados, responsavel:OPERADOR, data:todayISO() });
+  logHistorico(caso, caso.statusAtual, caso.statusAtual, `Reimpressão concluída: ${labelsDosItens(caso,marcados)}`);
+  persist(caso).then(()=>{ abrirFicha(id); toast("Reimpressão concluída registrada."); });
+}
+
+/* ---- Confecção da contenção (plastificação/corte/acabamento/conferência) ---- */
+function promptConfeccaoItens(id){
+  const caso = findCaso(id);
+  const elegiveis = itensDoCaso(caso).filter(it=>itemStatus(caso,it.id)==="verde");
+  if (!elegiveis.length){ toast("Não há itens prontos para confecção."); return; }
+  openModal("Confecção da contenção", `
+    <p style="font-size:12px;color:var(--text-light);">Selecione os itens em confecção nesta bancada. As observações são opcionais.</p>
+    ${itemCheckboxGridHTML("cf", elegiveis)}
+    ${FINALIZACAO_ITENS.map(([k,label])=>`
+      <div class="field full" style="margin-top:10px;">
+        <label style="text-transform:none;font-size:13px;display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="cf-${k}"> ${label} concluído(a)
+        </label>
+        <textarea id="cf-${k}-obs" placeholder="Observação (opcional)"></textarea>
+      </div>
+    `).join("")}
+  `, `<button class="btn outline" onclick="App.abrirFicha('${id}')">Cancelar</button>
+      <button class="btn ready" onclick="App.__submitConfeccaoItens('${id}')">Salvar confecção</button>`);
+}
+function __submitConfeccaoItens(id){
+  const caso = findCaso(id);
+  const elegiveis = itensDoCaso(caso).filter(it=>itemStatus(caso,it.id)==="verde");
+  const marcados = collectCheckedItens("cf", elegiveis);
+  if (!marcados.length){ toast("Selecione ao menos um item."); return; }
+  caso.confeccaoPorItem = caso.confeccaoPorItem || {};
+  FINALIZACAO_ITENS.forEach(([k,label])=>{
+    const chk = document.getElementById(`cf-${k}`).checked;
+    const obs = document.getElementById(`cf-${k}-obs`).value;
+    marcados.forEach(itemId=>{
+      caso.confeccaoPorItem[itemId] = caso.confeccaoPorItem[itemId] || {};
+      const prev = caso.confeccaoPorItem[itemId][k] || {concluida:false};
+      if (chk && !prev.concluida){
+        caso.confeccaoPorItem[itemId][k] = { concluida:true, observacao:obs, responsavel:OPERADOR, data:todayISO(), hora:nowTime() };
+      } else if (!chk && prev.concluida){
+        caso.confeccaoPorItem[itemId][k] = { concluida:false, observacao:obs, responsavel:null, data:null, hora:null };
+      } else {
+        caso.confeccaoPorItem[itemId][k] = { ...prev, observacao:obs };
+      }
+    });
+  });
+  logHistorico(caso, caso.statusAtual, caso.statusAtual, `Confecção registrada: ${labelsDosItens(caso,marcados)}`);
+  persist(caso).then(()=>{ abrirFicha(id); toast("Confecção atualizada."); });
+}
+
+/* ---- Entrega / recebimento dos itens ---- */
+function promptEntregaItens(id){
+  const caso = findCaso(id);
+  const elegiveis = itensDoCaso(caso).filter(it=>{
+    const s = itemStatus(caso,it.id);
+    return caso.tipoProducao==="contencao" ? s==="azul" : s==="verde";
+  });
+  if (!elegiveis.length){ toast("Não há itens prontos para entrega."); return; }
+  const destino = caso.tipoCaso==="externo" ? "ao cliente / clínica externa" : "à clínica";
+  openModal(`Entrega ${destino}`, `
+    ${itemCheckboxGridHTML("en", elegiveis)}
+    <div class="form-grid" style="margin-top:12px;">
+      <div class="field"><label>Responsável pela entrega</label>${profissionalSelectHTML("p-resp", OPERADOR)}</div>
+      <div class="field"><label>Data</label><input type="date" id="p-data" value="${todayISO()}"></div>
+    </div>
+  `, `<button class="btn outline" onclick="App.abrirFicha('${id}')">Cancelar</button>
+      <button class="btn ready" onclick="App.__submitEntregaItens('${id}')">Registrar entrega</button>`);
+}
+function __submitEntregaItens(id){
+  const caso = findCaso(id);
+  const elegiveis = itensDoCaso(caso).filter(it=>{
+    const s = itemStatus(caso,it.id);
+    return caso.tipoProducao==="contencao" ? s==="azul" : s==="verde";
+  });
+  const marcados = collectCheckedItens("en", elegiveis);
+  if (!marcados.length){ toast("Selecione ao menos um item."); return; }
+  caso.eventosEntregaItens = caso.eventosEntregaItens || [];
+  caso.eventosEntregaItens.push({ id:uuid(), criadoEm:new Date().toISOString(), itens:marcados, responsavel:document.getElementById("p-resp").value, data:document.getElementById("p-data").value });
+  logHistorico(caso, caso.statusAtual, caso.statusAtual, `Entrega registrada: ${labelsDosItens(caso,marcados)}`);
+  persist(caso).then(()=>{ abrirFicha(id); toast("Entrega registrada."); });
+}
+function promptRecebimentoItens(id){
+  const caso = findCaso(id);
+  const elegiveis = itensDoCaso(caso).filter(it=>itemStatus(caso,it.id)==="amarelo");
+  if (!elegiveis.length){ toast("Não há itens aguardando recebimento."); return; }
+  const quem = caso.tipoCaso==="externo" ? "pelo cliente / clínica externa" : "pela ASB";
+  openModal(`Recebimento ${quem}`, `
+    ${itemCheckboxGridHTML("rec", elegiveis)}
+    <div class="form-grid" style="margin-top:12px;">
+      <div class="field"><label>Responsável pelo recebimento</label>${profissionalSelectHTML("p-resp", OPERADOR)}</div>
+      <div class="field"><label>Data</label><input type="date" id="p-data" value="${todayISO()}"></div>
+    </div>
+  `, `<button class="btn outline" onclick="App.abrirFicha('${id}')">Cancelar</button>
+      <button class="btn ready" onclick="App.__submitRecebimentoItens('${id}')">Registrar recebimento</button>`);
+}
+function __submitRecebimentoItens(id){
+  const caso = findCaso(id);
+  const elegiveis = itensDoCaso(caso).filter(it=>itemStatus(caso,it.id)==="amarelo");
+  const marcados = collectCheckedItens("rec", elegiveis);
+  if (!marcados.length){ toast("Selecione ao menos um item."); return; }
+  caso.eventosRecebimentoItens = caso.eventosRecebimentoItens || [];
+  caso.eventosRecebimentoItens.push({ id:uuid(), criadoEm:new Date().toISOString(), itens:marcados, responsavel:document.getElementById("p-resp").value, data:document.getElementById("p-data").value });
+  logHistorico(caso, caso.statusAtual, caso.statusAtual, `Recebimento registrado: ${labelsDosItens(caso,marcados)}`);
+  if (completoTotal(caso)){
+    caso.dataConclusaoReal = todayISO();
+    caso.finalizadoPor = OPERADOR;
+    changeStatus(caso, "Finalizado", "Todos os itens produzidos e recebidos — caso finalizado");
+  }
+  persist(caso).then(()=>{ abrirFicha(id); toast(caso.statusAtual==="Finalizado" ? "Caso finalizado!" : "Recebimento registrado — caso continua ativo."); });
+}
+
+/* ---- planejamento externo (aprovação) ---- */
+function promptAprovacao(id){
+  openModal("Aprovar planejamento externo", `
+    <div class="field"><label>Responsável pela aprovação</label>${profissionalSelectHTML("p-aprovador", OPERADOR)}</div>
+  `, `<button class="btn outline" onclick="App.abrirFicha('${id}')">Cancelar</button>
+      <button class="btn primary" onclick="App.aprovarPlanejamento('${id}', document.getElementById('p-aprovador').value)">Aprovar</button>`);
+}
+function promptAjuste(id){
+  openModal("Solicitar ajuste no planejamento", `<div class="field"><label>O que precisa ser ajustado?</label><textarea id="p-obs"></textarea></div>`,
+    `<button class="btn outline" onclick="App.abrirFicha('${id}')">Cancelar</button>
+     <button class="btn warn" onclick="App.solicitarAjuste('${id}', document.getElementById('p-obs').value)">Solicitar ajuste</button>`);
+}
+
+/* =========================================================================
+   OPERADOR / CADASTRO DE PROFISSIONAIS
+   Cada profissional: nome completo, nome curto (aparece no sistema), função/
+   setor e status ativo/inativo. Inativos somem de "Operando como" e dos
+   campos de responsável, mas o nome continua nos históricos antigos.
+   ========================================================================= */
+const FUNCOES_PROFISSIONAL = ["Recepção","ASB","Laboratório","Dentista planejador","Dentista responsável","Administrativo","Outro"];
+
+// Em modo "mysql", PROFISSIONAIS já vem preenchido por loadProfissionais()
+// (chamado no init() e a cada poll) — esta função só lê o cache em memória.
+// Em "local"/"sheets", continua lendo (e semeando, na primeira vez) direto
+// do localStorage, como sempre fez.
+function profissionaisAtuais(){
+  if (PROFISSIONAIS) return PROFISSIONAIS;
+  const raw = localStorage.getItem("profissionais_v1");
+  if (raw){ PROFISSIONAIS = JSON.parse(raw); return PROFISSIONAIS; }
+  // Migração automática da lista simples de equipe usada antes desta versão.
+  const legacy = localStorage.getItem("equipe_v1");
+  let seed;
+  if (legacy){
+    seed = JSON.parse(legacy).map(nome => ({ id: uuid(), nomeCompleto: nome, nomeCurto: nome, funcao: "Outro", ativo: true }));
+  } else {
+    seed = [
+      { id: uuid(), nomeCompleto:"Recepção", nomeCurto:"Recepção", funcao:"Recepção", ativo:true },
+      { id: uuid(), nomeCompleto:"ASB", nomeCurto:"ASB", funcao:"ASB", ativo:true },
+      { id: uuid(), nomeCompleto:"Dr(a). Planejador(a)", nomeCurto:"Planejador(a)", funcao:"Dentista planejador", ativo:true },
+      { id: uuid(), nomeCompleto:"Laboratório — Produção", nomeCurto:"Laboratório", funcao:"Laboratório", ativo:true }
+    ];
+  }
+  localStorage.setItem("profissionais_v1", JSON.stringify(seed));
+  PROFISSIONAIS = seed;
+  return PROFISSIONAIS;
+}
+// Grava a lista inteira (mesmo padrão de sempre: substitui tudo, não faz
+// upsert de um item só). Em modo "mysql" vai para a API; nos demais modos
+// continua indo para o localStorage.
+async function salvarProfissionais(lista){
+  PROFISSIONAIS = lista;
+  const foiRemoto = await STORAGE.saveProfissionais(lista);
+  if (!foiRemoto) localStorage.setItem("profissionais_v1", JSON.stringify(lista));
+}
+async function loadProfissionais(){
+  try{
+    const remoto = await STORAGE.getAllProfissionais();
+    if (remoto) PROFISSIONAIS = remoto;
+    else profissionaisAtuais(); // garante a semeadura local na primeira vez
+  }catch(err){
+    console.error(err);
+    toast("Falha ao carregar profissionais do backend.");
+  }
+}
+function profissionaisAtivos(){ return profissionaisAtuais().filter(p=>p.ativo); }
+// Select de "responsável" alimentado pelos profissionais ativos — se o valor
+// atual pertencer a alguém já desativado, ele é preservado como opção extra
+// para não quebrar edições antigas.
+function profissionalSelectHTML(idAttr, selectedValue){
+  const nomes = profissionaisAtivos().map(p=>p.nomeCurto||p.nomeCompleto);
+  if (selectedValue && !nomes.includes(selectedValue)) nomes.push(selectedValue);
+  return `<select id="${idAttr}">${nomes.map(n=>`<option value="${esc(n)}" ${n===selectedValue?"selected":""}>${esc(n)}</option>`).join("")}</select>`;
+}
+
+function renderOperadorSelect(){
+  const sel = document.getElementById("sel-operador");
+  const ativos = profissionaisAtivos();
+  sel.innerHTML = `<option value="">Selecione o profissional...</option>` +
+    ativos.map(p=>{ const n = p.nomeCurto||p.nomeCompleto; return `<option value="${esc(n)}" ${OPERADOR===n?"selected":""}>${esc(n)} — ${esc(p.funcao)}</option>`; }).join("");
+}
+function setOperador(nome){
+  OPERADOR = nome;
+  localStorage.setItem("operador_v1", nome);
+}
+
+function gerenciarProfissionais(){
+  const lista = profissionaisAtuais();
+  openModal("Cadastro de profissionais", `
+    <p style="font-size:12px;color:var(--text-light);">Profissionais inativos deixam de aparecer em "Operando como" e nos campos de responsável, mas continuam registrados nos históricos antigos.</p>
+    <table class="hist"><tr><th>Nome completo</th><th>Nome curto</th><th>Função / setor</th><th>Status</th><th></th></tr>
+    ${lista.length ? lista.map(p=>`<tr>
+      <td>${esc(p.nomeCompleto)}</td><td>${esc(p.nomeCurto)}</td><td>${esc(p.funcao)}</td>
+      <td>${p.ativo?"✅ Ativo":"⛔ Inativo"}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn small outline" onclick="App.promptEditarProfissional('${p.id}')">Editar</button>
+        <button class="btn small ${p.ativo?'warn':'ready'}" onclick="App.toggleProfissionalAtivo('${p.id}')">${p.ativo?"Desativar":"Ativar"}</button>
+        <button class="btn small danger" onclick="App.excluirProfissional('${p.id}')">Excluir</button>
+      </td>
+    </tr>`).join("") : `<tr><td colspan="5">Nenhum profissional cadastrado ainda.</td></tr>`}
+    </table>
+    <div class="section-title">Novo profissional</div>
+    <div class="form-grid">
+      <div class="field"><label>Nome completo</label><input id="p-nome-completo"></div>
+      <div class="field"><label>Nome curto / apelido</label><input id="p-nome-curto"></div>
+      <div class="field"><label>Função / setor</label>
+        <select id="p-funcao">${FUNCOES_PROFISSIONAL.map(f=>`<option>${f}</option>`).join("")}</select>
+      </div>
+    </div>
+  `, `<button class="btn outline" onclick="App.closeModal()">Fechar</button>
+      <button class="btn ready" onclick="App.__submitNovoProfissional()">Adicionar profissional</button>`);
+}
+async function __submitNovoProfissional(){
+  const nomeCompleto = document.getElementById("p-nome-completo").value.trim();
+  if (!nomeCompleto){ toast("Informe o nome completo."); return; }
+  const nomeCurto = document.getElementById("p-nome-curto").value.trim() || nomeCompleto;
+  const funcao = document.getElementById("p-funcao").value;
+  const lista = profissionaisAtuais();
+  lista.push({ id: uuid(), nomeCompleto, nomeCurto, funcao, ativo:true });
+  await salvarProfissionais(lista);
+  renderOperadorSelect();
+  gerenciarProfissionais();
+  toast("Profissional cadastrado.");
+}
+function promptEditarProfissional(id){
+  const p = profissionaisAtuais().find(x=>x.id===id);
+  if (!p) return;
+  openModal("Editar profissional", `
+    <div class="form-grid">
+      <div class="field"><label>Nome completo</label><input id="p-nome-completo" value="${esc(p.nomeCompleto)}"></div>
+      <div class="field"><label>Nome curto / apelido</label><input id="p-nome-curto" value="${esc(p.nomeCurto)}"></div>
+      <div class="field"><label>Função / setor</label>
+        <select id="p-funcao">${FUNCOES_PROFISSIONAL.map(f=>`<option ${p.funcao===f?"selected":""}>${f}</option>`).join("")}</select>
+      </div>
+    </div>
+  `, `<button class="btn outline" onclick="App.gerenciarProfissionais()">Cancelar</button>
+      <button class="btn ready" onclick="App.__submitEditarProfissional('${id}')">Salvar alterações</button>`);
+}
+async function __submitEditarProfissional(id){
+  const lista = profissionaisAtuais();
+  const p = lista.find(x=>x.id===id);
+  if (!p) return;
+  const nomeCurtoAntigo = p.nomeCurto || p.nomeCompleto;
+  p.nomeCompleto = document.getElementById("p-nome-completo").value.trim() || p.nomeCompleto;
+  p.nomeCurto = document.getElementById("p-nome-curto").value.trim() || p.nomeCompleto;
+  p.funcao = document.getElementById("p-funcao").value;
+  await salvarProfissionais(lista);
+  if (OPERADOR === nomeCurtoAntigo) setOperador(p.nomeCurto);
+  renderOperadorSelect();
+  gerenciarProfissionais();
+  toast("Profissional atualizado.");
+}
+async function toggleProfissionalAtivo(id){
+  const lista = profissionaisAtuais();
+  const p = lista.find(x=>x.id===id);
+  if (!p) return;
+  p.ativo = !p.ativo;
+  await salvarProfissionais(lista);
+  renderOperadorSelect();
+  gerenciarProfissionais();
+  toast(p.ativo?"Profissional ativado.":"Profissional desativado.");
+}
+async function excluirProfissional(id){
+  if (!confirm("Excluir este profissional definitivamente do cadastro? Os nomes já usados em históricos antigos continuam lá. Se não tiver certeza, prefira \"Desativar\".")) return;
+  const lista = profissionaisAtuais().filter(x=>x.id!==id);
+  await salvarProfissionais(lista);
+  renderOperadorSelect();
+  gerenciarProfissionais();
+  toast("Profissional excluído do cadastro.");
+}
+
+/* =========================================================================
+   FILTROS / BUSCA
+   ========================================================================= */
+function setFilter(key, value){ FILTERS[key] = value; render(); }
+function setBusca(value){ FILTERS.texto = value; renderKanban(); }
+function limparFiltros(){
+  FILTERS = { texto:"", tipo:"todos", status:"todos", prioridade:"todos", planejador:"todos", setor:"todos",
+    atrasados:false, parcial:false, pendentePlacas:false };
+  document.getElementById("busca").value = "";
+  render();
+}
+
+/* =========================================================================
+   EXPORTAÇÃO / BACKUP
+   ========================================================================= */
+function downloadBlob(content, filename, type){
+  const blob = new Blob([content], {type});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+function exportar(formato){
+  if (formato==="json"){
+    downloadBlob(JSON.stringify(CASOS, null, 2), `backup-casos-${todayISO()}.json`, "application/json");
+    return;
+  }
+  const rows = CASOS.map(c=>({
+    numeroCaso:c.numeroCaso, paciente:c.paciente, tipoCaso:c.tipoCaso,
+    refinamento: c.refinamento?.isRefinamento ? ("sim nº "+c.refinamento.numero) : "não",
+    dentistaPlanejador:c.dentistaPlanejador, statusAtual:c.statusAtual, prioridade:c.prioridade,
+    dataPrevistaEntrega:c.dataPrevistaEntrega,
+    qtdSuperior:pQtdSup(c), qtdInferior:pQtdInf(c),
+    placa0Superior:pPlaca0Sup(c)?"sim":"não", placa0Inferior:pPlaca0Inf(c)?"sim":"não",
+    totalRealPlacas:totalRealPlacas(c), attachSuperior:c.attachSuperior, attachInferior:c.attachInferior
+  }));
+  const cols = Object.keys(rows[0] || {numeroCaso:"",paciente:""});
+  const linhas = [cols.join(",")].concat(rows.map(r=>cols.map(k=>`"${String(r[k]??"").replace(/"/g,'""')}"`).join(",")));
+  downloadBlob(linhas.join("\\n"), `casos-${todayISO()}.csv`, "text/csv");
+}
+
+/* =========================================================================
+   INIT
+   ========================================================================= */
+async function atualizarDados(){
+  await loadProfissionais();
+  renderOperadorSelect();
+  await loadCasos();
+}
+async function __clickAtualizarDados(){
+  await atualizarDados();
+  toast("Dados atualizados.");
+}
+async function init(){
+  await atualizarDados();
+  if (CONFIG.STORAGE_MODE !== "local"){
+    setInterval(atualizarDados, CONFIG.POLL_INTERVAL_MS);
+  }
+}
+
+window.App = {
+  setOperador, gerenciarProfissionais, promptEditarProfissional,
+  __submitNovoProfissional, __submitEditarProfissional, toggleProfissionalAtivo, excluirProfissional,
+  setBusca, novoCaso, exportar, __clickAtualizarDados,
+  setFilter, limparFiltros, toggleAlerts, abrirFicha, avancar, voltar,
+  editarCaso, salvarCaso, toggleExterno, toggleRefinamentoNumero, toggleTipoProducao, toggleQtdItem,
+  excluirCaso, closeModal,
+  __runAction, __submitPlanejamento, promptPlanejamento,
+  aprovarPlanejamento, solicitarAjuste, promptAprovacao, promptAjuste,
+  promptCriarLote, __submitCriarLote,
+  promptConferenciaImpressaoLote, __submitConferenciaImpressaoLote,
+  promptFinalizacaoLote, __submitFinalizacaoLote,
+  promptEnvioLote, __submitEnvioLote,
+  promptRecebimentoLote, __submitRecebimentoLote,
+  promptRegistrarImpressaoItens, __submitRegistrarImpressaoItens,
+  promptReimpressaoNecessariaItens, __submitReimpressaoNecessariaItens,
+  promptReimpressaoConcluidaItens, __submitReimpressaoConcluidaItens,
+  promptConfeccaoItens, __submitConfeccaoItens,
+  promptEntregaItens, __submitEntregaItens,
+  promptRecebimentoItens, __submitRecebimentoItens
+};
+
+init();
+</script>
+</body>
+</html>
