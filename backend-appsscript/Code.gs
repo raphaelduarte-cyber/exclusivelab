@@ -42,7 +42,7 @@ var HEADERS_PROF = ['id', 'nomeCompleto', 'nomeCurto', 'funcao', 'email', 'admin
 // Cole aqui o Client ID gerado no Google Cloud Console (Client ID OAuth, tipo
 // "Aplicativo da Web") — usado para validar o token de login com o Google.
 // Formato: "xxxxxxxxxxxx.apps.googleusercontent.com"
-var EXPECTED_AUD = '353876469966-a438h9evi8qlqokdofkhvdr9eth50mr.apps.googleusercontent.com';
+var EXPECTED_AUD = '668827078020-k0cujbre0poh5la5elvtp0u7a13i12e4.apps.googleusercontent.com';
 
 function setup() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
