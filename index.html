@@ -253,7 +253,7 @@ table.hist th{color:var(--text-light); font-weight:700; font-size:10.5px; text-t
   <h1>Laboratório Exclusive</h1>
   <p>Controle de Produção — entre com sua conta Google para continuar</p>
   <div id="google-signin-btn-gate" class="login-gate-btn"></div>
-  <button class="linkbtn" onclick="App.gerenciarProfissionais()">cadastro de profissionais</button>
+  <div id="login-gate-bootstrap"></div>
 </div>
 
 <div id="app-root" class="hidden">
@@ -460,17 +460,19 @@ const STORAGE = {
     }
     return null; // "local": profissionaisAtuais() continua lendo do localStorage direto
   },
-  async saveProfissionais(lista){
+  async saveProfissionais(lista, solicitanteEmail){
     if (CONFIG.STORAGE_MODE === "mysql"){
       await apiFetch("profissionais.php", {profissionais: lista});
       return true;
     }
     if (CONFIG.STORAGE_MODE === "sheets"){
-      await fetch(CONFIG.API_URL, {
+      const res = await fetch(CONFIG.API_URL, {
         method:"POST",
         headers:{"Content-Type":"text/plain;charset=utf-8"},
-        body: JSON.stringify({action:"saveProfissionais", profissionais: lista})
+        body: JSON.stringify({action:"saveProfissionais", profissionais: lista, solicitanteEmail})
       });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Falha ao salvar profissionais.");
       return true;
     }
     return false;
@@ -486,6 +488,14 @@ const STORAGE = {
     }
     // "local"/"mysql": login com Google ainda não implementado nesses modos.
     return { ok:false, error:"Login com Google só está disponível em STORAGE_MODE:\"sheets\" por enquanto." };
+  },
+  async notificarNovoProfissional(email, nomeCurto){
+    if (CONFIG.STORAGE_MODE !== "sheets") return; // convite por e-mail só implementado no modo sheets
+    await fetch(CONFIG.API_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({action:"notificarNovoProfissional", email, nomeCurto, urlPainel: location.href})
+    });
   }
 };
 
@@ -2361,10 +2371,20 @@ function profissionaisAtuais(){
 // Grava a lista inteira (mesmo padrão de sempre: substitui tudo, não faz
 // upsert de um item só). Em modo "mysql" vai para a API; nos demais modos
 // continua indo para o localStorage.
+// Retorna true/false — chamadores devem checar antes de seguir com o resto
+// do fluxo (fechar modal, mostrar toast de sucesso etc.), já que o backend
+// pode recusar a alteração (ex.: só administrador pode gerenciar, ver
+// solicitanteEhAdministrador_ no Code.gs).
 async function salvarProfissionais(lista){
-  PROFISSIONAIS = lista;
-  const foiRemoto = await STORAGE.saveProfissionais(lista);
-  if (!foiRemoto) localStorage.setItem("profissionais_v1", JSON.stringify(lista));
+  try{
+    const foiRemoto = await STORAGE.saveProfissionais(lista, PERFIL_ATUAL?.email);
+    PROFISSIONAIS = lista;
+    if (!foiRemoto) localStorage.setItem("profissionais_v1", JSON.stringify(lista));
+    return true;
+  }catch(err){
+    toast(err.message || "Falha ao salvar profissionais.");
+    return false;
+  }
 }
 async function loadProfissionais(){
   try{
@@ -2412,11 +2432,17 @@ function renderOperadorBox(){
       <span style="font-weight:700;color:var(--graphite);">${esc(PERFIL_ATUAL.nomeCurto||PERFIL_ATUAL.nomeCompleto)}</span>
       <span style="font-size:10.5px;color:var(--text-light);text-transform:uppercase;">${esc(PERFIL_ATUAL.funcao||"")}</span>
       <button class="linkbtn" onclick="App.logout()">sair</button>
-      <button class="linkbtn" onclick="App.gerenciarProfissionais()">cadastro de profissionais</button>`;
+      ${PERFIL_ATUAL.administrador ? `<button class="linkbtn" onclick="App.gerenciarProfissionais()">cadastro de profissionais</button>` : ""}`;
     return;
   }
   root.classList.add("hidden");
   gate.classList.remove("hidden");
+  // "cadastro de profissionais" só aparece na tela de login enquanto ainda
+  // não existir nenhum profissional (bootstrap) — depois disso, só
+  // administrador logado cadastra gente nova (ver gerenciarProfissionais).
+  document.getElementById("login-gate-bootstrap").innerHTML = profissionaisAtuais().length === 0
+    ? `<button class="linkbtn" onclick="App.gerenciarProfissionais()">cadastro de profissionais</button>`
+    : `<p style="font-size:11.5px;color:var(--text-light);max-width:280px;">Ainda não tem acesso? Peça para um administrador te cadastrar.</p>`;
   renderLoginGateButton();
 }
 function renderLoginGateButton(){
@@ -2477,10 +2503,20 @@ function logout(){
   render();
 }
 
+// Só administrador (já logado) pode gerenciar profissionais — com uma
+// exceção: enquanto a lista estiver vazia (bootstrap), qualquer visitante
+// pode se cadastrar como o primeiro profissional, que já nasce administrador
+// automaticamente. Sem essa exceção, ninguém jamais conseguiria logar.
 function gerenciarProfissionais(){
   const lista = profissionaisAtuais();
+  const bootstrap = lista.length === 0;
+  if (!bootstrap && !podeExcluir()){
+    toast("Apenas administradores podem gerenciar profissionais.");
+    return;
+  }
   openModal("Cadastro de profissionais", `
     <p style="font-size:12px;color:var(--text-light);">Profissionais inativos deixam de aparecer nos campos de responsável, mas continuam registrados nos históricos antigos. O e-mail cadastrado aqui é o mesmo que a pessoa usa para entrar com o Google — sem e-mail, ela não consegue logar.</p>
+    ${bootstrap ? `<p style="font-size:12px;color:var(--gold-dark);font-weight:700;">Primeiro acesso: a pessoa cadastrada abaixo já nasce administradora.</p>` : ""}
     <table class="hist"><tr><th>Nome completo</th><th>Nome curto</th><th>Função / setor</th><th>E-mail</th><th>Admin</th><th>Status</th><th></th></tr>
     ${lista.length ? lista.map(p=>`<tr>
       <td>${esc(p.nomeCompleto)}</td><td>${esc(p.nomeCurto)}</td><td>${esc(p.funcao)}</td>
@@ -2502,26 +2538,27 @@ function gerenciarProfissionais(){
         <select id="p-funcao">${FUNCOES_PROFISSIONAL.map(f=>`<option>${f}</option>`).join("")}</select>
       </div>
       <div class="field"><label>E-mail (Google/Gmail)</label><input id="p-email" type="email" placeholder="pessoa@gmail.com"></div>
-      <div class="field"><label>É administrador?</label>
+      ${bootstrap ? "" : `<div class="field"><label>É administrador?</label>
         <label style="display:flex;align-items:center;gap:6px;text-transform:none;font-weight:600;"><input type="checkbox" id="p-admin"> Pode excluir casos e profissionais</label>
-      </div>
+      </div>`}
     </div>
   `, `<button class="btn outline" onclick="App.closeModal()">Fechar</button>
-      <button class="btn ready" onclick="App.__submitNovoProfissional()">Adicionar profissional</button>`);
+      <button class="btn ready" onclick="App.__submitNovoProfissional(${bootstrap})">Adicionar profissional</button>`);
 }
-async function __submitNovoProfissional(){
+async function __submitNovoProfissional(bootstrap){
   const nomeCompleto = document.getElementById("p-nome-completo").value.trim();
   if (!nomeCompleto){ toast("Informe o nome completo."); return; }
   const nomeCurto = document.getElementById("p-nome-curto").value.trim() || nomeCompleto;
   const funcao = document.getElementById("p-funcao").value;
   const email = document.getElementById("p-email").value.trim().toLowerCase();
-  const administrador = document.getElementById("p-admin").checked;
+  const administrador = bootstrap ? true : document.getElementById("p-admin").checked;
   const lista = profissionaisAtuais();
   lista.push({ id: uuid(), nomeCompleto, nomeCurto, funcao, email, administrador, ativo:true });
-  await salvarProfissionais(lista);
+  if (!(await salvarProfissionais(lista))) return;
+  if (!bootstrap && email) STORAGE.notificarNovoProfissional(email, nomeCurto).catch(()=>{});
   renderOperadorBox();
   gerenciarProfissionais();
-  toast("Profissional cadastrado.");
+  toast(bootstrap ? "Cadastro concluído — agora entre com o Google." : "Profissional cadastrado e convite enviado por e-mail.");
 }
 function promptEditarProfissional(id){
   const p = profissionaisAtuais().find(x=>x.id===id);
@@ -2550,7 +2587,7 @@ async function __submitEditarProfissional(id){
   p.funcao = document.getElementById("p-funcao").value;
   p.email = document.getElementById("p-email").value.trim().toLowerCase();
   p.administrador = document.getElementById("p-admin").checked;
-  await salvarProfissionais(lista);
+  if (!(await salvarProfissionais(lista))) return;
   if (PERFIL_ATUAL && PERFIL_ATUAL.id === p.id){
     PERFIL_ATUAL = p;
     OPERADOR = p.nomeCurto || p.nomeCompleto;
@@ -2565,7 +2602,7 @@ async function toggleProfissionalAtivo(id){
   const p = lista.find(x=>x.id===id);
   if (!p) return;
   p.ativo = !p.ativo;
-  await salvarProfissionais(lista);
+  if (!(await salvarProfissionais(lista))) return;
   renderOperadorBox();
   gerenciarProfissionais();
   toast(p.ativo?"Profissional ativado.":"Profissional desativado.");
@@ -2574,7 +2611,7 @@ async function excluirProfissional(id){
   if (!podeExcluir()){ toast("Apenas administradores podem excluir."); return; }
   if (!confirm("Excluir este profissional definitivamente do cadastro? Os nomes já usados em históricos antigos continuam lá. Se não tiver certeza, prefira \"Desativar\".")) return;
   const lista = profissionaisAtuais().filter(x=>x.id!==id);
-  await salvarProfissionais(lista);
+  if (!(await salvarProfissionais(lista))) return;
   renderOperadorBox();
   gerenciarProfissionais();
   toast("Profissional excluído do cadastro.");

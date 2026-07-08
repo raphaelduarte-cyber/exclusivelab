@@ -152,7 +152,19 @@ function doPost(e) {
   }
 
   if (body.action === 'saveProfissionais') {
+    // Bootstrap: enquanto não existir NENHUM profissional cadastrado, libera
+    // o primeiro cadastro sem exigir administrador (senão ninguém jamais
+    // conseguiria logar). A partir daí, só administrador pode alterar a lista.
+    var eBootstrap = lerProfissionais_().length === 0;
+    if (!eBootstrap && !solicitanteEhAdministrador_(body.solicitanteEmail)) {
+      return jsonResponse_({ ok: false, error: 'Apenas administradores podem gerenciar profissionais.' });
+    }
     salvarProfissionais_(body.profissionais || []);
+    return jsonResponse_({ ok: true });
+  }
+
+  if (body.action === 'notificarNovoProfissional') {
+    enviarConviteEmail_(body.email, body.nomeCurto, body.urlPainel);
     return jsonResponse_({ ok: true });
   }
 
@@ -201,6 +213,26 @@ function fazerLogin_(idToken) {
     return jsonResponse_({ ok: false, error: 'Seu cadastro está inativo. Fale com um administrador.' });
   }
   return jsonResponse_({ ok: true, perfil: perfil });
+}
+
+/** Envia o e-mail de convite para um profissional recém-cadastrado por um administrador. */
+function enviarConviteEmail_(email, nomeCurto, urlPainel) {
+  if (!email) return;
+  var url = urlPainel || '';
+  var assunto = 'Você foi cadastrado(a) no Laboratório Exclusive — Controle de Produção';
+  var corpo =
+    'Olá' + (nomeCurto ? ', ' + nomeCurto : '') + '!\n\n' +
+    'Você foi cadastrado(a) por um administrador para acessar o painel de controle ' +
+    'de produção do Laboratório Exclusive.\n\n' +
+    'Não é preciso criar senha nenhuma: basta acessar o link abaixo e clicar em ' +
+    '"Entrar com o Google", usando exatamente este e-mail (' + email + ').\n\n' +
+    (url ? url + '\n\n' : '') +
+    'Se você não esperava este e-mail, pode ignorá-lo.';
+  try {
+    MailApp.sendEmail(email, assunto, corpo);
+  } catch (err) {
+    // Falha ao enviar não deve quebrar o cadastro do profissional — só o convite.
+  }
 }
 
 function solicitanteEhAdministrador_(email) {
