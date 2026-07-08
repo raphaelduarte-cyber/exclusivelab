@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Laboratório Exclusive — Controle de Produção</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root{
   /* ---- Identidade Exclusive Odontologia ---- */
@@ -248,11 +249,7 @@ table.hist th{color:var(--text-light); font-weight:700; font-size:10.5px; text-t
       </div>
     </div>
     <div class="header-actions">
-      <div class="operador-box">
-        <label>Operando como</label>
-        <select id="sel-operador" onchange="App.setOperador(this.value)"></select>
-        <button class="linkbtn" onclick="App.gerenciarProfissionais()">cadastro de profissionais</button>
-      </div>
+      <div class="operador-box" id="operador-box"></div>
       <button class="btn primary" onclick="App.novoCaso()">+ Novo caso</button>
     </div>
   </div>
@@ -298,6 +295,7 @@ const CONFIG = {
   STORAGE_MODE: "sheets",
   API_URL: "https://script.google.com/macros/s/AKfycbyEldyneK2xpeKBdplB05FbIT1J02NgydLh9sB6pLeQ6SDoGIvNWUt82Q4S5lvzL_n8/exec",
   API_KEY: "",             // só usado em STORAGE_MODE:"mysql" — precisa bater com api/config.php
+  GOOGLE_CLIENT_ID: "353876469966-a438h9evi8qlqokdofkhvdr9eth50mr.apps.googleusercontent.com",
   POLL_INTERVAL_MS: 20000, // intervalo de sincronização quando o modo não é "local"
   STALL_DAYS: 3            // dias parado na mesma etapa até virar alerta
 };
@@ -412,17 +410,19 @@ const STORAGE = {
     if (idx===-1) all.push(caso); else all[idx]=caso;
     localStorage.setItem("casos_v1", JSON.stringify(all));
   },
-  async remove(id){
+  async remove(id, solicitanteEmail){
     if (CONFIG.STORAGE_MODE === "mysql"){
       await apiFetch("casos.php", {action:"delete", id});
       return;
     }
     if (CONFIG.STORAGE_MODE === "sheets"){
-      await fetch(CONFIG.API_URL, {
+      const res = await fetch(CONFIG.API_URL, {
         method:"POST",
         headers:{"Content-Type":"text/plain;charset=utf-8"},
-        body: JSON.stringify({action:"delete", id})
+        body: JSON.stringify({action:"delete", id, solicitanteEmail})
       });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Falha ao excluir.");
       return;
     }
     const all = JSON.parse(localStorage.getItem("casos_v1") || "[]").filter(c=>c.id!==id);
@@ -433,14 +433,39 @@ const STORAGE = {
       const data = await apiFetch("profissionais.php");
       return data.profissionais || null;
     }
-    return null; // "local"/"sheets": profissionaisAtuais() continua lendo do localStorage direto
+    if (CONFIG.STORAGE_MODE === "sheets"){
+      const res = await fetch(CONFIG.API_URL);
+      const data = await res.json();
+      return data.profissionais || null;
+    }
+    return null; // "local": profissionaisAtuais() continua lendo do localStorage direto
   },
   async saveProfissionais(lista){
     if (CONFIG.STORAGE_MODE === "mysql"){
       await apiFetch("profissionais.php", {profissionais: lista});
       return true;
     }
+    if (CONFIG.STORAGE_MODE === "sheets"){
+      await fetch(CONFIG.API_URL, {
+        method:"POST",
+        headers:{"Content-Type":"text/plain;charset=utf-8"},
+        body: JSON.stringify({action:"saveProfissionais", profissionais: lista})
+      });
+      return true;
+    }
     return false;
+  },
+  async login(idToken){
+    if (CONFIG.STORAGE_MODE === "sheets"){
+      const res = await fetch(CONFIG.API_URL, {
+        method:"POST",
+        headers:{"Content-Type":"text/plain;charset=utf-8"},
+        body: JSON.stringify({action:"login", idToken})
+      });
+      return res.json();
+    }
+    // "local"/"mysql": login com Google ainda não implementado nesses modos.
+    return { ok:false, error:"Login com Google só está disponível em STORAGE_MODE:\"sheets\" por enquanto." };
   }
 };
 
@@ -449,7 +474,13 @@ const STORAGE = {
    ========================================================================= */
 let CASOS = [];
 let PROFISSIONAIS = null; // preenchido por profissionaisAtuais()/loadProfissionais() na primeira leitura
-let OPERADOR = localStorage.getItem("operador_v1") || "";
+let OPERADOR = "";
+// Perfil resolvido pelo login com o Google (ver seção "LOGIN COM O GOOGLE").
+// Guardado em sessionStorage (não localStorage) de propósito: computadores de
+// recepção/ASB são compartilhados, então a sessão deve acabar ao fechar a aba,
+// evitando que a próxima pessoa continue operando com a identidade anterior.
+let PERFIL_ATUAL = JSON.parse(sessionStorage.getItem("perfil_atual_v1") || "null");
+if (PERFIL_ATUAL) OPERADOR = PERFIL_ATUAL.nomeCurto || PERFIL_ATUAL.nomeCompleto || "";
 let ALERTS_OPEN = true;
 let FILTERS = { texto:"", tipo:"todos", status:"todos", prioridade:"todos", planejador:"todos", setor:"todos",
   atrasados:false, parcial:false, pendentePlacas:false };
@@ -1258,7 +1289,7 @@ async function voltar(id){
 }
 
 function requireOperador(){
-  if (!OPERADOR){ toast("Selecione o profissional responsável antes de continuar."); return false; }
+  if (!OPERADOR){ toast("Entre com sua conta Google antes de continuar."); return false; }
   return true;
 }
 
@@ -1280,8 +1311,14 @@ async function solicitarAjuste(id, obs){
   abrirFicha(id); toast("Ajuste solicitado — caso retornado ao planejamento.");
 }
 async function excluirCaso(id){
+  if (!podeExcluir()){ toast("Apenas administradores podem excluir."); return; }
   if (!confirm("Tem certeza que deseja excluir este caso? Esta ação não pode ser desfeita.")) return;
-  await STORAGE.remove(id);
+  try{
+    await STORAGE.remove(id, PERFIL_ATUAL?.email);
+  }catch(err){
+    toast(err.message || "Falha ao excluir.");
+    return;
+  }
   await loadCasos();
   closeModal(); toast("Caso excluído.");
 }
@@ -1581,7 +1618,7 @@ function editarCaso(id){
   const caso = findCaso(id);
   openModal("Editar ficha do caso", casoFormHTML(caso), `
     <button class="btn outline" onclick="App.closeModal()">Cancelar</button>
-    <button class="btn danger" onclick="App.excluirCaso('${id}')">Excluir caso</button>
+    ${podeExcluir()?`<button class="btn danger" onclick="App.excluirCaso('${id}')">Excluir caso</button>`:""}
     <button class="btn primary" onclick="App.salvarCaso()">Salvar alterações</button>
   `);
 }
@@ -2270,8 +2307,9 @@ function promptAjuste(id){
 /* =========================================================================
    OPERADOR / CADASTRO DE PROFISSIONAIS
    Cada profissional: nome completo, nome curto (aparece no sistema), função/
-   setor e status ativo/inativo. Inativos somem de "Operando como" e dos
-   campos de responsável, mas o nome continua nos históricos antigos.
+   setor, e-mail (chave do login com o Google), status administrador e status
+   ativo/inativo. Inativos somem do login e dos campos de responsável, mas o
+   nome continua nos históricos antigos.
    ========================================================================= */
 const FUNCOES_PROFISSIONAL = ["Recepção","ASB","Laboratório","Dentista planejador","Dentista responsável","Administrativo","Outro"];
 
@@ -2328,31 +2366,105 @@ function profissionalSelectHTML(idAttr, selectedValue){
   return `<select id="${idAttr}">${nomes.map(n=>`<option value="${esc(n)}" ${n===selectedValue?"selected":""}>${esc(n)}</option>`).join("")}</select>`;
 }
 
-function renderOperadorSelect(){
-  const sel = document.getElementById("sel-operador");
-  const ativos = profissionaisAtivos();
-  sel.innerHTML = `<option value="">Selecione o profissional...</option>` +
-    ativos.map(p=>{ const n = p.nomeCurto||p.nomeCompleto; return `<option value="${esc(n)}" ${OPERADOR===n?"selected":""}>${esc(n)} — ${esc(p.funcao)}</option>`; }).join("");
+/* =========================================================================
+   LOGIN COM O GOOGLE
+   Substitui o antigo seletor livre "Operando como": a pessoa entra com a
+   própria conta Google, o token é validado no backend (Apps Script) e
+   comparado contra o e-mail cadastrado em "Profissionais" — dali vem o nome
+   e o perfil (inclusive se é administrador). Sessão guardada em
+   sessionStorage (ver PERFIL_ATUAL), não localStorage: some ao fechar a aba,
+   importante em computador compartilhado (recepção/ASB).
+   ========================================================================= */
+function podeExcluir(){ return !!PERFIL_ATUAL?.administrador; }
+
+function renderOperadorBox(){
+  const box = document.getElementById("operador-box");
+  if (PERFIL_ATUAL){
+    box.innerHTML = `
+      <span style="font-weight:700;color:var(--graphite);">${esc(PERFIL_ATUAL.nomeCurto||PERFIL_ATUAL.nomeCompleto)}</span>
+      <span style="font-size:10.5px;color:var(--text-light);text-transform:uppercase;">${esc(PERFIL_ATUAL.funcao||"")}</span>
+      <button class="linkbtn" onclick="App.logout()">sair</button>
+      <button class="linkbtn" onclick="App.gerenciarProfissionais()">cadastro de profissionais</button>`;
+    return;
+  }
+  if (CONFIG.STORAGE_MODE === "local"){
+    // Modo local (sem backend) é sempre um único computador de teste — não
+    // faz sentido exigir login do Google aqui. Atalho simples só para isso.
+    box.innerHTML = `
+      <button class="btn small outline" onclick="App.loginLocalTeste()">Entrar (modo local/teste)</button>
+      <button class="linkbtn" onclick="App.gerenciarProfissionais()">cadastro de profissionais</button>`;
+    return;
+  }
+  box.innerHTML = `
+    <div id="google-signin-btn"></div>
+    <button class="linkbtn" onclick="App.gerenciarProfissionais()">cadastro de profissionais</button>`;
+  iniciarLogin();
 }
-function setOperador(nome){
-  OPERADOR = nome;
-  localStorage.setItem("operador_v1", nome);
+function loginLocalTeste(){
+  const nome = prompt("Modo local/teste — nome de quem está operando:", OPERADOR || "");
+  if (!nome) return;
+  PERFIL_ATUAL = { id:"local", nomeCurto:nome.trim(), nomeCompleto:nome.trim(), funcao:"Teste local", email:"", administrador:true };
+  OPERADOR = PERFIL_ATUAL.nomeCurto;
+  sessionStorage.setItem("perfil_atual_v1", JSON.stringify(PERFIL_ATUAL));
+  renderOperadorBox();
+  render();
+}
+
+function iniciarLogin(){
+  if (!CONFIG.GOOGLE_CLIENT_ID){
+    document.getElementById("google-signin-btn").innerHTML =
+      `<span style="font-size:11px;color:var(--red);">Login com o Google não configurado (falta GOOGLE_CLIENT_ID).</span>`;
+    return;
+  }
+  if (typeof google === "undefined" || !google.accounts?.id){
+    setTimeout(iniciarLogin, 300); // biblioteca do Google ainda carregando (async defer)
+    return;
+  }
+  google.accounts.id.initialize({ client_id: CONFIG.GOOGLE_CLIENT_ID, callback: handleCredentialResponse });
+  const el = document.getElementById("google-signin-btn");
+  if (el) google.accounts.id.renderButton(el, { theme:"outline", size:"medium", text:"signin_with" });
+}
+
+async function handleCredentialResponse(response){
+  try{
+    const data = await STORAGE.login(response.credential);
+    if (!data.ok){ toast(data.error || "Não foi possível entrar."); return; }
+    PERFIL_ATUAL = data.perfil;
+    OPERADOR = PERFIL_ATUAL.nomeCurto || PERFIL_ATUAL.nomeCompleto || "";
+    sessionStorage.setItem("perfil_atual_v1", JSON.stringify(PERFIL_ATUAL));
+    renderOperadorBox();
+    render();
+    toast(`Bem-vindo(a), ${OPERADOR}.`);
+  }catch(err){
+    console.error(err);
+    toast("Falha ao validar login com o Google.");
+  }
+}
+
+function logout(){
+  PERFIL_ATUAL = null;
+  OPERADOR = "";
+  sessionStorage.removeItem("perfil_atual_v1");
+  renderOperadorBox();
+  render();
 }
 
 function gerenciarProfissionais(){
   const lista = profissionaisAtuais();
   openModal("Cadastro de profissionais", `
-    <p style="font-size:12px;color:var(--text-light);">Profissionais inativos deixam de aparecer em "Operando como" e nos campos de responsável, mas continuam registrados nos históricos antigos.</p>
-    <table class="hist"><tr><th>Nome completo</th><th>Nome curto</th><th>Função / setor</th><th>Status</th><th></th></tr>
+    <p style="font-size:12px;color:var(--text-light);">Profissionais inativos deixam de aparecer nos campos de responsável, mas continuam registrados nos históricos antigos. O e-mail cadastrado aqui é o mesmo que a pessoa usa para entrar com o Google — sem e-mail, ela não consegue logar.</p>
+    <table class="hist"><tr><th>Nome completo</th><th>Nome curto</th><th>Função / setor</th><th>E-mail</th><th>Admin</th><th>Status</th><th></th></tr>
     ${lista.length ? lista.map(p=>`<tr>
       <td>${esc(p.nomeCompleto)}</td><td>${esc(p.nomeCurto)}</td><td>${esc(p.funcao)}</td>
+      <td>${esc(p.email||"—")}</td>
+      <td>${p.administrador?"👑 Sim":"—"}</td>
       <td>${p.ativo?"✅ Ativo":"⛔ Inativo"}</td>
       <td style="white-space:nowrap;">
         <button class="btn small outline" onclick="App.promptEditarProfissional('${p.id}')">Editar</button>
         <button class="btn small ${p.ativo?'warn':'ready'}" onclick="App.toggleProfissionalAtivo('${p.id}')">${p.ativo?"Desativar":"Ativar"}</button>
-        <button class="btn small danger" onclick="App.excluirProfissional('${p.id}')">Excluir</button>
+        ${podeExcluir()?`<button class="btn small danger" onclick="App.excluirProfissional('${p.id}')">Excluir</button>`:""}
       </td>
-    </tr>`).join("") : `<tr><td colspan="5">Nenhum profissional cadastrado ainda.</td></tr>`}
+    </tr>`).join("") : `<tr><td colspan="7">Nenhum profissional cadastrado ainda.</td></tr>`}
     </table>
     <div class="section-title">Novo profissional</div>
     <div class="form-grid">
@@ -2360,6 +2472,10 @@ function gerenciarProfissionais(){
       <div class="field"><label>Nome curto / apelido</label><input id="p-nome-curto"></div>
       <div class="field"><label>Função / setor</label>
         <select id="p-funcao">${FUNCOES_PROFISSIONAL.map(f=>`<option>${f}</option>`).join("")}</select>
+      </div>
+      <div class="field"><label>E-mail (Google/Gmail)</label><input id="p-email" type="email" placeholder="pessoa@gmail.com"></div>
+      <div class="field"><label>É administrador?</label>
+        <label style="display:flex;align-items:center;gap:6px;text-transform:none;font-weight:600;"><input type="checkbox" id="p-admin"> Pode excluir casos e profissionais</label>
       </div>
     </div>
   `, `<button class="btn outline" onclick="App.closeModal()">Fechar</button>
@@ -2370,10 +2486,12 @@ async function __submitNovoProfissional(){
   if (!nomeCompleto){ toast("Informe o nome completo."); return; }
   const nomeCurto = document.getElementById("p-nome-curto").value.trim() || nomeCompleto;
   const funcao = document.getElementById("p-funcao").value;
+  const email = document.getElementById("p-email").value.trim().toLowerCase();
+  const administrador = document.getElementById("p-admin").checked;
   const lista = profissionaisAtuais();
-  lista.push({ id: uuid(), nomeCompleto, nomeCurto, funcao, ativo:true });
+  lista.push({ id: uuid(), nomeCompleto, nomeCurto, funcao, email, administrador, ativo:true });
   await salvarProfissionais(lista);
-  renderOperadorSelect();
+  renderOperadorBox();
   gerenciarProfissionais();
   toast("Profissional cadastrado.");
 }
@@ -2387,6 +2505,10 @@ function promptEditarProfissional(id){
       <div class="field"><label>Função / setor</label>
         <select id="p-funcao">${FUNCOES_PROFISSIONAL.map(f=>`<option ${p.funcao===f?"selected":""}>${f}</option>`).join("")}</select>
       </div>
+      <div class="field"><label>E-mail (Google/Gmail)</label><input id="p-email" type="email" value="${esc(p.email||"")}" placeholder="pessoa@gmail.com"></div>
+      <div class="field"><label>É administrador?</label>
+        <label style="display:flex;align-items:center;gap:6px;text-transform:none;font-weight:600;"><input type="checkbox" id="p-admin" ${p.administrador?"checked":""}> Pode excluir casos e profissionais</label>
+      </div>
     </div>
   `, `<button class="btn outline" onclick="App.gerenciarProfissionais()">Cancelar</button>
       <button class="btn ready" onclick="App.__submitEditarProfissional('${id}')">Salvar alterações</button>`);
@@ -2395,13 +2517,18 @@ async function __submitEditarProfissional(id){
   const lista = profissionaisAtuais();
   const p = lista.find(x=>x.id===id);
   if (!p) return;
-  const nomeCurtoAntigo = p.nomeCurto || p.nomeCompleto;
   p.nomeCompleto = document.getElementById("p-nome-completo").value.trim() || p.nomeCompleto;
   p.nomeCurto = document.getElementById("p-nome-curto").value.trim() || p.nomeCompleto;
   p.funcao = document.getElementById("p-funcao").value;
+  p.email = document.getElementById("p-email").value.trim().toLowerCase();
+  p.administrador = document.getElementById("p-admin").checked;
   await salvarProfissionais(lista);
-  if (OPERADOR === nomeCurtoAntigo) setOperador(p.nomeCurto);
-  renderOperadorSelect();
+  if (PERFIL_ATUAL && PERFIL_ATUAL.id === p.id){
+    PERFIL_ATUAL = p;
+    OPERADOR = p.nomeCurto || p.nomeCompleto;
+    sessionStorage.setItem("perfil_atual_v1", JSON.stringify(PERFIL_ATUAL));
+  }
+  renderOperadorBox();
   gerenciarProfissionais();
   toast("Profissional atualizado.");
 }
@@ -2411,15 +2538,16 @@ async function toggleProfissionalAtivo(id){
   if (!p) return;
   p.ativo = !p.ativo;
   await salvarProfissionais(lista);
-  renderOperadorSelect();
+  renderOperadorBox();
   gerenciarProfissionais();
   toast(p.ativo?"Profissional ativado.":"Profissional desativado.");
 }
 async function excluirProfissional(id){
+  if (!podeExcluir()){ toast("Apenas administradores podem excluir."); return; }
   if (!confirm("Excluir este profissional definitivamente do cadastro? Os nomes já usados em históricos antigos continuam lá. Se não tiver certeza, prefira \"Desativar\".")) return;
   const lista = profissionaisAtuais().filter(x=>x.id!==id);
   await salvarProfissionais(lista);
-  renderOperadorSelect();
+  renderOperadorBox();
   gerenciarProfissionais();
   toast("Profissional excluído do cadastro.");
 }
@@ -2470,7 +2598,7 @@ function exportar(formato){
    ========================================================================= */
 async function atualizarDados(){
   await loadProfissionais();
-  renderOperadorSelect();
+  renderOperadorBox();
   await loadCasos();
 }
 async function __clickAtualizarDados(){
@@ -2485,7 +2613,7 @@ async function init(){
 }
 
 window.App = {
-  setOperador, gerenciarProfissionais, promptEditarProfissional,
+  logout, loginLocalTeste, gerenciarProfissionais, promptEditarProfissional,
   __submitNovoProfissional, __submitEditarProfissional, toggleProfissionalAtivo, excluirProfissional,
   setBusca, novoCaso, exportar, __clickAtualizarDados,
   setFilter, limparFiltros, toggleAlerts, abrirFicha, avancar, voltar,

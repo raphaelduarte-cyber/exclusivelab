@@ -58,7 +58,7 @@ campo **"Operando como"** (não é login, é identificação de quem está mexen
 
 A tela é dividida em 4 áreas fixas (conforme solicitado):
 
-1. **Barra "Operando como"** — fixa no topo, obrigatória antes de qualquer ação.
+1. **Barra de login** — fixa no topo, obrigatória antes de qualquer ação (ver "Login com o Google" abaixo).
 2. **Indicadores gerais** — cartões de KPI (produção, atrasados, urgentes, prontos, parciais pendentes).
 3. **Kanban** — colunas macro por fase, cards por caso, com selo Interno/Externo.
 4. **Central de alertas** — lista de casos que precisam de atenção imediata.
@@ -66,24 +66,61 @@ A tela é dividida em 4 áreas fixas (conforme solicitado):
 Cada caso individual tem uma **ficha completa** (modal) com todos os campos,
 histórico de movimentações e o controle detalhado de entregas parciais.
 
+### Login com o Google
+
+Desde a v3, "quem está operando" não é mais escolhido num seletor livre — a
+pessoa **entra com a própria conta Google (Gmail)** pelo botão no cabeçalho.
+O painel valida o token recebido direto no backend (Apps Script, ver
+`fazerLogin_` em `backend-appsscript/Code.gs`) e procura esse e-mail na aba
+"Profissionais" da planilha para saber o nome, a função e se a pessoa é
+**administradora**. Só administradores podem excluir casos e excluir
+profissionais do cadastro — qualquer pessoa logada continua podendo cadastrar,
+editar, ativar/desativar profissionais normalmente.
+
+A sessão fica em `sessionStorage` (não `localStorage`) de propósito: computadores
+de recepção/ASB costumam ser compartilhados por várias pessoas, então fechar a
+aba/navegador já encerra a sessão — evita que a próxima pessoa continue
+operando com a identidade anterior. Um link "sair" no cabeçalho também encerra
+a qualquer momento.
+
+**Configuração necessária** (uma vez só): criar um OAuth Client ID em
+[console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials)
+(tipo "Aplicativo da Web", com a URL do GitHub Pages nas origens autorizadas),
+colar em `CONFIG.GOOGLE_CLIENT_ID` no `index.html` e em `EXPECTED_AUD` no
+`Code.gs`. Sem isso, o botão de login mostra um aviso e ninguém consegue
+entrar.
+
+**Bootstrap do primeiro administrador**: ninguém começa marcado como
+administrador. Cadastre o primeiro profissional pelo painel (com o e-mail
+correto) e depois marque a célula `administrador` dessa linha como `TRUE`
+direto na aba "Profissionais" da planilha — a partir daí esse administrador
+promove os demais pela própria tela.
+
+No modo `STORAGE_MODE:"local"` (teste offline, sem planilha) o login do Google
+não se aplica — aparece um atalho "Entrar (modo local/teste)" que só pede um
+nome, pensado para uso solo antes de publicar o backend.
+
 ### Cadastro de profissionais
 
-O campo "Operando como" não é mais uma lista solta de nomes digitados: existe
-uma tela dedicada — **"cadastro de profissionais"**, link no topo ao lado do
-seletor — para cadastrar quem pode operar o sistema. Cada profissional tem:
+Existe uma tela dedicada — **"cadastro de profissionais"**, link no topo ao
+lado da identificação de quem está logado — para cadastrar quem pode operar o
+sistema. Cada profissional tem:
 
 - Nome completo
-- Nome curto/apelido (o que aparece nos seletores)
+- Nome curto/apelido (o que aparece no painel)
 - Função/setor (Recepção, ASB, Laboratório, Dentista planejador, Dentista
   responsável, Administrativo ou Outro)
+- **E-mail** — precisa ser o mesmo e-mail Google que a pessoa usa para entrar;
+  sem isso ela não consegue logar
+- **É administrador?** — controla quem pode excluir casos/profissionais
 - Status ativo/inativo
 
-Profissionais **inativos** somem de "Operando como" e dos campos de
+Profissionais **inativos** não conseguem logar e somem dos campos de
 responsável em todas as telas (registrar impressão, envio, recebimento,
 aprovação externa etc.), mas os nomes já gravados no histórico de casos
 antigos continuam lá — desativar não reescreve o passado. Excluir (em vez de
-desativar) remove o cadastro por completo; a tela avisa que "desativar" é a
-opção mais segura quando há dúvida.
+desativar) remove o cadastro por completo — ação restrita a administradores; a
+tela avisa que "desativar" é a opção mais segura quando há dúvida.
 
 Na primeira vez que o painel roda numa versão que já tinha a lista simples de
 nomes (versão anterior desta funcionalidade), o cadastro de profissionais é
@@ -509,11 +546,12 @@ O front-end (`index.html`) já vem pronto com um **adaptador de storage**
 - `"local"` (padrão de fábrica, funciona sozinho em `localStorage`, útil para
   testar telas e fluxo antes de publicar o backend, mas **não compartilha
   entre computadores**).
-- `"mysql"` (**recomendado para uso real** — ver seção 9) — fala com a API
-  PHP própria (pasta `/api`) hospedada junto do `index.html` na Hostinger.
-- `"sheets"` (legado — Google Apps Script + planilha, `backend-appsscript/Code.gs`).
-  Mantido só para quem já vinha usando essa versão; não é mais o caminho
-  recomendado.
+- `"mysql"` — fala com a API PHP própria (pasta `/api`) hospedada junto do
+  `index.html` na Hostinger. Alternativa caso um dia troquem de hospedagem.
+- `"sheets"` (**modo em uso atualmente** — Google Apps Script + planilha
+  Google, `backend-appsscript/Code.gs`) — publicado gratuitamente via GitHub
+  Pages (ver seção 9, "Opção grátis"). É o modo com login por e-mail do Google
+  implementado (ver "Login com o Google" na seção 1).
 
 ### API PHP (pasta `/api`)
 
@@ -559,7 +597,7 @@ Netlify, Vercel, servidor da clínica), sem precisar de PHP.
 
 ---
 
-## 9. Como publicar na Hostinger e usar em vários computadores
+## 9. Como publicar e usar em vários computadores
 
 ### Opção rápida para validar o fluxo (sem backend ainda)
 1. Abra `index.html` direto no navegador (duplo clique).
@@ -596,8 +634,38 @@ Netlify, Vercel, servidor da clínica), sem precisar de PHP.
    automático) e force redirecionamento HTTPS.
 7. Em cada computador (recepção, laboratório, ASB, dentista), abrir a URL do
    domínio publicado — favoritar no navegador.
-8. Cada pessoa, ao abrir, seleciona seu nome em "Operando como" antes de
-   mexer em qualquer caso (login de usuário fica para uma etapa futura).
+8. Cada pessoa, ao abrir, entra com a própria conta Google (ver "Login com o
+   Google" na seção 1) antes de mexer em qualquer caso.
+
+### Opção grátis (modo em uso atualmente) — GitHub Pages + Google Sheets
+1. **Planilha + Apps Script**: criar uma planilha Google nova, colar
+   `backend-appsscript/Code.gs` em Extensões > Apps Script, rodar `setup()`
+   uma vez, e publicar como Web App (Implantar > Nova implantação > "App da
+   Web", executar como "Eu", acesso "Qualquer pessoa"). Copiar a URL gerada
+   (termina em `/exec`).
+2. **Login com o Google**: criar um OAuth Client ID em
+   [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials)
+   (tipo "Aplicativo da Web", com a URL do GitHub Pages nas origens
+   autorizadas) e colar o Client ID em `CONFIG.GOOGLE_CLIENT_ID` (`index.html`)
+   e em `EXPECTED_AUD` (`Code.gs`).
+3. **Ajustar `CONFIG`** no `index.html`:
+   ```js
+   const CONFIG = {
+     STORAGE_MODE: "sheets",
+     API_URL: "URL_DO_WEB_APP_DO_APPS_SCRIPT",
+     GOOGLE_CLIENT_ID: "SEU_CLIENT_ID.apps.googleusercontent.com",
+     ...
+   };
+   ```
+4. **Subir para o GitHub**: criar um repositório público, enviar `index.html`
+   e `logo-exclusive.png` (não precisa da pasta `api/` nem `sql/` nesse modo),
+   e ativar GitHub Pages em Settings → Pages (Source: branch `main`, pasta
+   `/ (root)`). A URL fica em `https://SEUUSUARIO.github.io/SEUREPO/`.
+5. **Bootstrap do primeiro administrador**: cadastrar o primeiro profissional
+   pelo painel (com e-mail correto) e marcar `administrador` como `TRUE`
+   direto na aba "Profissionais" da planilha.
+6. Em cada computador, abrir a URL do GitHub Pages e entrar com a própria
+   conta Google.
 
 ### Atualização entre computadores
 Com `STORAGE_MODE:"mysql"` (ou `"sheets"`), o painel busca os dados mais
@@ -611,9 +679,9 @@ atualização imediata sem esperar o intervalo.
   conteúdo em si pode ser exportado pelo phpMyAdmin (aba *Exportar*) ou pelas
   ferramentas de backup de banco do plano Hostinger contratado.
 - O painel também tem botão "Exportar JSON/CSV" para backup manual local.
-- A versão anterior (Google Sheets + Apps Script, `backend-appsscript/Code.gs`)
-  continua funcional como alternativa — nesse caso o backup nativo é o
-  histórico de versões do próprio Google Sheets.
+- No modo `"sheets"` (Google Sheets + Apps Script, `backend-appsscript/Code.gs`),
+  o backup nativo é o histórico de versões do próprio Google Sheets (Arquivo >
+  Histórico de versões).
 
 ---
 
@@ -622,11 +690,12 @@ atualização imediata sem esperar o intervalo.
 - **Notificações reais**: n8n escutando o mesmo banco MySQL e disparando
   WhatsApp (via API oficial ou Twilio) e e-mail quando um caso entra em
   "Pronto para envio" ou fica parado demais numa etapa.
-- **Login por usuário** (próxima etapa planejada): trocar o campo livre
-  "Operando como" e a proteção por `X-Api-Key` por sessão PHP de verdade
-  (tabela `usuarios`, `password_hash()`/`password_verify()`), com perfis de
-  acesso por função/setor e todo histórico vinculado automaticamente a quem
-  estava logado.
+- **Login por usuário**: já implementado no modo `"sheets"` via Login com o
+  Google (ver seção 1). Ainda faltam: perfis de acesso granulares por
+  função/setor (hoje só existe a distinção administrador/não-administrador,
+  restrita a exclusão) e o equivalente no modo `"mysql"` (que ainda usa
+  `X-Api-Key` fixa — trocar por sessão PHP de verdade com tabela `usuarios` se
+  um dia migrarem pra esse modo).
 - **Tempo real de verdade**: migrar do polling para Firebase/Supabase com
   listener (`onSnapshot`/`Realtime`) para os cards atualizarem sozinhos em
   todos os computadores sem precisar dar refresh.
