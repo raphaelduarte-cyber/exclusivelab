@@ -293,14 +293,40 @@ lote (ou outros lotes em produção), a ficha mostra automaticamente o aviso
 pendentes para novo lote" já exibe exatamente o que falta — sem precisar de
 nenhuma ação manual para "abrir" essa continuação.
 
-### 2.3 Sistema de cores do card
+### 2.3 Sistema de cores do card — baseado em prazo (v4)
 
-- **Branco/neutro** — caso ativo com alguma pendência normal (lote em
-  produção, placas pendentes para novo lote).
-- **Amarelo** — pelo menos um lote já **recebido**, mas o caso ainda não está
-  100% completo (`completoTotal` falso) — a "continuação do caso".
-- **Vermelho** — atrasado ou com reimpressão pendente em algum lote.
-- **Verde** — 100% finalizado (todos os lotes recebidos).
+A cor de fundo do card é **100% controlada pela situação de prazo**
+(`situacaoPrazo()`), calculada a partir da **prioridade cadastrada**
+(normal/urgente/atrasado, escolhida no cadastro) + **datas** — nunca
+guardada, sempre recalculada a cada render. Prioridade cadastrada e situação
+de prazo são conceitos separados de propósito: um caso **Normal** pode estar
+com situação **Crítico** se estiver perto do vencimento, por exemplo.
+
+- **Branco/neutro** — dentro do prazo.
+- **Amarelo** — atenção (caso normal a partir do 10º dia desde a entrada).
+- **Vermelho** — crítico (caso normal a partir do 15º dia) **ou** urgente
+  (urgente já nasce vermelho desde o dia 0, antes mesmo de vencer).
+- **Roxo** — atrasado: prazo automático (20 dias normal / 5 dias urgente)
+  ultrapassado, **ou** prioridade marcada manualmente como "Atrasado".
+- **Verde** — 100% finalizado (`statusAtual === "Finalizado"`), sempre
+  sobrepõe qualquer outra cor.
+
+Prazos e limiares ficam centralizados em `CONFIG_PRAZOS` no `<script>` do
+`index.html`, fáceis de ajustar sem mexer no resto do código:
+```js
+const CONFIG_PRAZOS = {
+  normal:  { prazoDias: 20, atencaoDias: 10, criticoDias: 15 },
+  urgente: { prazoDias: 5 }
+};
+```
+Ao marcar a prioridade no cadastro, o campo "Prazo desejado" é
+**pré-preenchido automaticamente** (`prazoAutomatico()`) com base na data de
+entrada + esses dias — mas continua editável manualmente a qualquer momento.
+
+**Reimpressão pendente** e **entrega parcial** (que antes pintavam o card de
+vermelho/amarelo) viraram **selos (badges)** próprios no card, para não
+competir visualmente com a cor de prazo — a informação continua visível,
+só que num canal separado.
 
 ### 2.4 Status geral das placas — mapa fixo por placa individual
 

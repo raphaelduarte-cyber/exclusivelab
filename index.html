@@ -136,10 +136,10 @@ h1,h2,h3,h4{margin:0;}
   background:var(--card-bg); border-radius:var(--radius); box-shadow:var(--shadow); padding:13px;
   border:1px solid var(--border); border-left:4px solid var(--slate); position:relative;
 }
-.case-card.prio-urgente{border-left-color:var(--orange);}
 .case-card.status-yellow{background:var(--yellow-light); border-left-color:var(--yellow);}
 .case-card.status-red{background:var(--red-light); border-left-color:var(--red);}
 .case-card.status-green{background:var(--green-light); border-left-color:var(--green);}
+.case-card.status-purple{background:var(--purple-light); border-left-color:var(--purple);}
 .card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:6px;}
 .card-patient{font-weight:700; font-size:14px; color:var(--graphite);}
 .badge{display:inline-block; font-size:9.5px; font-weight:700; padding:2px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:.3px;}
@@ -147,6 +147,7 @@ h1,h2,h3,h4{margin:0;}
 .badge.externo{background:var(--purple-light); color:var(--purple);}
 .badge.urgente{background:var(--orange-light); color:var(--orange);}
 .badge.atrasado{background:var(--red-light); color:var(--red);}
+.badge.reimpressao{background:var(--red-light); color:var(--red);}
 .badge.parcial{background:var(--blue-light); color:var(--blue);}
 .badge.refinamento{background:var(--yellow-light); color:var(--yellow);}
 .card-status{font-size:11px; color:var(--text-light); margin:4px 0;}
@@ -288,6 +289,14 @@ table.hist th{color:var(--text-light); font-weight:700; font-size:10.5px; text-t
   <!-- preenchido via JS -->
 </div>
 
+<div class="plate-legend" style="padding:0 22px 10px;background:#fff;border-bottom:1px solid var(--border);">
+  <span><span style="width:12px;height:12px;border-radius:3px;background:#fff;border:1px solid var(--border);display:inline-block;"></span> Branco: dentro do prazo</span>
+  <span><span style="width:12px;height:12px;border-radius:3px;background:var(--yellow-light);border:1px solid var(--yellow);display:inline-block;"></span> Amarelo: atenção (10º dia)</span>
+  <span><span style="width:12px;height:12px;border-radius:3px;background:var(--red-light);border:1px solid var(--red);display:inline-block;"></span> Vermelho: crítico / urgente</span>
+  <span><span style="width:12px;height:12px;border-radius:3px;background:var(--purple-light);border:1px solid var(--purple);display:inline-block;"></span> Roxo: atrasado</span>
+  <span><span style="width:12px;height:12px;border-radius:3px;background:var(--green-light);border:1px solid var(--green);display:inline-block;"></span> Verde: finalizado</span>
+</div>
+
 <div class="alerts-wrap">
   <div class="alerts-header" onclick="App.toggleAlerts()">
     <h3>⚠ Central de alertas (<span id="alerts-count">0</span>)</h3>
@@ -309,7 +318,7 @@ table.hist th{color:var(--text-light); font-weight:700; font-size:10.5px; text-t
    "mysql"  — API PHP própria (pasta /api) gravando num MySQL (Hostinger).
               Preencha API_URL (ex.: "/api" ou "https://seudominio.com/api")
               e API_KEY com a mesma chave definida em api/config.php.
-   "sheets" — legado: Google Apps Script + planilha (ver backend-appsscript/Code.gs).
+   "sheets" — Google Apps Script + planilha (ver backend-appsscript/Code.gs) — modo em uso.
    ========================================================================= */
 const CONFIG = {
   STORAGE_MODE: "sheets",
@@ -318,6 +327,17 @@ const CONFIG = {
   GOOGLE_CLIENT_ID: "668827078020-k0cujbre0poh5la5elvtp0u7a13i12e4.apps.googleusercontent.com",
   POLL_INTERVAL_MS: 20000, // intervalo de sincronização quando o modo não é "local"
   STALL_DAYS: 3            // dias parado na mesma etapa até virar alerta
+};
+
+/* =========================================================================
+   PRAZOS — regras automáticas de prazo/cor do card (não confundir com as
+   cores das placas individuais, que têm seu próprio esquema). Fica isolado
+   aqui de propósito para ser fácil de ajustar sem mexer no resto do código
+   (ver seção "Configurações de prazo" combinada nesta constante).
+   ========================================================================= */
+const CONFIG_PRAZOS = {
+  normal:  { prazoDias: 20, atencaoDias: 10, criticoDias: 15 }, // dias corridos contados da data de entrada
+  urgente: { prazoDias: 5 }                                     // urgente já nasce crítico (vermelho); só vira atrasado depois do prazo
 };
 
 /* =========================================================================
@@ -918,13 +938,57 @@ function labelsDosItens(caso, ids){
 }
 
 /* =========================================================================
+   SITUAÇÃO DE PRAZO — separada de propósito da "prioridade" cadastrada
+   (normal/urgente/atrasado, escolhida pela pessoa no cadastro). A situação
+   é sempre CALCULADA a partir de prioridade + datas, nunca guardada — um
+   caso "Normal" pode estar com situação "Crítico" se estiver perto do
+   prazo, por exemplo. Cor do card (ver cardColorClass) é 100% baseada
+   nessa situação, não mais em reimpressão pendente/entrega parcial (que
+   viraram selos próprios no card — ver cardHTML).
+   ========================================================================= */
+function diasEntre(dataInicioISO, dataFimISO){
+  if (!dataInicioISO) return 0;
+  return Math.floor((new Date(dataFimISO) - new Date(dataInicioISO)) / 86400000);
+}
+// Prazo final sugerido automaticamente a partir da prioridade — só pré-
+// preenche o campo "Prazo desejado" no cadastro; a pessoa sempre pode
+// editar a data manualmente depois (ver toggleRecalcularPrazo no formulário).
+function prazoAutomatico(dataEntradaISO, prioridade){
+  if (!dataEntradaISO) return "";
+  const dias = prioridade==="urgente" ? CONFIG_PRAZOS.urgente.prazoDias : CONFIG_PRAZOS.normal.prazoDias;
+  const d = new Date(dataEntradaISO+"T00:00:00");
+  d.setDate(d.getDate() + dias);
+  return d.toISOString().slice(0,10);
+}
+const SITUACAO_PRAZO_LABEL = {
+  dentroPrazo:"Dentro do prazo", atencao:"Atenção", critico:"Crítico",
+  atrasado:"Atrasado", finalizado:"Finalizado"
+};
+function situacaoPrazo(caso, diasDecorridos){
+  if (caso.statusAtual === "Finalizado") return "finalizado";
+  if (caso.prioridade === "atrasado") return "atrasado"; // marcado manualmente
+  if (caso.prioridade === "urgente"){
+    return diasDecorridos > CONFIG_PRAZOS.urgente.prazoDias ? "atrasado" : "critico"; // urgente já nasce crítico
+  }
+  const { prazoDias, atencaoDias, criticoDias } = CONFIG_PRAZOS.normal;
+  if (diasDecorridos > prazoDias) return "atrasado";
+  if (diasDecorridos >= criticoDias) return "critico";
+  if (diasDecorridos >= atencaoDias) return "atencao";
+  return "dentroPrazo";
+}
+
+/* =========================================================================
    CAMPOS DERIVADOS (prazos, alertas, indicador geral de pendência)
    ========================================================================= */
 function computeDerived(caso){
   const totalPlacas = totalRealPlacas(caso);
   const completo = completoTotal(caso);
-  const statusFinal = caso.statusAtual === "Finalizado";
-  const atrasado = caso.dataPrevistaEntrega && caso.dataPrevistaEntrega < todayISO() && !statusFinal;
+  const diasDecorridos = caso.dataEntrada ? diasEntre(caso.dataEntrada, todayISO()) : 0;
+  const prazoDiasAplicavel = caso.prioridade==="urgente" ? CONFIG_PRAZOS.urgente.prazoDias : CONFIG_PRAZOS.normal.prazoDias;
+  const diasRestantes = prazoDiasAplicavel - diasDecorridos;
+  const situacao = situacaoPrazo(caso, diasDecorridos);
+  const atrasado = situacao === "atrasado";
+  const reimpressaoPendente = algumaReimpressaoPendenteCaso(caso);
   const parcialEntregue = algumaProducaoConcluidaParcial(caso) && !completo;
   const semPlacasPendentes = completo;
   let paradoDias = 0;
@@ -933,7 +997,7 @@ function computeDerived(caso){
     const last = hist[hist.length-1];
     paradoDias = Math.floor((new Date(todayISO()) - new Date(last.data)) / 86400000);
   }
-  return { totalPlacas, atrasado, parcialEntregue, semPlacasPendentes, paradoDias };
+  return { totalPlacas, atrasado, situacao, diasDecorridos, diasRestantes, reimpressaoPendente, parcialEntregue, semPlacasPendentes, paradoDias };
 }
 
 /* =========================================================================
@@ -968,6 +1032,10 @@ async function persist(caso){
 const ALERT_RULES = [
   {sev:"alta", test:(c,d)=>d.atrasado, msg:c=>`Caso atrasado (prazo ${fmtDate(c.dataPrevistaEntrega)})`},
   {sev:"media", test:(c,d)=>c.prioridade==="urgente", msg:()=>`Caso marcado como urgente`},
+  {sev:"alta", test:(c,d)=>c.prioridade==="normal" && d.situacao==="critico",
+    msg:(c,d)=>`Prazo crítico — ${d.diasDecorridos}º dia desde a entrada (prazo padrão: ${CONFIG_PRAZOS.normal.prazoDias} dias)`},
+  {sev:"media", test:(c,d)=>c.prioridade==="normal" && d.situacao==="atencao",
+    msg:(c,d)=>`Prazo em atenção — ${d.diasDecorridos}º dia desde a entrada`},
   {sev:"alta", test:(c)=>planejamentoValido(c) && placa0Pendente(c,"sup"), msg:()=>`Placa 0 superior pendente`},
   {sev:"alta", test:(c)=>planejamentoValido(c) && placa0Pendente(c,"inf"), msg:()=>`Placa 0 inferior pendente`},
   {sev:"alta", test:(c)=>ehTipoAlinhadores(c) && algumaReimpressaoPendenteCaso(c),
@@ -1166,11 +1234,15 @@ function toggleAlerts(){ ALERTS_OPEN = !ALERTS_OPEN; renderAlerts(); }
 // Cor geral do card: branco/neutro (ativo com pendência normal), amarelo
 // (algum lote já recebido mas o caso ainda não está 100% completo), vermelho
 // (atrasado ou reimpressão pendente), verde (100% finalizado/recebido).
+// Cor do card = 100% situação de prazo (ver situacaoPrazo). Reimpressão
+// pendente e entrega parcial não pintam mais o card — viraram selos (ver
+// cardHTML) para não competir visualmente com o sinal de prazo.
+const SITUACAO_PRAZO_COR_CLASS = {
+  finalizado:"status-green", atrasado:"status-purple", critico:"status-red",
+  atencao:"status-yellow", dentroPrazo:""
+};
 function cardColorClass(c, d){
-  if (c.statusAtual === "Finalizado") return "status-green";
-  if (d.atrasado || algumaReimpressaoPendenteCaso(c)) return "status-red";
-  if (d.parcialEntregue) return "status-yellow";
-  return "";
+  return SITUACAO_PRAZO_COR_CLASS[d.situacao] || "";
 }
 function loteResumoLinhaHTML(lote){
   const etapa = loteEtapaAtual(lote);
@@ -1181,7 +1253,6 @@ const TIPO_PRODUCAO_LABEL = { alinhadores:"", contencao:"Contenção", modeloEst
 function cardHTML(c){
   const d = computeDerived(c);
   const colorClass = cardColorClass(c, d);
-  const prioClass = colorClass ? "" : (c.prioridade==="urgente" ? "prio-urgente" : "");
   const blocked = BLOCK_GENERIC_ADVANCE[c.tipoCaso]?.has(c.statusAtual);
   const idx = currentIndex(c);
   const canAdvance = !blocked && c.statusAtual!=="Finalizado";
@@ -1218,20 +1289,26 @@ function cardHTML(c){
     <div class="warn-box" style="margin-top:6px;padding:5px 8px;font-size:10.5px;">🔄 <b>Continuação do caso</b> — já há ${isItens?"item(ns)":"lote(s)"} recebido(s), mas ainda falta produção.</div>
   ` : "";
 
+  const prazoBlock = (c.statusAtual!=="Finalizado" && c.dataEntrada) ? `
+    <div class="progress-line">📅 Entrada ${fmtDate(c.dataEntrada)} · Prazo ${fmtDate(c.dataPrevistaEntrega)} · ${d.diasDecorridos}d decorridos · ${d.diasRestantes>=0?`${d.diasRestantes}d restantes`:`${-d.diasRestantes}d de atraso`} · <b>${SITUACAO_PRAZO_LABEL[d.situacao]}</b></div>
+  ` : "";
+
   return `
-  <div class="case-card ${prioClass} ${colorClass}">
+  <div class="case-card ${colorClass}">
     <div class="card-top">
       <div>
         <span class="badge ${c.tipoCaso}">${c.tipoCaso}</span>
         ${tipoProducaoLabel?`<span class="badge" style="background:var(--gold-light);color:var(--gold-dark);">${tipoProducaoLabel}</span>`:""}
         ${c.prioridade==="urgente"?'<span class="badge urgente">urgente</span>':""}
         ${d.atrasado?'<span class="badge atrasado">atrasado</span>':""}
+        ${d.reimpressaoPendente?'<span class="badge reimpressao">reimpressão pendente</span>':""}
         ${d.parcialEntregue?'<span class="badge parcial">parcial</span>':""}
         ${c.refinamento?.isRefinamento?`<span class="badge refinamento">Refinamento nº ${esc(c.refinamento.numero??"?")}</span>`:""}
         <div class="card-patient">${esc(c.paciente) || "(sem nome)"}</div>
       </div>
       <div class="deadline">📅 ${fmtDate(c.dataPrevistaEntrega)}</div>
     </div>
+    ${prazoBlock}
     <div class="card-status">#${esc(c.numeroCaso)||"—"}${isItens?"":` · Planejador: ${esc(c.dentistaPlanejador)||"—"}`}<br>Status: <b>${c.statusAtual}</b></div>
     ${platesBlock}
     ${attachBlock}
@@ -1402,14 +1479,15 @@ function casoFormHTML(caso){
     <div class="field"><label>Número do caso</label><input id="f-numero" value="${esc(caso?.numeroCaso||("C-"+(CASOS.length+1).toString().padStart(4,"0")))}"></div>
     <div class="field"><label>Dentista responsável</label><input id="f-dentista-resp" value="${esc(caso?.dentistaResponsavel||"")}"></div>
     <div class="field campo-alinhadores ${hideAlinh}"><label>Dentista planejador</label><input id="f-dentista-plan" value="${esc(caso?.dentistaPlanejador||"")}"></div>
-    <div class="field"><label>Data de entrada</label><input type="date" id="f-data-entrada" value="${caso?.dataEntrada||todayISO()}"></div>
-    <div class="field"><label>Prazo desejado</label><input type="date" id="f-data-prevista" value="${caso?.dataPrevistaEntrega||""}"></div>
+    <div class="field"><label>Data de entrada</label><input type="date" id="f-data-entrada" value="${caso?.dataEntrada||todayISO()}" onchange="App.recalcularPrazoAutomatico()"></div>
+    <div class="field"><label>Prazo desejado</label><input type="date" id="f-data-prevista" value="${caso?.dataPrevistaEntrega||(caso?"":prazoAutomatico(todayISO(),"normal"))}"></div>
     <div class="field"><label>Prioridade</label>
-      <select id="f-prioridade">
-        <option value="normal" ${caso?.prioridade==="normal"?"selected":""}>Normal</option>
+      <select id="f-prioridade" onchange="App.recalcularPrazoAutomatico()">
+        <option value="normal" ${(!caso||caso?.prioridade==="normal")?"selected":""}>Normal</option>
         <option value="urgente" ${caso?.prioridade==="urgente"?"selected":""}>Urgente</option>
         <option value="atrasado" ${caso?.prioridade==="atrasado"?"selected":""}>Atrasado</option>
       </select>
+      <span style="font-size:10.5px;color:var(--text-light);text-transform:none;">Prazo é preenchido automaticamente (${CONFIG_PRAZOS.normal.prazoDias}d normal / ${CONFIG_PRAZOS.urgente.prazoDias}d urgente) — pode editar a data acima.</span>
     </div>
     <div class="field full"><label>Observações clínicas</label><textarea id="f-obs-iniciais">${esc(caso?.obsClinicas||"")}</textarea></div>
     <div class="field full campo-item ${hideAlinh==="hidden"?"":"hidden"}"><label>Observações laboratoriais</label><textarea id="f-obs-lab-item">${esc(caso?.obsLaboratoriais||"")}</textarea></div>
@@ -1547,6 +1625,14 @@ function toggleRefinamentoNumero(show){
 }
 // Alterna os grupos de campos do cadastro conforme o tipo de produção
 // escolhido (Alinhadores / Contenção / Modelo de estudo).
+// "Atrasado" não tem prazo automático (não faz sentido calcular dias pra
+// frente pra algo já marcado como atrasado) — só normal/urgente recalculam.
+function recalcularPrazoAutomatico(){
+  const prioridade = document.getElementById("f-prioridade").value;
+  if (prioridade === "atrasado") return;
+  const dataEntrada = document.getElementById("f-data-entrada").value;
+  document.getElementById("f-data-prevista").value = prazoAutomatico(dataEntrada, prioridade);
+}
 function toggleTipoProducao(tipo){
   document.getElementById("campo-contencao").classList.toggle("hidden", tipo!=="contencao");
   document.getElementById("campo-modelo").classList.toggle("hidden", tipo!=="modeloEstudo");
@@ -1845,6 +1931,7 @@ function itensProducaoSectionHTML(caso){
 
 function fichaCompletaHTML(caso){
   const actions = getActionsForCaso(caso);
+  const d = computeDerived(caso);
   return `
     <div class="readonly-grid">
       <div><span class="k">Paciente</span><span class="v">${esc(caso.paciente)}</span></div>
@@ -1856,6 +1943,8 @@ function fichaCompletaHTML(caso){
       ${ehTipoAlinhadores(caso) ? `<div><span class="k">Dentista planejador</span><span class="v">${esc(caso.dentistaPlanejador)||"—"}</span></div>` : ""}
       <div><span class="k">Entrada no laboratório</span><span class="v">${fmtDate(caso.dataEntrada)}</span></div>
       <div><span class="k">Previsão de entrega</span><span class="v">${fmtDate(caso.dataPrevistaEntrega)}</span></div>
+      <div><span class="k">Dias decorridos / restantes</span><span class="v">${d.diasDecorridos}d decorridos · ${d.diasRestantes>=0?`${d.diasRestantes}d restantes`:`${-d.diasRestantes}d de atraso`}</span></div>
+      <div><span class="k">Situação de prazo</span><span class="v">${SITUACAO_PRAZO_LABEL[d.situacao]}</span></div>
       <div><span class="k">Conclusão real</span><span class="v">${fmtDate(caso.dataConclusaoReal)}</span></div>
       <div><span class="k">Prioridade</span><span class="v">${caso.prioridade}</span></div>
       <div><span class="k">Setor responsável</span><span class="v">${esc(caso.setorResponsavelEtapaAtual)||"—"}</span></div>
@@ -2683,6 +2772,7 @@ window.App = {
   setBusca, novoCaso, exportar, __clickAtualizarDados,
   setFilter, limparFiltros, toggleAlerts, abrirFicha, avancar, voltar,
   editarCaso, salvarCaso, toggleExterno, toggleRefinamentoNumero, toggleTipoProducao, toggleQtdItem,
+  recalcularPrazoAutomatico,
   excluirCaso, closeModal,
   __runAction, __submitPlanejamento, promptPlanejamento,
   aprovarPlanejamento, solicitarAjuste, promptAprovacao, promptAjuste,
