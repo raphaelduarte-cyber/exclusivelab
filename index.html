@@ -224,6 +224,16 @@ table.hist th{color:var(--text-light); font-weight:700; font-size:10.5px; text-t
 .toast-wrap{position:fixed; bottom:16px; right:16px; z-index:200; display:flex; flex-direction:column; gap:8px;}
 .toast{background:var(--graphite); color:#fff; padding:10px 16px; border-radius:9px; font-size:13px; box-shadow:var(--shadow-lg); animation:pop .12s;}
 
+/* ---------- LOGIN GATE ---------- */
+.login-gate{
+  position:fixed; inset:0; z-index:90; background:var(--bg);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:24px; text-align:center;
+}
+.login-gate-logo{height:56px; width:auto; margin-bottom:10px;}
+.login-gate h1{font-size:20px; color:var(--graphite);}
+.login-gate p{font-size:13px; color:var(--text-light); margin:0 0 8px;}
+.login-gate-btn{min-height:40px;}
+
 @media (max-width:720px){
   .form-grid{grid-template-columns:1fr;}
   .readonly-grid{grid-template-columns:1fr;}
@@ -238,6 +248,15 @@ table.hist th{color:var(--text-light); font-weight:700; font-size:10.5px; text-t
 </head>
 <body>
 
+<div id="login-gate" class="login-gate">
+  <img src="logo-exclusive.png" alt="Exclusive Odontologia" class="login-gate-logo">
+  <h1>Laboratório Exclusive</h1>
+  <p>Controle de Produção — entre com sua conta Google para continuar</p>
+  <div id="google-signin-btn-gate" class="login-gate-btn"></div>
+  <button class="linkbtn" onclick="App.gerenciarProfissionais()">cadastro de profissionais</button>
+</div>
+
+<div id="app-root" class="hidden">
 <header class="app-header">
   <div class="header-row header-row-top">
     <div class="brand">
@@ -278,6 +297,7 @@ table.hist th{color:var(--text-light); font-weight:700; font-size:10.5px; text-t
 </div>
 
 <div class="kanban-board" id="kanban-board"></div>
+</div>
 
 <div id="modal-root"></div>
 <div class="toast-wrap" id="toast-wrap"></div>
@@ -2377,9 +2397,17 @@ function profissionalSelectHTML(idAttr, selectedValue){
    ========================================================================= */
 function podeExcluir(){ return !!PERFIL_ATUAL?.administrador; }
 
+// Tela inicial (#login-gate) bloqueia o acesso ao sistema (#app-root) até
+// haver login — a única ação possível na tela de login, além de entrar, é
+// abrir "cadastro de profissionais" (necessário para o bootstrap: alguém
+// precisa conseguir se cadastrar com e-mail antes de existir qualquer login).
 function renderOperadorBox(){
+  const gate = document.getElementById("login-gate");
+  const root = document.getElementById("app-root");
   const box = document.getElementById("operador-box");
   if (PERFIL_ATUAL){
+    gate.classList.add("hidden");
+    root.classList.remove("hidden");
     box.innerHTML = `
       <span style="font-weight:700;color:var(--graphite);">${esc(PERFIL_ATUAL.nomeCurto||PERFIL_ATUAL.nomeCompleto)}</span>
       <span style="font-size:10.5px;color:var(--text-light);text-transform:uppercase;">${esc(PERFIL_ATUAL.funcao||"")}</span>
@@ -2387,17 +2415,18 @@ function renderOperadorBox(){
       <button class="linkbtn" onclick="App.gerenciarProfissionais()">cadastro de profissionais</button>`;
     return;
   }
+  root.classList.add("hidden");
+  gate.classList.remove("hidden");
+  renderLoginGateButton();
+}
+function renderLoginGateButton(){
+  const btnWrap = document.getElementById("google-signin-btn-gate");
   if (CONFIG.STORAGE_MODE === "local"){
     // Modo local (sem backend) é sempre um único computador de teste — não
     // faz sentido exigir login do Google aqui. Atalho simples só para isso.
-    box.innerHTML = `
-      <button class="btn small outline" onclick="App.loginLocalTeste()">Entrar (modo local/teste)</button>
-      <button class="linkbtn" onclick="App.gerenciarProfissionais()">cadastro de profissionais</button>`;
+    btnWrap.innerHTML = `<button class="btn outline" onclick="App.loginLocalTeste()">Entrar (modo local/teste)</button>`;
     return;
   }
-  box.innerHTML = `
-    <div id="google-signin-btn"></div>
-    <button class="linkbtn" onclick="App.gerenciarProfissionais()">cadastro de profissionais</button>`;
   iniciarLogin();
 }
 function loginLocalTeste(){
@@ -2411,9 +2440,9 @@ function loginLocalTeste(){
 }
 
 function iniciarLogin(){
+  const btnWrap = document.getElementById("google-signin-btn-gate");
   if (!CONFIG.GOOGLE_CLIENT_ID){
-    document.getElementById("google-signin-btn").innerHTML =
-      `<span style="font-size:11px;color:var(--red);">Login com o Google não configurado (falta GOOGLE_CLIENT_ID).</span>`;
+    btnWrap.innerHTML = `<span style="font-size:11px;color:var(--red);">Login com o Google não configurado (falta GOOGLE_CLIENT_ID).</span>`;
     return;
   }
   if (typeof google === "undefined" || !google.accounts?.id){
@@ -2421,8 +2450,7 @@ function iniciarLogin(){
     return;
   }
   google.accounts.id.initialize({ client_id: CONFIG.GOOGLE_CLIENT_ID, callback: handleCredentialResponse });
-  const el = document.getElementById("google-signin-btn");
-  if (el) google.accounts.id.renderButton(el, { theme:"outline", size:"medium", text:"signin_with" });
+  google.accounts.id.renderButton(btnWrap, { theme:"outline", size:"large", text:"signin_with" });
 }
 
 async function handleCredentialResponse(response){
