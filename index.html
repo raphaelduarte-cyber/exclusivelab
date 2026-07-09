@@ -1434,8 +1434,9 @@ async function aprovarPlanejamento(id, aprovador){
   caso.externo.responsavelAprovacao = aprovador;
   caso.externo.dataAprovacaoPlanejamento = new Date().toISOString();
   changeStatus(caso, "Planejamento aprovado", "Aprovado por "+aprovador);
+  changeStatus(caso, STATUS_PRODUCAO, "Avanço automático para produção após aprovação do planejamento");
   await persist(caso);
-  abrirFicha(id); toast("Planejamento aprovado.");
+  abrirFicha(id); toast("Planejamento aprovado — caso avançou para produção.");
 }
 async function solicitarAjuste(id, obs){
   const caso = findCaso(id);
@@ -1783,10 +1784,15 @@ function promptPlanejamento(id){
   `, `<button class="btn outline" onclick="App.abrirFicha('${id}')">Cancelar</button>
       <button class="btn primary" onclick="App.__submitPlanejamento('${id}')">Salvar planejamento de placas</button>`);
 }
+// Salvar o planejamento já conclui essa etapa — avança automaticamente,
+// sem precisar de um clique extra em "Avançar". Interno vai direto para
+// produção; externo vai para aprovação (só chega em produção depois que o
+// cliente/dentista aprovar, ver aprovarPlanejamento).
 function __submitPlanejamento(id){
   const qtdSup = parseInt(document.getElementById("p-qtd-sup").value);
   const qtdInf = parseInt(document.getElementById("p-qtd-inf").value);
   if (isNaN(qtdSup) || isNaN(qtdInf)){ toast("Informe a quantidade de placas superiores e inferiores."); return; }
+  if (qtdSup + qtdInf <= 0){ toast("Informe pelo menos uma placa (superior ou inferior)."); return; }
   const caso = findCaso(id);
   caso.planejamento = {
     qtdSuperior: qtdSup, qtdInferior: qtdInf,
@@ -1796,8 +1802,9 @@ function __submitPlanejamento(id){
   };
   caso.attachSuperior = document.getElementById("p-attach-sup").value==="sim";
   caso.attachInferior = document.getElementById("p-attach-inf").value==="sim";
-  logHistorico(caso, caso.statusAtual, caso.statusAtual, "Planejamento de placas definido/atualizado");
-  persist(caso).then(()=>{ abrirFicha(id); toast("Planejamento de placas salvo."); });
+  const novoStatus = caso.tipoCaso==="externo" ? "Aguardando aprovação do cliente/dentista externo" : STATUS_PRODUCAO;
+  changeStatus(caso, novoStatus, "Planejamento de placas definido — avanço automático");
+  persist(caso).then(()=>{ abrirFicha(id); toast("Planejamento salvo — caso avançou automaticamente."); });
 }
 
 /* =========================================================================
@@ -1819,9 +1826,9 @@ function getActionsForCaso(caso){
     actions.push({label:"Aprovar planejamento", fn:()=>promptAprovacao(caso.id)});
     actions.push({label:"Solicitar ajuste no planejamento", fn:()=>promptAjuste(caso.id)});
   }
-  if (ext && s==="Planejamento aprovado"){
-    actions.push({label:"Solicitar ajuste no planejamento", fn:()=>promptAjuste(caso.id)});
-  }
+  // "Planejamento aprovado" agora é só transitório (aprovarPlanejamento já
+  // avança direto para produção na mesma ação) — não existe mais um momento
+  // em que o caso fica parado nesse status esperando outra ação aqui.
   return actions;
 }
 

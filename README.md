@@ -181,6 +181,7 @@ Externo:  Caso externo recebido → Dados conferidos → Planejamento pendente
 ```
 
 Regras aplicadas no código:
+- **Salvar o planejamento de placas já conclui essa etapa e avança o caso automaticamente** (`__submitPlanejamento`) — não existe mais um clique manual extra em "Avançar" depois de definir as placas. Interno vai direto para "Em produção (lotes)"; externo vai para "Aguardando aprovação do cliente/dentista externo". Ao aprovar (`aprovarPlanejamento`), o externo também avança automaticamente direto para "Em produção (lotes)" na mesma ação — "Planejamento aprovado" é só um passo transitório registrado no histórico, o caso nunca fica parado nele esperando outro clique.
 - Etapa de aprovação é **obrigatória** antes da produção no fluxo externo (bloqueia "Avançar" para "Em produção" sem aprovação registrada, e também se as placas do planejamento ainda não foram definidas em qualquer um dos dois fluxos).
 - "Ajustes solicitados" sempre volta automaticamente para "Planejamento em execução".
 - Campos exclusivos de caso externo ficam visíveis na ficha (ver seção 4).
@@ -386,14 +387,17 @@ a impressão das placas escolhidas (seção 2.1). Cada botão só aparece quando
 o lote está no estágio correspondente, e só controla as placas daquele lote
 específico.
 
-### 2.6 "Definir placas do planejamento" só na coluna Planejamento
+### 2.6 "Definir placas do planejamento" só na coluna Planejamento — e salvar já avança o caso
 
 Esse botão (ver seção 1, "Cadastro em duas fases") só é oferecido enquanto
 `STATUS_TO_COL[caso.statusAtual] === "planejamento"`. Em qualquer outra
 coluna — Recebido, Aprovação, Em produção ou Finalizado — ele não aparece
 mais na ficha. Isso evita que alguém altere a quantidade de placas depois
 que já existem lotes criados a partir delas, o que quebraria a
-correspondência entre planejamento e lotes.
+correspondência entre planejamento e lotes. Como salvar já move o caso pra
+fora da coluna Planejamento (ver acima), esse botão some sozinho logo depois
+do primeiro salvamento — não precisa de nenhuma lógica extra pra "travar" a
+edição das placas depois que os lotes já existem.
 
 ---
 
