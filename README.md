@@ -83,6 +83,17 @@ aba/navegador já encerra a sessão — evita que a próxima pessoa continue
 operando com a identidade anterior. Um link "sair" no cabeçalho também encerra
 a qualquer momento.
 
+**A trava de login também existe no backend, não só na tela.** `doGet`
+(leitura de casos/profissionais) e a ação `upsert` exigem `solicitanteEmail`
+batendo com um profissional ativo cadastrado — sem isso, o Apps Script devolve
+só o mínimo necessário pro bootstrap (`profissionaisVazio`), nunca dados de
+caso. Isso existe porque a URL do Web App, uma vez implantada como "Qualquer
+pessoa", é tecnicamente pública — sem essa checagem no servidor, qualquer um
+com a URL conseguiria ler dados de pacientes ou criar casos direto pela API,
+contornando a tela de login por completo. Exclusão e gestão de profissionais
+já exigiam administrador (ver `solicitanteEhAdministrador_`); leitura/criação
+de caso agora exigem só estar logado (`solicitanteEhProfissionalAtivo_`).
+
 **Configuração necessária** (uma vez só): criar um OAuth Client ID em
 [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials)
 (tipo "Aplicativo da Web", com a URL do GitHub Pages nas origens autorizadas),

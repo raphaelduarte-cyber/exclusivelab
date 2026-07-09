@@ -54,8 +54,6 @@ h1,h2,h3,h4{margin:0;}
 .brand-text span{font-size:10.5px; color:var(--text-light); letter-spacing:.2px;}
 .header-actions{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
 .operador-box{display:flex; align-items:center; gap:8px; background:var(--bg-alt); padding:6px 12px; border-radius:20px; border:1px solid var(--border);}
-.operador-box label{font-size:10.5px; font-weight:700; text-transform:uppercase; color:var(--text-light); letter-spacing:.3px;}
-.operador-box select{border:none; border-radius:6px; padding:4px 6px; min-width:150px; background:transparent; font-weight:600; color:var(--graphite);}
 .linkbtn{background:none;border:none;color:var(--gold-dark);text-decoration:underline;font-size:11px;padding:0; font-weight:600;}
 .search-box{flex:1; min-width:180px; max-width:320px;}
 .search-box input{width:100%; padding:8px 12px; border-radius:20px; border:1px solid var(--border); background:var(--bg-alt);}
@@ -68,7 +66,6 @@ h1,h2,h3,h4{margin:0;}
 .btn:hover{filter:brightness(0.96);}
 .btn:active{transform:translateY(1px);}
 .btn.primary{background:linear-gradient(135deg,#d3b378,var(--gold)); color:var(--graphite); border-color:var(--gold-dark); font-weight:700;}
-.btn.ghost{background:transparent; color:var(--graphite); border-color:var(--border);}
 .btn.small{padding:6px 10px; font-size:11.5px;}
 .btn.danger{background:var(--red); color:#fff; border-color:var(--red);}
 .btn.warn{background:var(--orange); color:#fff; border-color:var(--orange);}
@@ -151,14 +148,11 @@ h1,h2,h3,h4{margin:0;}
 .badge.parcial{background:var(--blue-light); color:var(--blue);}
 .badge.refinamento{background:var(--yellow-light); color:var(--yellow);}
 .card-status{font-size:11px; color:var(--text-light); margin:4px 0;}
-.card-meta{display:flex; flex-wrap:wrap; gap:5px; margin:4px 0;}
 .plates-row{display:flex; gap:6px; margin:6px 0;}
 .plate-box{flex:1; background:var(--bg); border-radius:8px; padding:6px 6px; text-align:center;}
 .plate-box .n{font-size:16px; font-weight:800; color:var(--slate);}
 .plate-box .l{font-size:9px; color:var(--text-light); text-transform:uppercase;}
 .progress-line{font-size:10.5px; color:var(--text-light); margin:2px 0;}
-.progress-bar{height:5px; background:var(--bg-alt); border-radius:4px; overflow:hidden; margin:3px 0;}
-.progress-bar > div{height:100%; background:var(--gold);}
 .attach-row{display:flex; gap:6px; font-size:10px; margin:4px 0; color:var(--text-light);}
 .attach-row .on{color:var(--gold-dark); font-weight:700;}
 .card-flags{display:flex; flex-wrap:wrap; gap:4px; margin:4px 0;}
@@ -170,7 +164,6 @@ h1,h2,h3,h4{margin:0;}
 .card-actions .btn{flex:1; min-width:0;}
 .deadline{font-size:10.5px;}
 .warn-box{background:var(--orange-light); border:1px solid var(--orange); border-radius:10px; padding:9px 11px; font-size:12px; color:#7c3400; margin:8px 0;}
-.crit-box{background:var(--red-light); border:1px solid var(--red); border-radius:10px; padding:9px 11px; font-size:12px; color:#7f1d1d; margin:8px 0;}
 .info-box{background:var(--blue-light); border:1px solid var(--blue); border-radius:10px; padding:9px 11px; font-size:12px; color:#1e3a8a; margin:8px 0;}
 .impressao-panel{background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:11px 13px; margin:8px 0;}
 .plate-chip{display:inline-flex; align-items:center; justify-content:center; min-width:27px; height:25px; padding:0 6px; border-radius:8px; font-size:11.5px; font-weight:800; border:1px solid var(--border); background:var(--bg); color:var(--text-light);}
@@ -419,6 +412,25 @@ function apiFetch(path, body){
                      : { headers:{"X-Api-Key":CONFIG.API_KEY} };
   return fetch(`${CONFIG.API_URL}/${path}`, opts).then(r=>r.json());
 }
+// GET do Apps Script já devolve casos + profissionais juntos (ver doGet no
+// Code.gs) — esse cache curtinho evita que loadCasos()/loadProfissionais(),
+// chamados em sequência no mesmo ciclo de atualizarDados(), disparem duas
+// requisições GET idênticas. Chave inclui o e-mail pra nunca reaproveitar
+// resposta de uma identidade diferente (ex.: logout/login rápido).
+// O backend só devolve casos/profissionais de verdade pra e-mail cadastrado
+// e ativo (ver doGet/solicitanteEhProfissionalAtivo_ no Code.gs) — sem isso,
+// qualquer um com a URL leria dados de pacientes sem passar pelo login.
+let _sheetsCache = null;
+async function sheetsFetchCombinado_(){
+  const email = PERFIL_ATUAL?.email || "";
+  const agora = Date.now();
+  if (_sheetsCache && _sheetsCache.email===email && (agora - _sheetsCache.ts) < 3000) return _sheetsCache.data;
+  const url = CONFIG.API_URL + (email ? `?solicitanteEmail=${encodeURIComponent(email)}` : "");
+  const res = await fetch(url);
+  const data = await res.json();
+  _sheetsCache = { data, ts: agora, email };
+  return data;
+}
 const STORAGE = {
   async getAll(){
     if (CONFIG.STORAGE_MODE === "mysql"){
@@ -426,8 +438,7 @@ const STORAGE = {
       return data.casos || [];
     }
     if (CONFIG.STORAGE_MODE === "sheets"){
-      const res = await fetch(CONFIG.API_URL);
-      const data = await res.json();
+      const data = await sheetsFetchCombinado_();
       return data.casos || [];
     }
     return JSON.parse(localStorage.getItem("casos_v1") || "[]");
@@ -438,11 +449,14 @@ const STORAGE = {
       return;
     }
     if (CONFIG.STORAGE_MODE === "sheets"){
-      await fetch(CONFIG.API_URL, {
+      const res = await fetch(CONFIG.API_URL, {
         method:"POST",
         headers:{"Content-Type":"text/plain;charset=utf-8"}, // evita preflight CORS no Apps Script
-        body: JSON.stringify({action:"upsert", caso})
+        body: JSON.stringify({action:"upsert", caso, solicitanteEmail: PERFIL_ATUAL?.email})
       });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Falha ao salvar.");
+      _sheetsCache = null; // próxima leitura precisa vir fresca, não do cache curto
       return;
     }
     const all = JSON.parse(localStorage.getItem("casos_v1") || "[]");
@@ -463,6 +477,7 @@ const STORAGE = {
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || "Falha ao excluir.");
+      _sheetsCache = null;
       return;
     }
     const all = JSON.parse(localStorage.getItem("casos_v1") || "[]").filter(c=>c.id!==id);
@@ -474,8 +489,14 @@ const STORAGE = {
       return data.profissionais || null;
     }
     if (CONFIG.STORAGE_MODE === "sheets"){
-      const res = await fetch(CONFIG.API_URL);
-      const data = await res.json();
+      const data = await sheetsFetchCombinado_();
+      if (data.autorizado === false){
+        // Pré-login: backend não devolve a lista de verdade (só quem já
+        // logou pode ler profissionais/casos) — guarda só o suficiente pra
+        // decidir se a tela de login mostra o link de bootstrap.
+        PROFISSIONAIS_VAZIO_PRELOGIN = !!data.profissionaisVazio;
+        return null;
+      }
       return data.profissionais || null;
     }
     return null; // "local": profissionaisAtuais() continua lendo do localStorage direto
@@ -493,6 +514,7 @@ const STORAGE = {
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || "Falha ao salvar profissionais.");
+      _sheetsCache = null;
       return true;
     }
     return false;
@@ -531,6 +553,11 @@ let OPERADOR = "";
 // evitando que a próxima pessoa continue operando com a identidade anterior.
 let PERFIL_ATUAL = JSON.parse(sessionStorage.getItem("perfil_atual_v1") || "null");
 if (PERFIL_ATUAL) OPERADOR = PERFIL_ATUAL.nomeCurto || PERFIL_ATUAL.nomeCompleto || "";
+// Antes do login, o backend não devolve a lista real de profissionais (ver
+// STORAGE.getAllProfissionais) — só essa flag, o suficiente pra tela de
+// login saber se deve mostrar o link de bootstrap ("cadastro de
+// profissionais") ou a mensagem "peça pra um administrador te cadastrar".
+let PROFISSIONAIS_VAZIO_PRELOGIN = null;
 let ALERTS_OPEN = true;
 let FILTERS = { texto:"", tipo:"todos", status:"todos", prioridade:"todos", planejador:"todos", setor:"todos",
   atrasados:false, parcial:false, pendentePlacas:false };
@@ -2436,6 +2463,11 @@ const FUNCOES_PROFISSIONAL = ["Recepção","ASB","Laboratório","Dentista planej
 // do localStorage, como sempre fez.
 function profissionaisAtuais(){
   if (PROFISSIONAIS) return PROFISSIONAIS;
+  // "sheets"/"mysql": PROFISSIONAIS ainda null aqui só acontece antes do
+  // login (backend não devolve a lista de verdade pra quem não está
+  // autenticado, ver PROFISSIONAIS_VAZIO_PRELOGIN) — não seria correto
+  // semear dados falsos nesse caso. Só o modo "local" (sem backend) semeia.
+  if (CONFIG.STORAGE_MODE !== "local") return [];
   const raw = localStorage.getItem("profissionais_v1");
   if (raw){ PROFISSIONAIS = JSON.parse(raw); return PROFISSIONAIS; }
   // Migração automática da lista simples de equipe usada antes desta versão.
@@ -2477,7 +2509,10 @@ async function loadProfissionais(){
   try{
     const remoto = await STORAGE.getAllProfissionais();
     if (remoto) PROFISSIONAIS = remoto;
-    else profissionaisAtuais(); // garante a semeadura local na primeira vez
+    else if (CONFIG.STORAGE_MODE === "local") profissionaisAtuais(); // garante a semeadura local na primeira vez
+    // "sheets"/"mysql" com remoto===null antes do login: ainda não autorizado
+    // a ler a lista de verdade (ver PROFISSIONAIS_VAZIO_PRELOGIN) — não seria
+    // correto semear dados falsos aqui, então PROFISSIONAIS fica como está.
   }catch(err){
     console.error(err);
     toast("Falha ao carregar profissionais do backend.");
@@ -2527,7 +2562,10 @@ function renderOperadorBox(){
   // "cadastro de profissionais" só aparece na tela de login enquanto ainda
   // não existir nenhum profissional (bootstrap) — depois disso, só
   // administrador logado cadastra gente nova (ver gerenciarProfissionais).
-  document.getElementById("login-gate-bootstrap").innerHTML = profissionaisAtuais().length === 0
+  // No modo "sheets", quem decide isso é PROFISSIONAIS_VAZIO_PRELOGIN (o
+  // backend não devolve a lista de verdade pra quem ainda não logou).
+  const semProfissionais = CONFIG.STORAGE_MODE === "sheets" ? PROFISSIONAIS_VAZIO_PRELOGIN === true : profissionaisAtuais().length === 0;
+  document.getElementById("login-gate-bootstrap").innerHTML = semProfissionais
     ? `<button class="linkbtn" onclick="App.gerenciarProfissionais()">cadastro de profissionais</button>`
     : `<p style="font-size:11.5px;color:var(--text-light);max-width:280px;">Ainda não tem acesso? Peça para um administrador te cadastrar.</p>`;
   renderLoginGateButton();
@@ -2574,7 +2612,7 @@ async function handleCredentialResponse(response){
     OPERADOR = PERFIL_ATUAL.nomeCurto || PERFIL_ATUAL.nomeCompleto || "";
     sessionStorage.setItem("perfil_atual_v1", JSON.stringify(PERFIL_ATUAL));
     renderOperadorBox();
-    render();
+    await atualizarDados(); // busca casos/profissionais de verdade agora que já está autorizado
     toast(`Bem-vindo(a), ${OPERADOR}.`);
   }catch(err){
     console.error(err);
@@ -2642,6 +2680,7 @@ async function __submitNovoProfissional(bootstrap){
   const lista = profissionaisAtuais();
   lista.push({ id: uuid(), nomeCompleto, nomeCurto, funcao, email, administrador, ativo:true });
   if (!(await salvarProfissionais(lista))) return;
+  if (bootstrap) PROFISSIONAIS_VAZIO_PRELOGIN = false; // acabou de deixar de estar vazia
   if (!bootstrap && email) STORAGE.notificarNovoProfissional(email, nomeCurto).catch(()=>{});
   renderOperadorBox();
   gerenciarProfissionais();

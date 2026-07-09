@@ -90,9 +90,22 @@ function jsonResponse_(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-/** GET => devolve casos e profissionais em JSON: { ok:true, casos:[...], profissionais:[...] } */
+/**
+ * GET => devolve casos e profissionais, mas só para quem já está logado
+ * (e-mail cadastrado e ativo em Profissionais, mandado via ?solicitanteEmail=).
+ * Sem isso, qualquer pessoa com a URL do Web App conseguiria ler dados de
+ * pacientes direto, sem passar pela tela de login do painel — a trava de
+ * login sozinha no front-end não impede chamada direta à API.
+ * Sem autorização, devolve só o mínimo necessário pro bootstrap (saber se a
+ * lista de profissionais está vazia), nunca dados de casos/profissionais.
+ */
 function doGet(e) {
-  return jsonResponse_({ ok: true, casos: lerCasos_(), profissionais: lerProfissionais_() });
+  var solicitanteEmail = (e && e.parameter && e.parameter.solicitanteEmail) || '';
+  var profissionais = lerProfissionais_();
+  if (!solicitanteEhProfissionalAtivo_(solicitanteEmail, profissionais)) {
+    return jsonResponse_({ ok: true, autorizado: false, profissionaisVazio: profissionais.length === 0 });
+  }
+  return jsonResponse_({ ok: true, autorizado: true, casos: lerCasos_(), profissionais: profissionais });
 }
 
 function lerCasos_() {
@@ -177,6 +190,9 @@ function doPost(e) {
   }
 
   if (body.action === 'upsert') {
+    if (!solicitanteEhProfissionalAtivo_(body.solicitanteEmail)) {
+      return jsonResponse_({ ok: false, error: 'Entre com sua conta Google antes de continuar.' });
+    }
     upsertCaso_(getSheet_(), body.caso);
     return jsonResponse_({ ok: true, caso: body.caso });
   }
@@ -241,6 +257,17 @@ function solicitanteEhAdministrador_(email) {
   var lista = lerProfissionais_();
   for (var i = 0; i < lista.length; i++) {
     if (String(lista[i].email || '').toLowerCase() === alvo) return !!lista[i].administrador;
+  }
+  return false;
+}
+
+/** Qualquer profissional ativo (não só administrador) — usado para liberar leitura/escrita de casos. */
+function solicitanteEhProfissionalAtivo_(email, listaOpcional) {
+  if (!email) return false;
+  var alvo = String(email).toLowerCase();
+  var lista = listaOpcional || lerProfissionais_();
+  for (var i = 0; i < lista.length; i++) {
+    if (String(lista[i].email || '').toLowerCase() === alvo) return lista[i].ativo !== false;
   }
   return false;
 }
