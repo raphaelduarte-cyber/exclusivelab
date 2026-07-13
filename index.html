@@ -165,6 +165,8 @@ h1,h2,h3,h4{margin:0;}
 .deadline{font-size:10.5px;}
 .warn-box{background:var(--orange-light); border:1px solid var(--orange); border-radius:10px; padding:9px 11px; font-size:12px; color:#7c3400; margin:8px 0;}
 .info-box{background:var(--blue-light); border:1px solid var(--blue); border-radius:10px; padding:9px 11px; font-size:12px; color:#1e3a8a; margin:8px 0;}
+.obs-producao-box{background:var(--gold-light); border:2px solid var(--gold-dark); border-radius:10px; padding:9px 11px; font-size:12.5px; color:var(--graphite); margin:8px 0; font-weight:600;}
+.obs-producao-box .tag{display:block; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; color:var(--gold-dark); margin-bottom:3px;}
 .impressao-panel{background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:11px 13px; margin:8px 0;}
 .plate-chip{display:inline-flex; align-items:center; justify-content:center; min-width:27px; height:25px; padding:0 6px; border-radius:8px; font-size:11.5px; font-weight:800; border:1px solid var(--border); background:var(--bg); color:var(--text-light);}
 .plate-chip.done{background:var(--green-light); color:var(--green); border-color:var(--green);}
@@ -213,6 +215,7 @@ table.hist{width:100%; border-collapse:collapse; font-size:12px;}
 table.hist th, table.hist td{border-bottom:1px solid var(--border); padding:5px 6px; text-align:left;}
 table.hist th{color:var(--text-light); font-weight:700; font-size:10.5px; text-transform:uppercase;}
 .readonly-grid{display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; font-size:12.5px;}
+.readonly-grid .full{grid-column:1/-1;}
 .readonly-grid div span.k{color:var(--text-light); display:block; font-size:10.5px; text-transform:uppercase;}
 .readonly-grid div span.v{font-weight:600;}
 .toast-wrap{position:fixed; bottom:16px; right:16px; z-index:200; display:flex; flex-direction:column; gap:8px;}
@@ -1319,6 +1322,13 @@ function cardHTML(c){
   const prazoBlock = (c.statusAtual!=="Finalizado" && c.dataEntrada) ? `
     <div class="progress-line">📅 Entrada ${fmtDate(c.dataEntrada)} · Prazo ${fmtDate(c.dataPrevistaEntrega)} · ${d.diasDecorridos}d decorridos · ${d.diasRestantes>=0?`${d.diasRestantes}d restantes`:`${-d.diasRestantes}d de atraso`} · <b>${SITUACAO_PRAZO_LABEL[d.situacao]}</b></div>
   ` : "";
+  // Observação para produção: escrita no planejamento, só ganha destaque no
+  // card a partir do momento em que o caso entra na coluna Produção — é o
+  // recado da equipe de planejamento pra quem vai produzir de fato.
+  const obsProducao = c.planejamento?.observacaoProducao;
+  const obsProducaoBlock = (obsProducao && STATUS_TO_COL[c.statusAtual]==="producao") ? `
+    <div class="obs-producao-box"><span class="tag">⚠ Observação para produção</span>${esc(obsProducao)}</div>
+  ` : "";
 
   return `
   <div class="case-card ${colorClass}">
@@ -1336,6 +1346,7 @@ function cardHTML(c){
       <div class="deadline">📅 ${fmtDate(c.dataPrevistaEntrega)}</div>
     </div>
     ${prazoBlock}
+    ${obsProducaoBlock}
     <div class="card-status">#${esc(c.numeroCaso)||"—"}${isItens?"":` · Planejador: ${esc(c.dentistaPlanejador)||"—"}`}<br>Status: <b>${c.statusAtual}</b></div>
     ${platesBlock}
     ${attachBlock}
@@ -1760,6 +1771,9 @@ function editarCaso(id){
 /* =========================================================================
    MODAL — DEFINIR PLACAS DO PLANEJAMENTO
    ========================================================================= */
+// A placa de attachment É a placa 0 (mesma placa, mesmo conceito) — não
+// existem mais como dois campos separados. "Sim" em attachment já conta
+// como placa 0 no total de modelos obrigatórios (ver reqSeqSup/reqSeqInf).
 function promptPlanejamento(id){
   const caso = findCaso(id);
   const p = caso.planejamento || {};
@@ -1767,17 +1781,14 @@ function promptPlanejamento(id){
     <div class="form-grid">
       <div class="field"><label>Quantidade de placas superiores (sem contar a placa 0)</label><input type="number" min="0" id="p-qtd-sup" value="${p.qtdSuperior??""}"></div>
       <div class="field"><label>Quantidade de placas inferiores (sem contar a placa 0)</label><input type="number" min="0" id="p-qtd-inf" value="${p.qtdInferior??""}"></div>
-      <div class="field"><label>Tem placa 0 superior?</label>
-        <select id="p-placa0-sup"><option value="nao" ${p.placa0Superior===false?"selected":""}>Não</option><option value="sim" ${p.placa0Superior===true?"selected":""}>Sim</option></select>
-      </div>
-      <div class="field"><label>Tem placa 0 inferior?</label>
-        <select id="p-placa0-inf"><option value="nao" ${p.placa0Inferior===false?"selected":""}>Não</option><option value="sim" ${p.placa0Inferior===true?"selected":""}>Sim</option></select>
-      </div>
-      <div class="field"><label>Placa de attachment superior?</label>
+      <div class="field"><label>Placa de attachment superior? (= placa 0)</label>
         <select id="p-attach-sup"><option value="nao" ${!caso.attachSuperior?"selected":""}>Não</option><option value="sim" ${caso.attachSuperior?"selected":""}>Sim</option></select>
       </div>
-      <div class="field"><label>Placa de attachment inferior?</label>
+      <div class="field"><label>Placa de attachment inferior? (= placa 0)</label>
         <select id="p-attach-inf"><option value="nao" ${!caso.attachInferior?"selected":""}>Não</option><option value="sim" ${caso.attachInferior?"selected":""}>Sim</option></select>
+      </div>
+      <div class="field full"><label>Observação para produção</label>
+        <textarea id="p-obs-producao" placeholder="Recado para quem for produzir — aparece em destaque assim que o caso entrar em Produção">${esc(p.observacaoProducao||"")}</textarea>
       </div>
     </div>
     <p style="font-size:12px;color:var(--text-light);margin-top:10px;">O sistema soma automaticamente a placa 0 (quando houver) ao total de modelos obrigatórios para validar a impressão.</p>
@@ -1794,14 +1805,16 @@ function __submitPlanejamento(id){
   if (isNaN(qtdSup) || isNaN(qtdInf)){ toast("Informe a quantidade de placas superiores e inferiores."); return; }
   if (qtdSup + qtdInf <= 0){ toast("Informe pelo menos uma placa (superior ou inferior)."); return; }
   const caso = findCaso(id);
+  const attachSup = document.getElementById("p-attach-sup").value==="sim";
+  const attachInf = document.getElementById("p-attach-inf").value==="sim";
   caso.planejamento = {
     qtdSuperior: qtdSup, qtdInferior: qtdInf,
-    placa0Superior: document.getElementById("p-placa0-sup").value==="sim",
-    placa0Inferior: document.getElementById("p-placa0-inf").value==="sim",
+    placa0Superior: attachSup, placa0Inferior: attachInf,
+    observacaoProducao: document.getElementById("p-obs-producao").value.trim(),
     definidoEm: new Date().toISOString()
   };
-  caso.attachSuperior = document.getElementById("p-attach-sup").value==="sim";
-  caso.attachInferior = document.getElementById("p-attach-inf").value==="sim";
+  caso.attachSuperior = attachSup;
+  caso.attachInferior = attachInf;
   const novoStatus = caso.tipoCaso==="externo" ? "Aguardando aprovação do cliente/dentista externo" : STATUS_PRODUCAO;
   changeStatus(caso, novoStatus, "Planejamento de placas definido — avanço automático");
   persist(caso).then(()=>{ abrirFicha(id); toast("Planejamento salvo — caso avançou automaticamente."); });
@@ -1988,9 +2001,9 @@ function fichaCompletaHTML(caso){
     ${planejamentoValido(caso) ? `
     <div class="readonly-grid">
       <div><span class="k">Superiores / Inferiores</span><span class="v">${pQtdSup(caso)} / ${pQtdInf(caso)}</span></div>
-      <div><span class="k">Placa 0 sup. / inf.</span><span class="v">${pPlaca0Sup(caso)?"Sim":"Não"} / ${pPlaca0Inf(caso)?"Sim":"Não"}</span></div>
+      <div><span class="k">Attachment sup. / inf. (= placa 0)</span><span class="v">${caso.attachSuperior?"Sim":"Não"} / ${caso.attachInferior?"Sim":"Não"}</span></div>
       <div><span class="k">Total real de modelos</span><span class="v">${totalRealSup(caso)} sup. + ${totalRealInf(caso)} inf. = ${totalRealPlacas(caso)}</span></div>
-      <div><span class="k">Attachment sup. / inf.</span><span class="v">${caso.attachSuperior?"Sim":"Não"} / ${caso.attachInferior?"Sim":"Não"}</span></div>
+      ${caso.planejamento?.observacaoProducao ? `<div class="full"><span class="k">Observação para produção</span><span class="v">${esc(caso.planejamento.observacaoProducao)}</span></div>` : ""}
     </div>
     ` : `<div class="alert-empty">Planejamento de placas ainda não definido.</div>`}
 

@@ -428,8 +428,9 @@ Caso {
   planejamento: {
     qtdSuperior: number          // placas principais, sem contar a placa 0
     qtdInferior: number
-    placa0Superior: boolean
-    placa0Inferior: boolean
+    placa0Superior: boolean      // = attachSuperior — attachment É a placa 0, não são dois campos
+    placa0Inferior: boolean      // = attachInferior
+    observacaoProducao: string   // recado pra quem vai produzir — só ganha destaque no card quando o caso entra na coluna Produção (ver cardHTML)
     definidoEm: datetime
   } | null
   attachSuperior: boolean
