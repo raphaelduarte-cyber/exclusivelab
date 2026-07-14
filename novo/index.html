@@ -936,16 +936,36 @@ function renderUsuariosLista(){
   }
   el.innerHTML = `
     <table class="tabela-usuarios">
-      <tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th></tr>
+      <tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th><th></th></tr>
       ${USUARIOS_CACHE.map(u => `
         <tr>
           <td>${esc(u.nomeCurto || u.nomeCompleto)}</td>
           <td>${esc(u.email)}</td>
           <td><span class="badge-perfil ${u.perfil==='Administrador'?'admin':'crc'}">${esc(u.perfil)}</span></td>
           <td>${u.ativo===false ? "⛔ Inativo" : "✅ Ativo"}</td>
+          <td><button class="btn small ${u.ativo===false?'':'outline'}" onclick="App.alternarAtivoUsuario('${esc(u.email)}')">${u.ativo===false ? "Ativar" : "Desativar"}</button></td>
         </tr>`).join("")}
     </table>
   `;
+}
+
+async function alternarAtivoUsuario(email){
+  const u = USUARIOS_CACHE.find(x => x.email === email);
+  if (!u) return;
+  const novoAtivo = u.ativo === false; // se está inativo, vira true; se está ativo, vira false
+  try {
+    const data = await Api.salvarUsuario(TOKEN_ATUAL, {
+      email: u.email, nomeCompleto: u.nomeCompleto, nomeCurto: u.nomeCurto, perfil: u.perfil, ativo: novoAtivo
+    });
+    if (!data.ok){ toast(data.error || "Não foi possível atualizar."); return; }
+    const idx = USUARIOS_CACHE.findIndex(x => x.email === email);
+    if (idx !== -1) USUARIOS_CACHE[idx] = data.usuario;
+    toast(novoAtivo ? "Usuário ativado." : "Usuário desativado.");
+    renderUsuariosLista();
+  } catch(err){
+    console.error(err);
+    toast("Falha ao atualizar — verifique sua conexão.");
+  }
 }
 
 function renderResumoFaltantesPorCRC(){
@@ -1406,7 +1426,7 @@ window.App = {
   abrirReativacao, atualizarFiltroReativacao, selecionarNovoStatus,
   cancelarMotivo, confirmarMotivo, registrarTentativa,
   cancelarRemocao, confirmarRemocao, alternarDetalheIECRC,
-  alternarDetalheMeta, salvarMetaCRC
+  alternarDetalheMeta, salvarMetaCRC, alternarAtivoUsuario
 };
 
 init();

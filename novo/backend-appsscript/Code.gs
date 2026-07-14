@@ -268,13 +268,15 @@ function salvarUsuario_(idToken, usuario) {
 
   var email = String(usuario.email).toLowerCase().trim();
   var existente = buscarUsuarioPorEmail_(email);
+  // Preserva os dados já cadastrados quando não vierem no pedido (ex.: ao
+  // só ativar/desativar, não perde nomeCompleto/nomeCurto/perfil já salvos).
   var novo = {
     id: (existente && existente.id) || ('usr-' + new Date().getTime() + '-' + Math.floor(Math.random() * 1e6)),
-    nomeCompleto: usuario.nomeCompleto || '',
-    nomeCurto: usuario.nomeCurto || usuario.nomeCompleto || '',
+    nomeCompleto: usuario.nomeCompleto || (existente && existente.nomeCompleto) || '',
+    nomeCurto: usuario.nomeCurto || (existente && existente.nomeCurto) || usuario.nomeCompleto || '',
     email: email,
-    perfil: bootstrap ? 'Administrador' : (usuario.perfil === 'Administrador' ? 'Administrador' : 'CRC'),
-    ativo: true
+    perfil: bootstrap ? 'Administrador' : (usuario.perfil || (existente && existente.perfil) || 'CRC'),
+    ativo: usuario.ativo !== undefined ? !!usuario.ativo : (existente ? existente.ativo !== false : true)
   };
   upsertUsuario_(novo);
   registrarLog_(
