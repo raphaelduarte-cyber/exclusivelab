@@ -195,6 +195,11 @@ h1,h2,h3,h4{margin:0;}
     <div id="view-crc-reativacao" class="hidden"></div>
     <div id="view-admin-placeholder" class="hidden">
       <div class="form-card">
+        <div class="section-title">Ranking — IE-CRC do mês</div>
+        <div id="ranking-admin"></div>
+      </div>
+
+      <div class="form-card" style="margin-top:20px;">
         <div class="section-title">Pacientes não reagendados por CRC</div>
         <div id="resumo-faltantes-por-crc"></div>
       </div>
@@ -525,7 +530,41 @@ function mostrarView(nome){
   if (nome==="dashboard") renderDashboard();
   if (nome==="relatorio") renderFormularioRelatorio();
   if (nome==="reativacao") renderReativacao();
-  if (nome==="admin"){ renderUsuariosLista(); renderResumoFaltantesPorCRC(); }
+  if (nome==="admin"){ renderUsuariosLista(); renderResumoFaltantesPorCRC(); renderRankingAdmin(); }
+}
+
+/** Ranking das CRCs pelo IE-CRC do mês atual — maior pontuação primeiro; quem ainda não tem relatório no mês fica por último. */
+function calcularRankingCRCs(){
+  const crcs = USUARIOS_CACHE.filter(u => u.perfil === "CRC");
+  const ranking = crcs.map(u => {
+    const relatorios = RELATORIOS_MES_CACHE.filter(r => r.crcEmail === u.email);
+    const ie = calcularIECRC(relatorios);
+    return { email: u.email, nome: u.nomeCurto || u.nomeCompleto, total: ie.semDados ? -1 : ie.total, semDados: ie.semDados };
+  });
+  ranking.sort((a,b) => b.total - a.total);
+  return ranking;
+}
+
+function renderRankingAdmin(){
+  const el = document.getElementById("ranking-admin");
+  if (!el) return;
+  const ranking = calcularRankingCRCs();
+  if (!ranking.length){
+    el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
+    return;
+  }
+  const medalhas = ["🥇","🥈","🥉"];
+  el.innerHTML = `
+    <table class="tabela-usuarios">
+      <tr><th>#</th><th>CRC</th><th>IE-CRC (mês)</th></tr>
+      ${ranking.map((r,i) => `
+        <tr>
+          <td>${medalhas[i] || (i+1)+"º"}</td>
+          <td>${esc(r.nome)}</td>
+          <td>${r.semDados ? "—" : r.total}</td>
+        </tr>`).join("")}
+    </table>
+  `;
 }
 
 function abrirFormularioRelatorio(){ mostrarView("relatorio"); }
@@ -582,6 +621,9 @@ function renderDashboard(){
   const totalNaoReagendados = minhaFilaReativacao().length;
   const meusRelatoriosMes = RELATORIOS_MES_CACHE.filter(r => r.crcEmail === PERFIL_ATUAL.email);
   const ie = calcularIECRC(meusRelatoriosMes);
+  const ranking = calcularRankingCRCs();
+  const minhaPosicao = ranking.findIndex(r => r.email === PERFIL_ATUAL.email);
+  const rankingTexto = minhaPosicao === -1 ? "—" : `${minhaPosicao+1}º de ${ranking.length}`;
   el.innerHTML = `
     <div class="saudacao">Olá, ${esc(PERFIL_ATUAL.nomeCurto||PERFIL_ATUAL.nomeCompleto)} 👋</div>
     <div class="saudacao-sub">Aqui está o resumo do seu dia.</div>
@@ -599,7 +641,10 @@ function renderDashboard(){
         <div class="val">${ie.semDados ? "—" : ie.total}</div>
       </div>
       <div class="dash-card muted">Meta do mês<br>disponível na próxima etapa</div>
-      <div class="dash-card muted">Ranking atual<br>disponível na próxima etapa</div>
+      <div class="dash-card">
+        <div class="lbl">Ranking atual</div>
+        <div class="val">${rankingTexto}</div>
+      </div>
     </div>
     ${DETALHE_IECRC_ABERTO ? renderDetalheIECRC(ie) : ""}
     <button class="btn primary" onclick="App.abrirFormularioRelatorio()">📝 ${RELATORIO_ENVIADO_HOJE ? "Preencher outro relatório" : "Preencher relatório de hoje"}</button>
