@@ -94,8 +94,6 @@ h1,h2,h3,h4{margin:0;}
 .temp-group{display:flex; gap:8px; flex-wrap:wrap;}
 .temp-btn{border:1px solid var(--border); background:#fff; border-radius:20px; padding:8px 14px; font-size:13px; font-weight:600;}
 .temp-btn.selected{border-color:var(--gold-dark); background:var(--gold-light); box-shadow:0 0 0 2px var(--gold-light) inset;}
-.faltante-row-wrap{padding-bottom:12px; margin-bottom:12px; border-bottom:1px dashed var(--border);}
-.faltante-row-wrap:last-child{border-bottom:none; margin-bottom:0; padding-bottom:0;}
 .faltante-row{display:flex; gap:8px; align-items:center;}
 .faltante-row input, .faltante-row select{flex:1; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:#fbfaf7;}
 .faltante-row input.invalid{border-color:var(--red); background:var(--red-light);}
@@ -109,7 +107,6 @@ h1,h2,h3,h4{margin:0;}
 .badge-perfil.crc{background:var(--blue-light); color:var(--blue);}
 .usuarios-vazio{font-size:12px; color:var(--text-light);}
 .reativ-card{background:var(--card-bg); border:1px solid var(--border); border-left:4px solid var(--slate); border-radius:var(--radius); padding:16px; margin-bottom:12px; box-shadow:var(--shadow);}
-.reativ-card.reativ-amarelo{border-left-color:var(--yellow); background:var(--yellow-light);}
 .reativ-card.reativ-vermelho{border-left-color:var(--red); background:var(--red-light);}
 .reativ-card.reativ-cinza{border-left-color:var(--text-light); background:var(--bg-alt);}
 .reativ-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;}
@@ -250,22 +247,16 @@ const PROCEDIMENTOS = ["Implante Unitário","Protocolo","Implante Zigomático","
 const TEMPERATURAS = [{v:"Muito Quente",e:"🔴"},{v:"Quente",e:"🟠"},{v:"Morno",e:"🟡"}];
 const PROXIMAS_ACOES = ["Ligação","WhatsApp","Áudio","Vídeo","Aguardando retorno"];
 const HORARIOS = ["Manhã","Tarde","Noite"];
-const STATUS_FALTANTES = ["Não reagendado","Reagendado","Sem retorno","Não deseja reagendar","Telefone inválido","Em acompanhamento"];
+const STATUS_FALTANTES = ["Não agendado","Reagendado","Não deseja reagendar"];
 
 // Dados de exemplo só para o modo de teste local (sem API_URL) — mostra a Central de Reativação populada na demonstração.
 const PACIENTES_FALTANTES_EXEMPLO = [
   { id:"exemplo-1", crcEmail:"larissa@teste.com", crcNome:"Larissa", nome:"Ana Costa", telefone:"81997424432",
-    data:"2026-07-05", procedimento:"Implante Unitário", profissional:"Dr. João",
-    status:"Não reagendado", tentativasContato:0, ultimoContato:"", observacao:"" },
+    data:"2026-07-05", status:"Não agendado", tentativasContato:0, ultimoContato:"", observacao:"" },
   { id:"exemplo-2", crcEmail:"larissa@teste.com", crcNome:"Larissa", nome:"Bruno Lima", telefone:"81988887777",
-    data:"2026-07-12", procedimento:"Clareamento", profissional:"",
-    status:"Em acompanhamento", tentativasContato:2, ultimoContato:"2026-07-13", observacao:"Vai ligar de volta na sexta" },
+    data:"2026-07-12", status:"Não agendado", tentativasContato:2, ultimoContato:"2026-07-13", observacao:"" },
   { id:"exemplo-3", crcEmail:"larissa@teste.com", crcNome:"Larissa", nome:"Carla Souza", telefone:"81900001111",
-    data:"2026-07-10", procedimento:"Facetas", profissional:"Dra. Marcia",
-    status:"Sem retorno", tentativasContato:3, ultimoContato:"2026-07-11", observacao:"Não atende mais" },
-  { id:"exemplo-4", crcEmail:"larissa@teste.com", crcNome:"Larissa", nome:"Diego Alves", telefone:"",
-    data:"2026-06-20", procedimento:"", profissional:"",
-    status:"Telefone inválido", tentativasContato:1, ultimoContato:"2026-06-22", observacao:"Número não existe" }
+    data:"2026-07-10", status:"Não deseja reagendar", tentativasContato:3, ultimoContato:"2026-07-11", observacao:"Mudou de cidade" }
 ];
 
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -320,6 +311,7 @@ const Api = {
   },
   async atualizarStatusFaltante(idToken, id, mudancas){
     if (!CONFIG.API_URL){
+      if (mudancas && mudancas.status === "Reagendado") return { ok:true, removido:true, id };
       return { ok:true, paciente: { id, ...mudancas } }; // modo de teste local: simula sucesso sem backend
     }
     const resp = await fetch(CONFIG.API_URL, {
@@ -341,7 +333,7 @@ let RELATORIO_ENVIADO_HOJE = false;
 let USUARIOS_CACHE = [];
 let PACIENTES_FALTANTES_CACHE = [];
 let FILTRO_REATIVACAO = { status:"", busca:"", ordenacao:"padrao" };
-let ESTADO_REAGENDAMENTO = {};
+let ESTADO_MOTIVO = {};
 
 function minhaFilaReativacao(){
   return PACIENTES_FALTANTES_CACHE.filter(f => f.crcEmail === PERFIL_ATUAL.email && f.status !== "Reagendado");
@@ -596,16 +588,14 @@ function renderReativacao(){
   const fila = filtrarEOrdenarFila();
   const hoje = new Date().toISOString().slice(0,10);
   const contatadosHoje = todas.filter(f => f.ultimoContato === hoje).length;
-  const reagendadosHoje = PACIENTES_FALTANTES_CACHE.filter(f => f.crcEmail===PERFIL_ATUAL.email && f.status==="Reagendado" && (f.atualizadoEm||"").slice(0,10)===hoje).length;
 
   el.innerHTML = `
     <button class="btn outline small" style="margin-bottom:14px;" onclick="App.voltarDashboard()">← Voltar</button>
     <div class="saudacao" style="font-size:19px;">Pacientes não reagendados</div>
     <div class="saudacao-sub">Quem faltou e ainda precisa ser resgatado.</div>
     <div class="dash-cards" style="margin-bottom:18px;">
-      <div class="dash-card"><div class="lbl">Não reagendados</div><div class="val">${todas.length}</div></div>
+      <div class="dash-card"><div class="lbl">Não agendados</div><div class="val">${todas.length}</div></div>
       <div class="dash-card"><div class="lbl">Contatados hoje</div><div class="val">${contatadosHoje}</div></div>
-      <div class="dash-card"><div class="lbl">Reagendados hoje</div><div class="val">${reagendadosHoje}</div></div>
     </div>
 
     <div class="field-grid" style="margin-bottom:18px;">
@@ -636,11 +626,10 @@ function renderFilaHTML(fila){
   return fila.map(f => {
     const diasSemContato = diasDesde(f.ultimoContato || f.data);
     let corClasse = "";
-    if (f.status === "Em acompanhamento") corClasse = "reativ-amarelo";
-    else if (f.status === "Não deseja reagendar" || f.status === "Telefone inválido") corClasse = "reativ-cinza";
+    if (f.status === "Não deseja reagendar") corClasse = "reativ-cinza";
     else if (diasSemContato >= 3) corClasse = "reativ-vermelho";
     const waLink = linkWhatsapp(f.telefone);
-    const emReagendamento = ESTADO_REAGENDAMENTO[f.id] === true;
+    const emMotivo = ESTADO_MOTIVO[f.id] === true;
     return `
       <div class="reativ-card ${corClasse}" data-id="${f.id}">
         <div class="reativ-top">
@@ -651,28 +640,24 @@ function renderFilaHTML(fila){
           ${waLink ? `<a class="btn small ready" href="${waLink}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
         </div>
         <div class="reativ-detalhes">
-          ${f.procedimento ? `<span>${esc(f.procedimento)}</span>` : ""}
-          ${f.profissional ? `<span>${esc(f.profissional)}</span>` : ""}
           <span>Tentativas: ${f.tentativasContato||0}</span>
           <span>Último contato: ${f.ultimoContato ? formatarData(f.ultimoContato) : "nunca"}</span>
         </div>
+        ${f.status === "Não deseja reagendar" && f.observacao ? `<div class="reativ-detalhes" style="margin-top:4px;"><span><strong>Motivo:</strong> ${esc(f.observacao)}</span></div>` : ""}
         <div class="field-grid" style="margin-top:10px;">
           <div class="field"><label>Status</label>
             <select onchange="App.selecionarNovoStatus('${f.id}', this.value)">
               ${STATUS_FALTANTES.map(s=>`<option value="${esc(s)}" ${f.status===s?"selected":""}>${esc(s)}</option>`).join("")}
             </select>
           </div>
-          <div class="field"><label>Observação</label><input type="text" value="${esc(f.observacao||"")}" onchange="App.atualizarObservacaoFaltante('${f.id}', this.value)"></div>
         </div>
-        ${emReagendamento ? `
+        ${emMotivo ? `
         <div class="field-grid" style="margin-top:10px;">
-          <div class="field"><label>Nova data</label><input type="date" id="f-reag-data-${f.id}"></div>
-          <div class="field"><label>Novo horário</label><input type="time" id="f-reag-horario-${f.id}"></div>
-          <div class="field"><label>Novo local</label><input type="text" id="f-reag-local-${f.id}"></div>
+          <div class="field"><label>Motivo</label><input type="text" id="f-motivo-${f.id}" placeholder="Por que não quer reagendar?"></div>
         </div>
         <div class="form-actions">
-          <button class="btn outline small" onclick="App.cancelarReagendamento('${f.id}')">Cancelar</button>
-          <button class="btn primary small" onclick="App.confirmarReagendamento('${f.id}')">Salvar reagendamento</button>
+          <button class="btn outline small" onclick="App.cancelarMotivo('${f.id}')">Cancelar</button>
+          <button class="btn primary small" onclick="App.confirmarMotivo('${f.id}')">Salvar</button>
         </div>` : `
         <div class="form-actions">
           <button class="btn outline small" onclick="App.registrarTentativa('${f.id}')">Registrar tentativa de contato</button>
@@ -691,6 +676,10 @@ async function aplicarMudancaFaltante(id, mudancas){
   try {
     const data = await Api.atualizarStatusFaltante(TOKEN_ATUAL, id, mudancas);
     if (!data.ok){ toast(data.error || "Não foi possível atualizar."); return false; }
+    if (data.removido){
+      PACIENTES_FALTANTES_CACHE = PACIENTES_FALTANTES_CACHE.filter(f => f.id !== id);
+      return true;
+    }
     const idx = PACIENTES_FALTANTES_CACHE.findIndex(f => f.id === id);
     if (idx !== -1) PACIENTES_FALTANTES_CACHE[idx] = { ...PACIENTES_FALTANTES_CACHE[idx], ...data.paciente };
     return true;
@@ -703,7 +692,16 @@ async function aplicarMudancaFaltante(id, mudancas){
 
 async function selecionarNovoStatus(id, novoStatus){
   if (novoStatus === "Reagendado"){
-    ESTADO_REAGENDAMENTO[id] = true;
+    if (!confirm("Confirma que esse paciente foi reagendado? Ele sai da lista e não fica mais salvo.")){
+      renderReativacao(); // reverte o select
+      return;
+    }
+    const ok = await aplicarMudancaFaltante(id, { status: "Reagendado" });
+    if (ok){ toast("Paciente reagendado — removido da fila."); renderReativacao(); }
+    return;
+  }
+  if (novoStatus === "Não deseja reagendar"){
+    ESTADO_MOTIVO[id] = true;
     renderReativacao();
     return;
   }
@@ -711,23 +709,21 @@ async function selecionarNovoStatus(id, novoStatus){
   if (ok){ toast("Status atualizado."); renderReativacao(); }
 }
 
-function cancelarReagendamento(id){
-  delete ESTADO_REAGENDAMENTO[id];
+function cancelarMotivo(id){
+  delete ESTADO_MOTIVO[id];
   renderReativacao();
 }
 
-async function confirmarReagendamento(id){
-  const novaData = document.getElementById(`f-reag-data-${id}`)?.value;
-  const novoHorario = document.getElementById(`f-reag-horario-${id}`)?.value;
-  const novoLocal = document.getElementById(`f-reag-local-${id}`)?.value.trim();
-  if (!novaData || !novoHorario || !novoLocal){
-    toast("Preencha nova data, horário e local antes de salvar o reagendamento.");
+async function confirmarMotivo(id){
+  const motivo = document.getElementById(`f-motivo-${id}`)?.value.trim();
+  if (!motivo){
+    toast("Preencha o motivo antes de salvar.");
     return;
   }
-  const ok = await aplicarMudancaFaltante(id, { status:"Reagendado", novaData, novoHorario, novoLocal });
+  const ok = await aplicarMudancaFaltante(id, { status:"Não deseja reagendar", observacao: motivo });
   if (ok){
-    delete ESTADO_REAGENDAMENTO[id];
-    toast("Paciente reagendado!");
+    delete ESTADO_MOTIVO[id];
+    toast("Status atualizado.");
     renderReativacao();
   }
 }
@@ -735,10 +731,6 @@ async function confirmarReagendamento(id){
 async function registrarTentativa(id){
   const ok = await aplicarMudancaFaltante(id, { incrementarTentativa: true });
   if (ok){ toast("Tentativa registrada."); renderReativacao(); }
-}
-
-function atualizarObservacaoFaltante(id, valor){
-  aplicarMudancaFaltante(id, { observacao: valor });
 }
 
 /* =========================================================================
@@ -822,25 +814,16 @@ function renderFaltantesRows(){
   const wrap = document.getElementById("faltantes-rows");
   if (!wrap) return;
   wrap.innerHTML = FALTANTES.map(f => `
-    <div class="faltante-row-wrap" data-id="${f.id}">
-      <div class="faltante-row">
-        <input type="text" placeholder="Nome do paciente" value="${esc(f.nome)}" oninput="App.atualizarFaltante(${f.id},'nome',this.value)">
-        <input type="tel" id="f-falt-tel-${f.id}" placeholder="DDD + telefone (ex.: 81 997424432)" value="${esc(f.telefone)}" oninput="App.atualizarFaltante(${f.id},'telefone',this.value)">
-        <button type="button" class="btn small outline" onclick="App.removerFaltante(${f.id})">✕</button>
-      </div>
-      <div class="faltante-row" style="margin-top:6px;">
-        <select onchange="App.atualizarFaltante(${f.id},'procedimento',this.value)">
-          <option value="">Procedimento (opcional)</option>
-          ${PROCEDIMENTOS.map(p=>`<option value="${esc(p)}" ${f.procedimento===p?"selected":""}>${esc(p)}</option>`).join("")}
-        </select>
-        <input type="text" placeholder="Profissional (opcional)" value="${esc(f.profissional)}" oninput="App.atualizarFaltante(${f.id},'profissional',this.value)">
-      </div>
+    <div class="faltante-row" data-id="${f.id}">
+      <input type="text" placeholder="Nome do paciente" value="${esc(f.nome)}" oninput="App.atualizarFaltante(${f.id},'nome',this.value)">
+      <input type="tel" id="f-falt-tel-${f.id}" placeholder="DDD + telefone (ex.: 81 997424432)" value="${esc(f.telefone)}" oninput="App.atualizarFaltante(${f.id},'telefone',this.value)">
+      <button type="button" class="btn small outline" onclick="App.removerFaltante(${f.id})">✕</button>
     </div>
   `).join("");
 }
 
 function adicionarFaltante(){
-  FALTANTES.push({ id: ++faltanteIdSeq, nome:"", telefone:"", procedimento:"", profissional:"" });
+  FALTANTES.push({ id: ++faltanteIdSeq, nome:"", telefone:"" });
   renderFaltantesRows();
 }
 function removerFaltante(id){
@@ -970,7 +953,7 @@ function renderFormularioRelatorio(){
   `;
   TEMPERATURA_SELECIONADA = { 1:"", 2:"" };
   faltanteIdSeq = 0;
-  FALTANTES = [{ id: ++faltanteIdSeq, nome:"", telefone:"", procedimento:"", profissional:"" }]; // já deixa uma linha pronta
+  FALTANTES = [{ id: ++faltanteIdSeq, nome:"", telefone:"" }]; // já deixa uma linha pronta
   renderFaltantesRows();
   atualizarPercentuais();
 }
@@ -1091,12 +1074,7 @@ function coletarRelatorioDoFormulario(){
     resgateSemInteresse: num("f-resgateSemInteresse"),
     resgateSemRetorno: num("f-resgateSemRetorno"),
     pacientesFaltantesSemRetorno: FALTANTES
-      .map(f => ({
-        nome: (f.nome||"").trim(),
-        telefone: (f.telefone||"").trim(),
-        procedimento: f.procedimento || "",
-        profissional: (f.profissional||"").trim()
-      }))
+      .map(f => ({ nome: (f.nome||"").trim(), telefone: (f.telefone||"").trim() }))
       .filter(f => f.nome || f.telefone),
     principalObjecao: document.getElementById("f-principalObjecao")?.value || "",
     qualidadeLead: document.querySelector('input[name="f-qualidadeLead"]')
@@ -1172,7 +1150,7 @@ window.App = {
   adicionarFaltante, removerFaltante, atualizarFaltante,
   abrirBootstrap, salvarBootstrap, salvarUsuario,
   abrirReativacao, atualizarFiltroReativacao, selecionarNovoStatus,
-  cancelarReagendamento, confirmarReagendamento, registrarTentativa, atualizarObservacaoFaltante
+  cancelarMotivo, confirmarMotivo, registrarTentativa
 };
 
 init();

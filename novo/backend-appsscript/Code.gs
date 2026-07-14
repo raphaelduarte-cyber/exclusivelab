@@ -55,8 +55,10 @@ var HEADERS_OPORTUNIDADES = [
   'paciente', 'telefone', 'procedimento', 'temperatura', 'proximaAcao', 'melhorHorario',
   'observacao', 'criadoEm', 'dadosJSON'
 ];
-// Status possíveis da fila de reativação — nasce sempre como 'Não reagendado'.
-var STATUS_FALTANTES = ['Não reagendado', 'Reagendado', 'Sem retorno', 'Não deseja reagendar', 'Telefone inválido', 'Em acompanhamento'];
+// Status possíveis da fila de reativação — nasce sempre como 'Não agendado'.
+// 'Reagendado' não fica salvo: quando o status vira esse, a linha é excluída
+// da planilha (ver atualizarStatusFaltante_).
+var STATUS_FALTANTES = ['Não agendado', 'Reagendado', 'Não deseja reagendar'];
 var HEADERS_PACIENTES_FALTANTES = [
   'id', 'relatorioId', 'data', 'crcEmail', 'crcNome', 'nome', 'telefone',
   'procedimento', 'profissional', 'status', 'tentativasContato', 'ultimoContato',
@@ -172,11 +174,9 @@ function lerRelatoriosPorData_(dataISO) {
 function lerPacientesFaltantes_() { return lerSheetJSON_(SHEET_PACIENTES_FALTANTES, HEADERS_PACIENTES_FALTANTES); }
 /** Os que ainda não foram reagendados, mais os reagendados HOJE (para o indicador "reagendados hoje" continuar certo mesmo em outra sessão/login) — reduz o tamanho da resposta conforme o histórico de resolvidos antigos cresce. */
 function lerPacientesFaltantesAtivos_() {
-  var hoje = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-  return lerPacientesFaltantes_().filter(function (f) {
-    if (f.status !== 'Reagendado') return true;
-    return String(f.atualizadoEm || '').slice(0, 10) === hoje;
-  });
+  // 'Reagendado' nunca fica salvo (a linha é excluída ao virar esse status),
+  // então tudo que sobra na planilha já é ativo por definição.
+  return lerPacientesFaltantes_();
 }
 
 /** Acha, dentro da carteira de uma CRC, um paciente faltante ainda ativo (não reagendado) com o mesmo telefone (ou nome, se telefone vazio) — evita duplicar quando ele falta de novo antes de ser resgatado. */
@@ -402,8 +402,6 @@ function salvarRelatorio_(idToken, relatorio) {
     var existente = buscarFaltanteAtivoPorContato_(relatorio.crcEmail, pf.nome, pf.telefone);
     if (existente) {
       existente.data = relatorio.data;
-      existente.procedimento = pf.procedimento || existente.procedimento || '';
-      existente.profissional = pf.profissional || existente.profissional || '';
       existente.atualizadoEm = agora.toISOString();
       upsertPacienteFaltante_(existente);
       return;
@@ -416,15 +414,10 @@ function salvarRelatorio_(idToken, relatorio) {
       crcNome: relatorio.crcNome,
       nome: pf.nome || '',
       telefone: pf.telefone || '',
-      procedimento: pf.procedimento || '',
-      profissional: pf.profissional || '',
-      status: 'Não reagendado',
+      status: 'Não agendado',
       tentativasContato: 0,
       ultimoContato: '',
       observacao: '',
-      novaData: '',
-      novoHorario: '',
-      novoLocal: '',
       criadoEm: agora.toISOString(),
       atualizadoEm: agora.toISOString()
     };
@@ -453,6 +446,20 @@ function atualizarStatusFaltante_(idToken, id, mudancas) {
 
   mudancas = mudancas || {};
   var statusAnterior = registro.status;
+
+  // Reagendado não fica salvo: sai da fila E da planilha (pedido explícito —
+  // diferente do resto do sistema, aqui não guarda histórico do resolvido).
+  if (mudancas.status === 'Reagendado') {
+    var sheet = getSheet_(SHEET_PACIENTES_FALTANTES);
+    var rowIndex = findRowByColumnValue_(sheet, HEADERS_PACIENTES_FALTANTES, 'id', id);
+    if (rowIndex !== -1) sheet.deleteRow(rowIndex);
+    registrarLog_(
+      perfil.email, perfil.nomeCurto || perfil.nomeCompleto, 'atualizarStatusFaltante',
+      'Paciente ' + registro.nome + ': ' + statusAnterior + ' -> Reagendado (removido da fila)'
+    );
+    return jsonResponse_({ ok: true, removido: true, id: id });
+  }
+
   if (mudancas.status && STATUS_FALTANTES.indexOf(mudancas.status) !== -1) {
     registro.status = mudancas.status;
   }
@@ -461,9 +468,6 @@ function atualizarStatusFaltante_(idToken, id, mudancas) {
     registro.ultimoContato = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
   }
   if (mudancas.observacao !== undefined) registro.observacao = mudancas.observacao;
-  if (mudancas.novaData !== undefined) registro.novaData = mudancas.novaData;
-  if (mudancas.novoHorario !== undefined) registro.novoHorario = mudancas.novoHorario;
-  if (mudancas.novoLocal !== undefined) registro.novoLocal = mudancas.novoLocal;
   registro.atualizadoEm = new Date().toISOString();
 
   upsertPacienteFaltante_(registro);
