@@ -55,8 +55,12 @@ var HEADERS_OPORTUNIDADES = [
   'paciente', 'telefone', 'procedimento', 'temperatura', 'proximaAcao', 'melhorHorario',
   'observacao', 'criadoEm', 'dadosJSON'
 ];
+// Status possíveis da fila de reativação — nasce sempre como 'Não reagendado'.
+var STATUS_FALTANTES = ['Não reagendado', 'Reagendado', 'Sem retorno', 'Não deseja reagendar', 'Telefone inválido', 'Em acompanhamento'];
 var HEADERS_PACIENTES_FALTANTES = [
-  'id', 'relatorioId', 'data', 'crcEmail', 'crcNome', 'nome', 'telefone', 'criadoEm', 'dadosJSON'
+  'id', 'relatorioId', 'data', 'crcEmail', 'crcNome', 'nome', 'telefone',
+  'procedimento', 'profissional', 'status', 'tentativasContato', 'ultimoContato',
+  'observacao', 'novaData', 'novoHorario', 'novoLocal', 'criadoEm', 'atualizadoEm', 'dadosJSON'
 ];
 var HEADERS_LOGS = ['id', 'data', 'hora', 'usuarioEmail', 'usuarioNome', 'acao', 'detalhes', 'criadoEm'];
 
@@ -102,18 +106,25 @@ function jsonResponse_(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-/** GET => devolve usuários e os relatórios já enviados hoje: { ok:true, usuarios:[...], relatoriosHoje:[...] } */
+/** GET => devolve usuários, relatórios de hoje e a fila de pacientes faltantes (todas as CRCs — o front-end filtra pela própria). */
 function doGet(e) {
   var hoje = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-  return jsonResponse_({ ok: true, usuarios: lerUsuarios_(), relatoriosHoje: lerRelatoriosPorData_(hoje) });
+  return jsonResponse_({
+    ok: true,
+    usuarios: lerUsuarios_(),
+    relatoriosHoje: lerRelatoriosPorData_(hoje),
+    pacientesFaltantes: lerPacientesFaltantes_()
+  });
 }
 
 /**
- * POST => login, salvar relatório diário, ou cadastrar/atualizar usuário.
+ * POST => login, salvar relatório diário, cadastrar/atualizar usuário, ou
+ * atualizar o status de um paciente na fila de reativação.
  * Body esperado (texto simples, para evitar preflight de CORS):
  *   { "action": "login", "idToken": "..." }
  *   { "action": "salvarRelatorio", "idToken": "...", "relatorio": { ...campos do formulário... } }
  *   { "action": "salvarUsuario", "idToken": "...", "usuario": { nomeCompleto, nomeCurto, email, perfil } }
+ *   { "action": "atualizarStatusFaltante", "idToken": "...", "id": "...", "mudancas": { status?, incrementarTentativa?, observacao?, novaData?, novoHorario?, novoLocal? } }
  */
 function doPost(e) {
   var body;
@@ -126,6 +137,7 @@ function doPost(e) {
   if (body.action === 'login') return fazerLogin_(body.idToken);
   if (body.action === 'salvarRelatorio') return salvarRelatorio_(body.idToken, body.relatorio);
   if (body.action === 'salvarUsuario') return salvarUsuario_(body.idToken, body.usuario);
+  if (body.action === 'atualizarStatusFaltante') return atualizarStatusFaltante_(body.idToken, body.id, body.mudancas);
 
   return jsonResponse_({ ok: false, error: 'Ação desconhecida: ' + body.action });
 }
@@ -153,6 +165,46 @@ function lerUsuarios_() { return lerSheetJSON_(SHEET_USUARIOS, HEADERS_USUARIOS)
 function lerRelatorios_() { return lerSheetJSON_(SHEET_RELATORIOS, HEADERS_RELATORIOS); }
 function lerRelatoriosPorData_(dataISO) {
   return lerRelatorios_().filter(function (r) { return r.data === dataISO; });
+}
+function lerPacientesFaltantes_() { return lerSheetJSON_(SHEET_PACIENTES_FALTANTES, HEADERS_PACIENTES_FALTANTES); }
+
+/** Acha, dentro da carteira de uma CRC, um paciente faltante ainda ativo (não reagendado) com o mesmo telefone (ou nome, se telefone vazio) — evita duplicar quando ele falta de novo antes de ser resgatado. */
+function buscarFaltanteAtivoPorContato_(crcEmail, nome, telefone) {
+  var lista = lerPacientesFaltantes_();
+  var telefoneAlvo = String(telefone || '').replace(/\D/g, '');
+  var nomeAlvo = String(nome || '').trim().toLowerCase();
+  for (var i = 0; i < lista.length; i++) {
+    var f = lista[i];
+    if (f.crcEmail !== crcEmail) continue;
+    if (f.status === 'Reagendado') continue;
+    var mesmoTelefone = telefoneAlvo && String(f.telefone || '').replace(/\D/g, '') === telefoneAlvo;
+    var mesmoNome = !telefoneAlvo && nomeAlvo && String(f.nome || '').trim().toLowerCase() === nomeAlvo;
+    if (mesmoTelefone || mesmoNome) return f;
+  }
+  return null;
+}
+
+function buscarPacienteFaltantePorId_(id) {
+  var lista = lerPacientesFaltantes_();
+  for (var i = 0; i < lista.length; i++) {
+    if (lista[i].id === id) return lista[i];
+  }
+  return null;
+}
+
+function upsertPacienteFaltante_(registro) {
+  var sheet = getSheet_(SHEET_PACIENTES_FALTANTES);
+  var rowIndex = findRowByColumnValue_(sheet, HEADERS_PACIENTES_FALTANTES, 'id', registro.id);
+  var row = HEADERS_PACIENTES_FALTANTES.map(function (h) {
+    if (h === 'dadosJSON') return JSON.stringify(registro);
+    var v = registro[h];
+    return (v === undefined || v === null) ? '' : v;
+  });
+  if (rowIndex === -1) {
+    sheet.appendRow(row);
+  } else {
+    sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+  }
 }
 
 function buscarUsuarioPorEmail_(email) {
@@ -331,9 +383,20 @@ function salvarRelatorio_(idToken, relatorio) {
 
   // Pacientes que faltaram e não reagendaram — banco próprio, acumulado de
   // todos os dias/CRCs, para a gestão sempre conseguir resgatar esses contatos.
+  // Se o paciente já estiver ativo na fila (não reagendado ainda), só atualiza
+  // a falta mais recente em vez de duplicar; senão entra como um caso novo.
   var faltantes = relatorio.pacientesFaltantesSemRetorno || [];
   faltantes.forEach(function (pf, idx) {
     if (!pf || (!String(pf.nome || '').trim() && !String(pf.telefone || '').trim())) return;
+    var existente = buscarFaltanteAtivoPorContato_(relatorio.crcEmail, pf.nome, pf.telefone);
+    if (existente) {
+      existente.data = relatorio.data;
+      existente.procedimento = pf.procedimento || existente.procedimento || '';
+      existente.profissional = pf.profissional || existente.profissional || '';
+      existente.atualizadoEm = agora.toISOString();
+      upsertPacienteFaltante_(existente);
+      return;
+    }
     var registroFaltante = {
       id: 'falt-' + agora.getTime() + '-' + idx + '-' + Math.floor(Math.random() * 1e6),
       relatorioId: relatorio.id,
@@ -342,13 +405,62 @@ function salvarRelatorio_(idToken, relatorio) {
       crcNome: relatorio.crcNome,
       nome: pf.nome || '',
       telefone: pf.telefone || '',
-      criadoEm: agora.toISOString()
+      procedimento: pf.procedimento || '',
+      profissional: pf.profissional || '',
+      status: 'Não reagendado',
+      tentativasContato: 0,
+      ultimoContato: '',
+      observacao: '',
+      novaData: '',
+      novoHorario: '',
+      novoLocal: '',
+      criadoEm: agora.toISOString(),
+      atualizadoEm: agora.toISOString()
     };
     appendRowFromObj_(SHEET_PACIENTES_FALTANTES, HEADERS_PACIENTES_FALTANTES, registroFaltante);
   });
 
   registrarLog_(relatorio.crcEmail, relatorio.crcNome, 'salvarRelatorio', 'Relatório do dia ' + relatorio.data);
   return jsonResponse_({ ok: true, relatorio: relatorio });
+}
+
+/** Atualiza status/tentativas/reagendamento de um paciente da fila de reativação.
+ *  Só a própria CRC dona do paciente (ou um Administrador) pode alterar. */
+function atualizarStatusFaltante_(idToken, id, mudancas) {
+  var v = validarTokenGoogle_(idToken);
+  if (!v.ok) return jsonResponse_({ ok: false, error: v.error });
+  var perfil = buscarUsuarioPorEmail_(v.email);
+  if (!perfil) return jsonResponse_({ ok: false, error: 'Usuário não cadastrado.' });
+  if (perfil.ativo === false) return jsonResponse_({ ok: false, error: 'Seu cadastro está inativo.' });
+  if (!id) return jsonResponse_({ ok: false, error: 'Paciente não informado.' });
+
+  var registro = buscarPacienteFaltantePorId_(id);
+  if (!registro) return jsonResponse_({ ok: false, error: 'Paciente não encontrado.' });
+  if (perfil.perfil !== 'Administrador' && registro.crcEmail !== perfil.email) {
+    return jsonResponse_({ ok: false, error: 'Você só pode alterar pacientes da sua carteira.' });
+  }
+
+  mudancas = mudancas || {};
+  var statusAnterior = registro.status;
+  if (mudancas.status && STATUS_FALTANTES.indexOf(mudancas.status) !== -1) {
+    registro.status = mudancas.status;
+  }
+  if (mudancas.incrementarTentativa) {
+    registro.tentativasContato = (Number(registro.tentativasContato) || 0) + 1;
+    registro.ultimoContato = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  if (mudancas.observacao !== undefined) registro.observacao = mudancas.observacao;
+  if (mudancas.novaData !== undefined) registro.novaData = mudancas.novaData;
+  if (mudancas.novoHorario !== undefined) registro.novoHorario = mudancas.novoHorario;
+  if (mudancas.novoLocal !== undefined) registro.novoLocal = mudancas.novoLocal;
+  registro.atualizadoEm = new Date().toISOString();
+
+  upsertPacienteFaltante_(registro);
+  registrarLog_(
+    perfil.email, perfil.nomeCurto || perfil.nomeCompleto, 'atualizarStatusFaltante',
+    'Paciente ' + registro.nome + ': ' + statusAnterior + ' -> ' + registro.status
+  );
+  return jsonResponse_({ ok: true, paciente: registro });
 }
 
 function registrarLog_(email, nome, acao, detalhes) {
