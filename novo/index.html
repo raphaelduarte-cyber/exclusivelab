@@ -603,7 +603,14 @@ function renderFormularioRelatorio(){
   const el = document.getElementById("view-crc-relatorio");
   el.innerHTML = `
     <div class="form-card">
-      <div class="section-title">Meu Relatório — ${new Date().toLocaleDateString('pt-BR')}</div>
+      <div class="section-title">Meu Relatório</div>
+      <div class="field-grid">
+        <div class="field">
+          <label>Data do relatório</label>
+          <input type="date" id="f-data-relatorio" max="${new Date().toISOString().slice(0,10)}" value="${new Date().toISOString().slice(0,10)}" onchange="App.atualizarPercentuais()">
+        </div>
+      </div>
+      <div id="aviso-retroativo" class="form-erro hidden" style="background:var(--gold-light); color:var(--gold-dark); border-color:var(--gold-dark);"></div>
 
       <div class="section-title">📥 Controle de leads — dia</div>
       <div class="field-grid">
@@ -753,7 +760,22 @@ function atualizarPercentuais(){
   document.getElementById("pct-faltas").textContent = pct(faltaram, agendadosDia);
   document.getElementById("pct-resgate").textContent = pct(resgateAgendados, resgateTrabalhados);
 
+  atualizarAvisoRetroativo();
   validarFormulario();
+}
+
+function atualizarAvisoRetroativo(){
+  const aviso = document.getElementById("aviso-retroativo");
+  if (!aviso) return;
+  const dataSelecionada = document.getElementById("f-data-relatorio")?.value;
+  const hoje = new Date().toISOString().slice(0,10);
+  if (dataSelecionada && dataSelecionada !== hoje){
+    const [ano, mes, dia] = dataSelecionada.split("-");
+    aviso.textContent = `Preenchendo relatório retroativo do dia ${dia}/${mes}/${ano}.`;
+    aviso.classList.remove("hidden");
+  } else {
+    aviso.classList.add("hidden");
+  }
 }
 
 function validarRegrasRelatorio(r){
@@ -792,7 +814,7 @@ function coletarRelatorioDoFormulario(){
     ? document.querySelector('input[name="f-gestao"]:checked').value === "sim"
     : false;
   return {
-    data: new Date().toISOString().slice(0,10),
+    data: document.getElementById("f-data-relatorio")?.value || new Date().toISOString().slice(0,10),
     leadsEntraram: num("f-leadsEntraram"),
     leadsTrabalhados: num("f-leadsTrabalhados"),
     leadsAgendados: num("f-leadsAgendados"),
