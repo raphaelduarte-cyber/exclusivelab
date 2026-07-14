@@ -252,6 +252,22 @@ const PROXIMAS_ACOES = ["Ligação","WhatsApp","Áudio","Vídeo","Aguardando ret
 const HORARIOS = ["Manhã","Tarde","Noite"];
 const STATUS_FALTANTES = ["Não reagendado","Reagendado","Sem retorno","Não deseja reagendar","Telefone inválido","Em acompanhamento"];
 
+// Dados de exemplo só para o modo de teste local (sem API_URL) — mostra a Central de Reativação populada na demonstração.
+const PACIENTES_FALTANTES_EXEMPLO = [
+  { id:"exemplo-1", crcEmail:"larissa@teste.com", crcNome:"Larissa", nome:"Ana Costa", telefone:"81997424432",
+    data:"2026-07-05", procedimento:"Implante Unitário", profissional:"Dr. João",
+    status:"Não reagendado", tentativasContato:0, ultimoContato:"", observacao:"" },
+  { id:"exemplo-2", crcEmail:"larissa@teste.com", crcNome:"Larissa", nome:"Bruno Lima", telefone:"81988887777",
+    data:"2026-07-12", procedimento:"Clareamento", profissional:"",
+    status:"Em acompanhamento", tentativasContato:2, ultimoContato:"2026-07-13", observacao:"Vai ligar de volta na sexta" },
+  { id:"exemplo-3", crcEmail:"larissa@teste.com", crcNome:"Larissa", nome:"Carla Souza", telefone:"81900001111",
+    data:"2026-07-10", procedimento:"Facetas", profissional:"Dra. Marcia",
+    status:"Sem retorno", tentativasContato:3, ultimoContato:"2026-07-11", observacao:"Não atende mais" },
+  { id:"exemplo-4", crcEmail:"larissa@teste.com", crcNome:"Larissa", nome:"Diego Alves", telefone:"",
+    data:"2026-06-20", procedimento:"", profissional:"",
+    status:"Telefone inválido", tentativasContato:1, ultimoContato:"2026-06-22", observacao:"Número não existe" }
+];
+
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
 function toast(msg){
@@ -287,7 +303,7 @@ const Api = {
     return resp.json();
   },
   async statusHoje(){
-    if (!CONFIG.API_URL) return { ok:true, usuarios:[], relatoriosHoje:[] };
+    if (!CONFIG.API_URL) return { ok:true, usuarios:[], relatoriosHoje:[], pacientesFaltantes: PACIENTES_FALTANTES_EXEMPLO };
     const resp = await fetch(CONFIG.API_URL);
     return resp.json();
   },
