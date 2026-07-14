@@ -107,6 +107,7 @@ h1,h2,h3,h4{margin:0;}
 .badge-perfil.crc{background:var(--blue-light); color:var(--blue);}
 .usuarios-vazio{font-size:12px; color:var(--text-light);}
 .warn-box{background:var(--gold-light); color:var(--gold-dark); border:1px solid var(--gold-dark); border-radius:10px; padding:10px 14px; font-size:12.5px; font-weight:600;}
+.ie-detalhe{background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius); padding:18px; margin-bottom:18px; box-shadow:var(--shadow);}
 .reativ-card{background:var(--card-bg); border:1px solid var(--border); border-left:4px solid var(--slate); border-radius:var(--radius); padding:16px; margin-bottom:12px; box-shadow:var(--shadow);}
 .reativ-card.reativ-vermelho{border-left-color:var(--red); background:var(--red-light);}
 .reativ-card.reativ-cinza{border-left-color:var(--text-light); background:var(--bg-alt);}
@@ -260,6 +261,13 @@ const PACIENTES_FALTANTES_EXEMPLO = [
     data:"2026-07-10", status:"Não deseja reagendar", tentativasContato:3, ultimoContato:"2026-07-11", observacao:"Mudou de cidade" }
 ];
 
+// Relatórios de exemplo do mês, só para o modo de teste local — alimenta o cálculo do IE-CRC na demonstração.
+const RELATORIOS_MES_EXEMPLO = [
+  { crcEmail:"larissa@teste.com", data:"2026-07-05", leadsEntraram:80, leadsTrabalhados:30, leadsAgendados:6, leadsSemRetorno:10, pacientesAgendadosDia:6, compareceram:4, faltaram:1, resgateTrabalhados:5, resgateAgendados:2 },
+  { crcEmail:"larissa@teste.com", data:"2026-07-12", leadsEntraram:90, leadsTrabalhados:35, leadsAgendados:7, leadsSemRetorno:12, pacientesAgendadosDia:7, compareceram:5, faltaram:1, resgateTrabalhados:4, resgateAgendados:1 },
+  { crcEmail:"larissa@teste.com", data:"2026-07-13", leadsEntraram:70, leadsTrabalhados:28, leadsAgendados:5, leadsSemRetorno:9, pacientesAgendadosDia:5, compareceram:3, faltaram:2, resgateTrabalhados:3, resgateAgendados:1 }
+];
+
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
 function toast(msg){
@@ -295,7 +303,7 @@ const Api = {
     return resp.json();
   },
   async statusHoje(){
-    if (!CONFIG.API_URL) return { ok:true, usuarios:[], relatoriosHoje:[], pacientesFaltantes: PACIENTES_FALTANTES_EXEMPLO };
+    if (!CONFIG.API_URL) return { ok:true, usuarios:[], relatoriosHoje:[], relatoriosMes: RELATORIOS_MES_EXEMPLO, pacientesFaltantes: PACIENTES_FALTANTES_EXEMPLO };
     const resp = await fetch(CONFIG.API_URL);
     return resp.json();
   },
@@ -333,6 +341,7 @@ let TOKEN_ATUAL = null;
 let RELATORIO_ENVIADO_HOJE = false;
 let USUARIOS_CACHE = [];
 let PACIENTES_FALTANTES_CACHE = [];
+let RELATORIOS_MES_CACHE = [];
 let FILTRO_REATIVACAO = { status:"", busca:"", ordenacao:"padrao" };
 let ESTADO_MOTIVO = {};
 let ESTADO_CONFIRMAR_REMOCAO = {};
@@ -495,6 +504,7 @@ async function carregarStatusHoje(){
       RELATORIO_ENVIADO_HOJE = (data.relatoriosHoje||[]).some(r => r.crcEmail === PERFIL_ATUAL.email);
       USUARIOS_CACHE = data.usuarios || [];
       PACIENTES_FALTANTES_CACHE = data.pacientesFaltantes || [];
+      RELATORIOS_MES_CACHE = data.relatoriosMes || [];
     }
   } catch(err){ /* sem backend real ainda: mantém padrão (não enviado) */ }
 }
@@ -517,9 +527,56 @@ function abrirFormularioRelatorio(){ mostrarView("relatorio"); }
 function abrirReativacao(){ mostrarView("reativacao"); }
 function voltarDashboard(){ mostrarView("dashboard"); }
 
+// Fórmula do IE-CRC: pesos redistribuídos do prompt original (o critério de
+// Confirmação foi removido — o formulário real não coleta esse dado — e os
+// 10 pontos dele foram redistribuídos proporcionalmente entre os demais).
+const IE_CRC_CRITERIOS = [
+  { label:"Produtividade", max:22, calc:s => s.leadsEntraram>0 ? s.leadsTrabalhados/s.leadsEntraram : null },
+  { label:"Taxa de Resposta", max:17, calc:s => s.leadsTrabalhados>0 ? (s.leadsTrabalhados-s.leadsSemRetorno)/s.leadsTrabalhados : null },
+  { label:"Conversão em Agendamento", max:28, calc:s => s.leadsTrabalhados>0 ? s.leadsAgendados/s.leadsTrabalhados : null },
+  { label:"Comparecimento", max:22, calc:s => s.pacientesAgendadosDia>0 ? s.compareceram/s.pacientesAgendadosDia : null },
+  { label:"Resgates", max:6, calc:s => s.resgateTrabalhados>0 ? s.resgateAgendados/s.resgateTrabalhados : null },
+  { label:"Qualidade Operacional", max:5, calc:s => s.pacientesAgendadosDia>0 ? 1-(s.faltaram/s.pacientesAgendadosDia) : null }
+];
+
+function calcularIECRC(relatorios){
+  if (!relatorios || !relatorios.length) return { total:null, semDados:true, detalhes:[] };
+  const s = { leadsEntraram:0, leadsTrabalhados:0, leadsAgendados:0, leadsSemRetorno:0, pacientesAgendadosDia:0, compareceram:0, faltaram:0, resgateTrabalhados:0, resgateAgendados:0 };
+  relatorios.forEach(r => { Object.keys(s).forEach(k => { s[k] += Number(r[k])||0; }); });
+  const detalhes = IE_CRC_CRITERIOS.map(c => {
+    const razao = c.calc(s);
+    const razaoValida = razao===null ? 0 : Math.max(0, Math.min(1, razao));
+    return { label:c.label, maxPontos:c.max, pontos: razaoValida*c.max, percentual: razao===null ? null : Math.round(razaoValida*100) };
+  });
+  const total = Math.round(detalhes.reduce((soma,d) => soma+d.pontos, 0));
+  return { total, semDados:false, detalhes };
+}
+
+let DETALHE_IECRC_ABERTO = false;
+function alternarDetalheIECRC(){
+  DETALHE_IECRC_ABERTO = !DETALHE_IECRC_ABERTO;
+  renderDashboard();
+}
+
+function renderDetalheIECRC(ie){
+  if (ie.semDados) return `<div class="ie-detalhe"><p class="usuarios-vazio">Nenhum relatório enviado este mês ainda.</p></div>`;
+  return `
+    <div class="ie-detalhe">
+      <div class="section-title" style="margin-top:0;">Como o IE-CRC foi calculado (mês atual)</div>
+      <table class="tabela-usuarios">
+        <tr><th>Critério</th><th>%</th><th>Pontos</th></tr>
+        ${ie.detalhes.map(d => `<tr><td>${esc(d.label)}</td><td>${d.percentual===null?"—":d.percentual+"%"}</td><td>${d.pontos.toFixed(1)} / ${d.maxPontos}</td></tr>`).join("")}
+        <tr><td><strong>Total</strong></td><td></td><td><strong>${ie.total} / 100</strong></td></tr>
+      </table>
+    </div>
+  `;
+}
+
 function renderDashboard(){
   const el = document.getElementById("view-crc-dashboard");
   const totalNaoReagendados = minhaFilaReativacao().length;
+  const meusRelatoriosMes = RELATORIOS_MES_CACHE.filter(r => r.crcEmail === PERFIL_ATUAL.email);
+  const ie = calcularIECRC(meusRelatoriosMes);
   el.innerHTML = `
     <div class="saudacao">Olá, ${esc(PERFIL_ATUAL.nomeCurto||PERFIL_ATUAL.nomeCompleto)} 👋</div>
     <div class="saudacao-sub">Aqui está o resumo do seu dia.</div>
@@ -532,10 +589,14 @@ function renderDashboard(){
         <div class="lbl">Pacientes não reagendados</div>
         <div class="val">${totalNaoReagendados}</div>
       </div>
-      <div class="dash-card muted">IE-CRC atual<br>disponível na próxima etapa</div>
+      <div class="dash-card" style="cursor:pointer;" onclick="App.alternarDetalheIECRC()">
+        <div class="lbl">IE-CRC atual (mês)</div>
+        <div class="val">${ie.semDados ? "—" : ie.total}</div>
+      </div>
       <div class="dash-card muted">Meta do mês<br>disponível na próxima etapa</div>
       <div class="dash-card muted">Ranking atual<br>disponível na próxima etapa</div>
     </div>
+    ${DETALHE_IECRC_ABERTO ? renderDetalheIECRC(ie) : ""}
     <button class="btn primary" onclick="App.abrirFormularioRelatorio()">📝 ${RELATORIO_ENVIADO_HOJE ? "Preencher outro relatório" : "Preencher relatório de hoje"}</button>
   `;
 }
@@ -1167,7 +1228,7 @@ window.App = {
   abrirBootstrap, salvarBootstrap, salvarUsuario,
   abrirReativacao, atualizarFiltroReativacao, selecionarNovoStatus,
   cancelarMotivo, confirmarMotivo, registrarTentativa,
-  cancelarRemocao, confirmarRemocao
+  cancelarRemocao, confirmarRemocao, alternarDetalheIECRC
 };
 
 init();

@@ -108,16 +108,19 @@ function jsonResponse_(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-/** GET => devolve usuários, relatórios de hoje e a fila de pacientes faltantes ATIVOS (todas as CRCs — o front-end filtra pela própria).
- *  Só devolve os ativos (não reagendados ainda) por padrão — os já resolvidos
- *  ficam de fora da resposta para a leitura não crescer sem limite conforme o
- *  histórico acumula; eles continuam existindo na planilha normalmente. */
+/** GET => devolve usuários, relatórios de hoje, relatórios do mês (para o IE-CRC) e a fila de pacientes faltantes ATIVOS (todas as CRCs — o front-end filtra pela própria).
+ *  A fila de faltantes só devolve os ativos (não reagendados ainda) por padrão
+ *  — os já resolvidos ficam de fora da resposta para a leitura não crescer
+ *  sem limite conforme o histórico acumula; eles continuam existindo na
+ *  planilha normalmente. */
 function doGet(e) {
   var hoje = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  var mesAtual = hoje.slice(0, 7);
   return jsonResponse_({
     ok: true,
     usuarios: lerUsuarios_(),
     relatoriosHoje: lerRelatoriosPorData_(hoje),
+    relatoriosMes: lerRelatoriosPorMes_(mesAtual),
     pacientesFaltantes: lerPacientesFaltantesAtivos_()
   });
 }
@@ -171,8 +174,12 @@ function lerRelatorios_() { return lerSheetJSON_(SHEET_RELATORIOS, HEADERS_RELAT
 function lerRelatoriosPorData_(dataISO) {
   return lerRelatorios_().filter(function (r) { return r.data === dataISO; });
 }
+/** Todos os relatórios de um mês (formato 'yyyy-MM'), de todas as CRCs — usado para calcular o IE-CRC do mês atual. */
+function lerRelatoriosPorMes_(anoMes) {
+  return lerRelatorios_().filter(function (r) { return String(r.data || '').slice(0, 7) === anoMes; });
+}
 function lerPacientesFaltantes_() { return lerSheetJSON_(SHEET_PACIENTES_FALTANTES, HEADERS_PACIENTES_FALTANTES); }
-/** Os que ainda não foram reagendados, mais os reagendados HOJE (para o indicador "reagendados hoje" continuar certo mesmo em outra sessão/login) — reduz o tamanho da resposta conforme o histórico de resolvidos antigos cresce. */
+/** Reduz o tamanho da resposta conforme o histórico de resolvidos antigos cresce — 'Reagendado' nunca fica salvo (a linha é excluída ao virar esse status). */
 function lerPacientesFaltantesAtivos_() {
   // 'Reagendado' nunca fica salvo (a linha é excluída ao virar esse status),
   // então tudo que sobra na planilha já é ativo por definição.
