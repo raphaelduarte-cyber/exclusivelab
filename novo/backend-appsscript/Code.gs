@@ -106,14 +106,17 @@ function jsonResponse_(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-/** GET => devolve usuários, relatórios de hoje e a fila de pacientes faltantes (todas as CRCs — o front-end filtra pela própria). */
+/** GET => devolve usuários, relatórios de hoje e a fila de pacientes faltantes ATIVOS (todas as CRCs — o front-end filtra pela própria).
+ *  Só devolve os ativos (não reagendados ainda) por padrão — os já resolvidos
+ *  ficam de fora da resposta para a leitura não crescer sem limite conforme o
+ *  histórico acumula; eles continuam existindo na planilha normalmente. */
 function doGet(e) {
   var hoje = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
   return jsonResponse_({
     ok: true,
     usuarios: lerUsuarios_(),
     relatoriosHoje: lerRelatoriosPorData_(hoje),
-    pacientesFaltantes: lerPacientesFaltantes_()
+    pacientesFaltantes: lerPacientesFaltantesAtivos_()
   });
 }
 
@@ -167,6 +170,14 @@ function lerRelatoriosPorData_(dataISO) {
   return lerRelatorios_().filter(function (r) { return r.data === dataISO; });
 }
 function lerPacientesFaltantes_() { return lerSheetJSON_(SHEET_PACIENTES_FALTANTES, HEADERS_PACIENTES_FALTANTES); }
+/** Os que ainda não foram reagendados, mais os reagendados HOJE (para o indicador "reagendados hoje" continuar certo mesmo em outra sessão/login) — reduz o tamanho da resposta conforme o histórico de resolvidos antigos cresce. */
+function lerPacientesFaltantesAtivos_() {
+  var hoje = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return lerPacientesFaltantes_().filter(function (f) {
+    if (f.status !== 'Reagendado') return true;
+    return String(f.atualizadoEm || '').slice(0, 10) === hoje;
+  });
+}
 
 /** Acha, dentro da carteira de uma CRC, um paciente faltante ainda ativo (não reagendado) com o mesmo telefone (ou nome, se telefone vazio) — evita duplicar quando ele falta de novo antes de ser resgatado. */
 function buscarFaltanteAtivoPorContato_(crcEmail, nome, telefone) {
