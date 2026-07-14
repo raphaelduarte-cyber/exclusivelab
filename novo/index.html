@@ -106,6 +106,7 @@ h1,h2,h3,h4{margin:0;}
 .badge-perfil.admin{background:var(--gold-light); color:var(--gold-dark);}
 .badge-perfil.crc{background:var(--blue-light); color:var(--blue);}
 .usuarios-vazio{font-size:12px; color:var(--text-light);}
+.warn-box{background:var(--gold-light); color:var(--gold-dark); border:1px solid var(--gold-dark); border-radius:10px; padding:10px 14px; font-size:12.5px; font-weight:600;}
 .reativ-card{background:var(--card-bg); border:1px solid var(--border); border-left:4px solid var(--slate); border-radius:var(--radius); padding:16px; margin-bottom:12px; box-shadow:var(--shadow);}
 .reativ-card.reativ-vermelho{border-left-color:var(--red); background:var(--red-light);}
 .reativ-card.reativ-cinza{border-left-color:var(--text-light); background:var(--bg-alt);}
@@ -334,6 +335,7 @@ let USUARIOS_CACHE = [];
 let PACIENTES_FALTANTES_CACHE = [];
 let FILTRO_REATIVACAO = { status:"", busca:"", ordenacao:"padrao" };
 let ESTADO_MOTIVO = {};
+let ESTADO_CONFIRMAR_REMOCAO = {};
 
 function minhaFilaReativacao(){
   return PACIENTES_FALTANTES_CACHE.filter(f => f.crcEmail === PERFIL_ATUAL.email && f.status !== "Reagendado");
@@ -630,6 +632,7 @@ function renderFilaHTML(fila){
     else if (diasSemContato >= 3) corClasse = "reativ-vermelho";
     const waLink = linkWhatsapp(f.telefone);
     const emMotivo = ESTADO_MOTIVO[f.id] === true;
+    const emConfirmarRemocao = ESTADO_CONFIRMAR_REMOCAO[f.id] === true;
     return `
       <div class="reativ-card ${corClasse}" data-id="${f.id}">
         <div class="reativ-top">
@@ -658,6 +661,11 @@ function renderFilaHTML(fila){
         <div class="form-actions">
           <button class="btn outline small" onclick="App.cancelarMotivo('${f.id}')">Cancelar</button>
           <button class="btn primary small" onclick="App.confirmarMotivo('${f.id}')">Salvar</button>
+        </div>` : emConfirmarRemocao ? `
+        <div class="warn-box" style="margin-top:10px;">Confirma que esse paciente foi reagendado? Ele sai da lista e não fica mais salvo.</div>
+        <div class="form-actions">
+          <button class="btn outline small" onclick="App.cancelarRemocao('${f.id}')">Cancelar</button>
+          <button class="btn primary small" onclick="App.confirmarRemocao('${f.id}')">Confirmar</button>
         </div>` : `
         <div class="form-actions">
           <button class="btn outline small" onclick="App.registrarTentativa('${f.id}')">Registrar tentativa de contato</button>
@@ -692,12 +700,8 @@ async function aplicarMudancaFaltante(id, mudancas){
 
 async function selecionarNovoStatus(id, novoStatus){
   if (novoStatus === "Reagendado"){
-    if (!confirm("Confirma que esse paciente foi reagendado? Ele sai da lista e não fica mais salvo.")){
-      renderReativacao(); // reverte o select
-      return;
-    }
-    const ok = await aplicarMudancaFaltante(id, { status: "Reagendado" });
-    if (ok){ toast("Paciente reagendado — removido da fila."); renderReativacao(); }
+    ESTADO_CONFIRMAR_REMOCAO[id] = true;
+    renderReativacao();
     return;
   }
   if (novoStatus === "Não deseja reagendar"){
@@ -711,6 +715,18 @@ async function selecionarNovoStatus(id, novoStatus){
 
 function cancelarMotivo(id){
   delete ESTADO_MOTIVO[id];
+  renderReativacao();
+}
+
+function cancelarRemocao(id){
+  delete ESTADO_CONFIRMAR_REMOCAO[id];
+  renderReativacao();
+}
+
+async function confirmarRemocao(id){
+  const ok = await aplicarMudancaFaltante(id, { status: "Reagendado" });
+  delete ESTADO_CONFIRMAR_REMOCAO[id];
+  if (ok){ toast("Paciente reagendado — removido da fila."); }
   renderReativacao();
 }
 
@@ -1150,7 +1166,8 @@ window.App = {
   adicionarFaltante, removerFaltante, atualizarFaltante,
   abrirBootstrap, salvarBootstrap, salvarUsuario,
   abrirReativacao, atualizarFiltroReativacao, selecionarNovoStatus,
-  cancelarMotivo, confirmarMotivo, registrarTentativa
+  cancelarMotivo, confirmarMotivo, registrarTentativa,
+  cancelarRemocao, confirmarRemocao
 };
 
 init();
