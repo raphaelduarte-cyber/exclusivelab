@@ -108,6 +108,49 @@ h1,h2,h3,h4{margin:0;}
 .usuarios-vazio{font-size:12px; color:var(--text-light);}
 .warn-box{background:var(--gold-light); color:var(--gold-dark); border:1px solid var(--gold-dark); border-radius:10px; padding:10px 14px; font-size:12.5px; font-weight:600;}
 .ie-detalhe{background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius); padding:18px; margin-bottom:18px; box-shadow:var(--shadow);}
+
+/* ---------- METAS EM 3 NÍVEIS ---------- */
+.meta-card{background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; margin-bottom:14px; box-shadow:var(--shadow);}
+.meta-card-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;}
+.meta-card-head strong{font-size:14.5px; color:var(--graphite);}
+.meta-nivel-badge{font-size:10px; font-weight:700; padding:3px 10px; border-radius:20px; text-transform:uppercase;}
+.meta-nivel-badge.nivel-0{background:var(--bg-alt); color:var(--text-light);}
+.meta-nivel-badge.nivel-1{background:#f1e4d1; color:#8a5a2b;}
+.meta-nivel-badge.nivel-2{background:var(--blue-light); color:var(--blue);}
+.meta-nivel-badge.nivel-3{background:var(--gold-light); color:var(--gold-dark);}
+.meta-inputs{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;}
+.meta-inputs .field{flex:1; min-width:110px;}
+.meta-preview-bar{position:relative; background:var(--bg-alt); border-radius:20px; height:12px; margin:20px 0 22px;}
+.meta-preview-fill{height:100%; border-radius:20px; transition:width .2s;}
+.meta-preview-fill.nivel-0{background:var(--text-light);}
+.meta-preview-fill.nivel-1{background:#a67c3d;}
+.meta-preview-fill.nivel-2{background:var(--blue);}
+.meta-preview-fill.nivel-3{background:linear-gradient(135deg,#d3b378,var(--gold));}
+.meta-marcador{position:absolute; top:-3px; width:2px; height:18px; background:var(--graphite-light); transform:translateX(-1px);}
+.meta-marcador-label{position:absolute; top:15px; font-size:9.5px; color:var(--text-light); white-space:nowrap; transform:translateX(-50%);}
+.meta-msg{font-size:12.5px; color:var(--text-light);}
+
+/* ---------- DASHBOARD EXECUTIVO ---------- */
+.exec-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; margin-bottom:16px;}
+.exec-card{background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow);}
+.exec-card h4{font-size:12.5px; font-weight:800; color:var(--gold-dark); text-transform:uppercase; letter-spacing:.3px; margin:0 0 14px;}
+.funil-step{display:flex; align-items:center; gap:10px; margin-bottom:6px;}
+.funil-step .funil-label{width:130px; font-size:12px; color:var(--text-light); flex-shrink:0;}
+.funil-step .funil-track{flex:1; background:var(--bg-alt); border-radius:8px; height:20px; overflow:hidden;}
+.funil-step .funil-fill{height:100%; background:linear-gradient(135deg,#d3b378,var(--gold)); border-radius:8px 0 0 8px;}
+.funil-step .funil-valor{width:44px; text-align:right; font-size:12.5px; font-weight:700; color:var(--graphite); flex-shrink:0;}
+.funil-conv{font-size:11px; color:var(--text-light); margin:0 0 10px 140px;}
+.donut-wrap{display:flex; align-items:center; gap:18px; flex-wrap:wrap;}
+.donut{width:104px; height:104px; border-radius:50%; flex-shrink:0;}
+.donut-legenda{display:flex; flex-direction:column; gap:7px; font-size:12px; color:var(--text);}
+.donut-legenda .dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px;}
+.barra-h-row{margin-bottom:9px;}
+.barra-h-row .barra-h-top{display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px; color:var(--text);}
+.barra-h-row .barra-h-track{background:var(--bg-alt); border-radius:6px; height:9px; overflow:hidden;}
+.barra-h-row .barra-h-fill{height:100%; background:var(--blue); border-radius:6px;}
+.oportunidade-quente{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:12.5px;}
+.oportunidade-quente:last-child{border-bottom:none;}
+.exec-vazio{font-size:12px; color:var(--text-light);}
 .reativ-card{background:var(--card-bg); border:1px solid var(--border); border-left:4px solid var(--slate); border-radius:var(--radius); padding:16px; margin-bottom:12px; box-shadow:var(--shadow);}
 .reativ-card.reativ-vermelho{border-left-color:var(--red); background:var(--red-light);}
 .reativ-card.reativ-cinza{border-left-color:var(--text-light); background:var(--bg-alt);}
@@ -117,10 +160,6 @@ h1,h2,h3,h4{margin:0;}
 .reativ-detalhes{display:flex; flex-wrap:wrap; gap:12px; font-size:12px; color:var(--text-light); margin-top:8px;}
 .form-erro{background:var(--red-light); color:var(--red); border:1px solid var(--red); border-radius:10px; padding:10px 14px; font-size:12.5px; margin:16px 0; font-weight:600;}
 .form-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:24px;}
-
-/* ---------- ADMIN PLACEHOLDER ---------- */
-.admin-placeholder{background:var(--card-bg); border:1px dashed var(--border); border-radius:var(--radius); padding:44px 24px; text-align:center; color:var(--text-light);}
-.admin-placeholder h2{color:var(--graphite); font-size:18px; margin-bottom:8px;}
 
 /* ---------- TOAST ---------- */
 .toast-wrap{position:fixed; bottom:16px; right:16px; z-index:200; display:flex; flex-direction:column; gap:8px;}
@@ -194,7 +233,11 @@ h1,h2,h3,h4{margin:0;}
     <div id="view-crc-relatorio" class="hidden"></div>
     <div id="view-crc-reativacao" class="hidden"></div>
     <div id="view-admin-placeholder" class="hidden">
-      <div class="form-card">
+      <div class="saudacao" style="font-size:20px;">Dashboard Executivo</div>
+      <div class="saudacao-sub">Consolidado de todas as CRCs — mês atual.</div>
+      <div id="dashboard-executivo"></div>
+
+      <div class="form-card" style="margin-top:20px;">
         <div class="section-title">Ranking — IE-CRC do mês</div>
         <div id="ranking-admin"></div>
       </div>
@@ -226,11 +269,6 @@ h1,h2,h3,h4{margin:0;}
         <div class="form-actions">
           <button class="btn primary" id="btn-salvar-usuario" onclick="App.salvarUsuario()">+ Adicionar usuário</button>
         </div>
-      </div>
-
-      <div class="admin-placeholder" style="margin-top:20px;">
-        <h2>Dashboard Executivo</h2>
-        <p>Ranking, Indicadores, IE-CRC e Painel de Inteligência chegam na Etapa 2.</p>
       </div>
     </div>
   </div>
@@ -276,16 +314,25 @@ const PACIENTES_FALTANTES_EXEMPLO = [
     data:"2026-07-10", status:"Não deseja reagendar", tentativasContato:3, ultimoContato:"2026-07-11", observacao:"Mudou de cidade" }
 ];
 
-// Relatórios de exemplo do mês, só para o modo de teste local — alimenta o cálculo do IE-CRC na demonstração.
+// Relatórios de exemplo do mês, só para o modo de teste local — alimenta o cálculo do IE-CRC e o Dashboard Executivo na demonstração.
 const RELATORIOS_MES_EXEMPLO = [
-  { crcEmail:"larissa@teste.com", data:"2026-07-05", leadsEntraram:80, leadsTrabalhados:30, leadsAgendados:6, leadsSemRetorno:10, pacientesAgendadosDia:6, compareceram:4, faltaram:1, resgateTrabalhados:5, resgateAgendados:2 },
-  { crcEmail:"larissa@teste.com", data:"2026-07-12", leadsEntraram:90, leadsTrabalhados:35, leadsAgendados:7, leadsSemRetorno:12, pacientesAgendadosDia:7, compareceram:5, faltaram:1, resgateTrabalhados:4, resgateAgendados:1 },
-  { crcEmail:"larissa@teste.com", data:"2026-07-13", leadsEntraram:70, leadsTrabalhados:28, leadsAgendados:5, leadsSemRetorno:9, pacientesAgendadosDia:5, compareceram:3, faltaram:2, resgateTrabalhados:3, resgateAgendados:1 }
+  { crcEmail:"larissa@teste.com", data:"2026-07-05", leadsEntraram:80, leadsTrabalhados:30, leadsAgendados:6, leadsRetornoContato:14, leadsSemInteresse:4, leadsSemRetorno:10, pacientesAgendadosDia:6, compareceram:4, faltaram:1, reagendaram:1, semRetornoConfirmacao:0, resgateTrabalhados:5, resgateAgendados:2, resgateRetornoComunicacao:2, resgateSemInteresse:1, resgateSemRetorno:0, principalObjecao:"Preço", qualidadeLead:"Bom", motivoQualidadeLead:"" },
+  { crcEmail:"larissa@teste.com", data:"2026-07-12", leadsEntraram:90, leadsTrabalhados:35, leadsAgendados:7, leadsRetornoContato:15, leadsSemInteresse:8, leadsSemRetorno:12, pacientesAgendadosDia:7, compareceram:5, faltaram:1, reagendaram:1, semRetornoConfirmacao:0, resgateTrabalhados:4, resgateAgendados:1, resgateRetornoComunicacao:1, resgateSemInteresse:1, resgateSemRetorno:1, principalObjecao:"Vai pensar", qualidadeLead:"Ruim", motivoQualidadeLead:"" },
+  { crcEmail:"larissa@teste.com", data:"2026-07-13", leadsEntraram:70, leadsTrabalhados:28, leadsAgendados:5, leadsRetornoContato:10, leadsSemInteresse:9, leadsSemRetorno:9, pacientesAgendadosDia:5, compareceram:3, faltaram:2, reagendaram:0, semRetornoConfirmacao:0, resgateTrabalhados:3, resgateAgendados:1, resgateRetornoComunicacao:1, resgateSemInteresse:0, resgateSemRetorno:1, principalObjecao:"Preço", qualidadeLead:"Péssimo", motivoQualidadeLead:"Números errados, muito lead sem telefone válido" },
+  { crcEmail:"suzani@teste.com", data:"2026-07-06", leadsEntraram:60, leadsTrabalhados:26, leadsAgendados:4, leadsRetornoContato:12, leadsSemInteresse:6, leadsSemRetorno:8, pacientesAgendadosDia:4, compareceram:3, faltaram:1, reagendaram:0, semRetornoConfirmacao:0, resgateTrabalhados:3, resgateAgendados:1, resgateRetornoComunicacao:1, resgateSemInteresse:0, resgateSemRetorno:1, principalObjecao:"Sem interesse", qualidadeLead:"Bom", motivoQualidadeLead:"" }
 ];
 
-// Meta de exemplo, só para o modo de teste local.
+// Oportunidades de exemplo do mês, só para o modo de teste local — alimenta o Dashboard Executivo (temperatura, procedimentos, oportunidades quentes sem ação).
+const OPORTUNIDADES_MES_EXEMPLO = [
+  { crcEmail:"larissa@teste.com", crcNome:"Larissa", paciente:"Fernanda Alves", telefone:"81997771111", procedimento:"Implante Unitário", temperatura:"Muito Quente", proximaAcao:"" },
+  { crcEmail:"larissa@teste.com", crcNome:"Larissa", paciente:"Gustavo Ramos", telefone:"81997772222", procedimento:"Invisalign", temperatura:"Quente", proximaAcao:"Ligação" },
+  { crcEmail:"suzani@teste.com", crcNome:"Suzani", paciente:"Helena Dias", telefone:"81997773333", procedimento:"Facetas", temperatura:"Muito Quente", proximaAcao:"" },
+  { crcEmail:"suzani@teste.com", crcNome:"Suzani", paciente:"Igor Nunes", telefone:"81997774444", procedimento:"Implante Unitário", temperatura:"Morno", proximaAcao:"WhatsApp" }
+];
+
+// Metas de exemplo (3 níveis), só para o modo de teste local.
 const METAS_EXEMPLO = [
-  { crcEmail:"larissa@teste.com", anoMes:"2026-07", metaAgendamentos:25 }
+  { crcEmail:"larissa@teste.com", anoMes:"2026-07", metaAgendamentos:15, metaMegaAgendamentos:20, metaSuperAgendamentos:25 }
 ];
 
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -323,7 +370,7 @@ const Api = {
     return resp.json();
   },
   async statusHoje(){
-    if (!CONFIG.API_URL) return { ok:true, usuarios:[], relatoriosHoje:[], relatoriosMes: RELATORIOS_MES_EXEMPLO, pacientesFaltantes: PACIENTES_FALTANTES_EXEMPLO, metas: METAS_EXEMPLO };
+    if (!CONFIG.API_URL) return { ok:true, usuarios:[], relatoriosHoje:[], relatoriosMes: RELATORIOS_MES_EXEMPLO, oportunidadesMes: OPORTUNIDADES_MES_EXEMPLO, pacientesFaltantes: PACIENTES_FALTANTES_EXEMPLO, metas: METAS_EXEMPLO };
     const resp = await fetch(CONFIG.API_URL);
     return resp.json();
   },
@@ -350,15 +397,15 @@ const Api = {
     });
     return resp.json();
   },
-  async salvarMeta(idToken, crcEmail, metaAgendamentos){
+  async salvarMeta(idToken, crcEmail, metas){
     if (!CONFIG.API_URL){
-      const meta = { crcEmail, anoMes: new Date().toISOString().slice(0,7), metaAgendamentos: Number(metaAgendamentos)||0 };
+      const meta = { crcEmail, anoMes: new Date().toISOString().slice(0,7), metaAgendamentos: Number(metas.meta)||0, metaMegaAgendamentos: Number(metas.mega)||0, metaSuperAgendamentos: Number(metas.super)||0 };
       return { ok:true, meta };
     }
     const resp = await fetch(CONFIG.API_URL, {
       method:"POST",
       headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body: JSON.stringify({ action:"salvarMeta", idToken, crcEmail, metaAgendamentos })
+      body: JSON.stringify({ action:"salvarMeta", idToken, crcEmail, metas })
     });
     return resp.json();
   }
@@ -374,6 +421,7 @@ let RELATORIO_ENVIADO_HOJE = false;
 let USUARIOS_CACHE = [];
 let PACIENTES_FALTANTES_CACHE = [];
 let RELATORIOS_MES_CACHE = [];
+let OPORTUNIDADES_MES_CACHE = [];
 let METAS_CACHE = [];
 let FILTRO_REATIVACAO = { status:"", busca:"", ordenacao:"padrao" };
 let ESTADO_MOTIVO = {};
@@ -538,6 +586,7 @@ async function carregarStatusHoje(){
       USUARIOS_CACHE = data.usuarios || [];
       PACIENTES_FALTANTES_CACHE = data.pacientesFaltantes || [];
       RELATORIOS_MES_CACHE = data.relatoriosMes || [];
+      OPORTUNIDADES_MES_CACHE = data.oportunidadesMes || [];
       METAS_CACHE = data.metas || [];
     }
   } catch(err){ /* sem backend real ainda: mantém padrão (não enviado) */ }
@@ -554,7 +603,7 @@ function mostrarView(nome){
   if (nome==="dashboard") renderDashboard();
   if (nome==="relatorio") renderFormularioRelatorio();
   if (nome==="reativacao") renderReativacao();
-  if (nome==="admin"){ renderUsuariosLista(); renderResumoFaltantesPorCRC(); renderRankingAdmin(); renderMetasAdmin(); }
+  if (nome==="admin"){ renderDashboardExecutivo(); renderUsuariosLista(); renderResumoFaltantesPorCRC(); renderRankingAdmin(); renderMetasAdmin(); }
 }
 
 /** Ranking das CRCs pelo IE-CRC do mês atual — maior pontuação primeiro; quem ainda não tem relatório no mês fica por último. */
@@ -640,19 +689,46 @@ function renderDetalheIECRC(ie){
   `;
 }
 
+const NIVEIS_META = [
+  { chave:"super", label:"Super Meta", emoji:"🥇" },
+  { chave:"mega", label:"Mega Meta", emoji:"🥈" },
+  { chave:"meta", label:"Meta", emoji:"🥉" }
+];
+
+/** Calcula onde a CRC está nos 3 patamares de meta (Meta/Mega Meta/Super Meta) do mês atual. */
 function calcularMeta(crcEmail){
   const registro = METAS_CACHE.find(m => m.crcEmail === crcEmail);
   if (!registro || !registro.metaAgendamentos) return null;
   const meta = Number(registro.metaAgendamentos) || 0;
+  const mega = Number(registro.metaMegaAgendamentos) || 0;
+  const superMeta = Number(registro.metaSuperAgendamentos) || 0;
   const relatorios = RELATORIOS_MES_CACHE.filter(r => r.crcEmail === crcEmail);
   const atual = relatorios.reduce((soma,r) => soma + (Number(r.leadsAgendados)||0), 0);
   const hoje = new Date();
   const diasNoMes = new Date(hoje.getFullYear(), hoje.getMonth()+1, 0).getDate();
   const diasPassados = hoje.getDate();
   const projecao = diasPassados>0 ? Math.round((atual/diasPassados)*diasNoMes) : atual;
-  const faltam = Math.max(0, meta-atual);
-  const percentual = meta>0 ? Math.min(100, Math.round((atual/meta)*100)) : 0;
-  return { meta, atual, faltam, projecao, percentual, atingida: atual>=meta };
+
+  let nivelAtingido = 0, nivelLabel = null;
+  if (superMeta>0 && atual>=superMeta){ nivelAtingido=3; nivelLabel="Super Meta"; }
+  else if (mega>0 && atual>=mega){ nivelAtingido=2; nivelLabel="Mega Meta"; }
+  else if (meta>0 && atual>=meta){ nivelAtingido=1; nivelLabel="Meta"; }
+
+  let proximoNivelLabel = null, faltamProximoNivel = 0;
+  if (nivelAtingido<1){ proximoNivelLabel="Meta"; faltamProximoNivel=Math.max(0, meta-atual); }
+  else if (nivelAtingido<2){ proximoNivelLabel="Mega Meta"; faltamProximoNivel=Math.max(0, mega-atual); }
+  else if (nivelAtingido<3){ proximoNivelLabel="Super Meta"; faltamProximoNivel=Math.max(0, superMeta-atual); }
+
+  const topo = Math.max(meta, mega, superMeta, atual, 1);
+  const percentual = Math.min(100, Math.round((atual/topo)*100));
+
+  return {
+    meta, mega, super: superMeta, atual, projecao, nivelAtingido, nivelLabel,
+    proximoNivelLabel, faltamProximoNivel, percentual, topo,
+    percentualMeta: topo>0 ? Math.round((meta/topo)*100) : 0,
+    percentualMega: topo>0 ? Math.round((mega/topo)*100) : 0,
+    percentualSuper: topo>0 ? Math.round((superMeta/topo)*100) : 0
+  };
 }
 
 let DETALHE_META_ABERTO = false;
@@ -663,14 +739,24 @@ function alternarDetalheMeta(){
 
 function renderDetalheMeta(metaInfo){
   if (!metaInfo) return `<div class="ie-detalhe"><p class="usuarios-vazio">Nenhuma meta definida para este mês ainda. Peça para um administrador definir.</p></div>`;
+  const mensagem = metaInfo.nivelAtingido===3
+    ? "Você já bateu a Super Meta este mês! 🏆"
+    : `Faltam <strong>${metaInfo.faltamProximoNivel}</strong> agendamentos para a ${metaInfo.proximoNivelLabel}.`;
   return `
     <div class="ie-detalhe">
       <div class="section-title" style="margin-top:0;">Meta do mês — Agendamentos</div>
-      <p style="font-size:13px;margin-bottom:8px;">Meta: <strong>${metaInfo.meta}</strong> · Atual: <strong>${metaInfo.atual}</strong> · Faltam: <strong>${metaInfo.faltam}</strong></p>
-      <div style="background:var(--bg-alt);border-radius:20px;height:10px;overflow:hidden;margin-bottom:8px;">
-        <div style="background:${metaInfo.atingida?'var(--green)':'var(--gold)'};height:100%;width:${metaInfo.percentual}%;"></div>
+      <p style="font-size:13px;margin-bottom:4px;">Atual: <strong>${metaInfo.atual}</strong> · Meta: <strong>${metaInfo.meta}</strong> · Mega Meta: <strong>${metaInfo.mega}</strong> · Super Meta: <strong>${metaInfo.super}</strong></p>
+      <div class="meta-preview-bar">
+        <div class="meta-preview-fill nivel-${metaInfo.nivelAtingido}" style="width:${metaInfo.percentual}%;"></div>
+        <div class="meta-marcador" style="left:${metaInfo.percentualMeta}%;"></div>
+        <div class="meta-marcador-label" style="left:${metaInfo.percentualMeta}%;">🥉 Meta</div>
+        <div class="meta-marcador" style="left:${metaInfo.percentualMega}%;"></div>
+        <div class="meta-marcador-label" style="left:${metaInfo.percentualMega}%;">🥈 Mega</div>
+        <div class="meta-marcador" style="left:${metaInfo.percentualSuper}%;"></div>
+        <div class="meta-marcador-label" style="left:${metaInfo.percentualSuper}%;">🥇 Super</div>
       </div>
-      <p style="font-size:12.5px;color:var(--text-light);">Se continuar nesse ritmo, a projeção de fechamento é <strong>${metaInfo.projecao}</strong>${metaInfo.projecao>=metaInfo.meta ? " — meta será atingida! 🎉" : " — abaixo da meta, ainda dá tempo de acelerar."}</p>
+      <p class="meta-msg" style="margin-top:6px;">${mensagem}</p>
+      <p class="meta-msg">Projeção de fechamento no ritmo atual: <strong>${metaInfo.projecao}</strong>.</p>
     </div>
   `;
 }
@@ -702,7 +788,7 @@ function renderDashboard(){
       </div>
       <div class="dash-card" style="cursor:pointer;" onclick="App.alternarDetalheMeta()">
         <div class="lbl">Meta do mês</div>
-        <div class="val">${metaInfo ? metaInfo.atual+" / "+metaInfo.meta : "—"}</div>
+        <div class="val">${metaInfo ? metaInfo.atual+" / "+metaInfo.super : "—"} ${metaInfo && metaInfo.nivelAtingido>0 ? NIVEIS_META.find(n=>n.label===metaInfo.nivelLabel).emoji : ""}</div>
       </div>
       <div class="dash-card">
         <div class="lbl">Ranking atual</div>
@@ -987,6 +1073,211 @@ function renderResumoFaltantesPorCRC(){
   `;
 }
 
+/* =========================================================================
+   DASHBOARD EXECUTIVO — leitura consolidada (mês atual, todas as CRCs) de
+   tudo que já é coletado no relatório diário: funil de leads, comparecimento,
+   resgate, qualidade dos leads, objeções e oportunidades por temperatura.
+   ========================================================================= */
+function calcularAnaliseExecutiva(relatorios, oportunidades, faltantes){
+  if (!relatorios || !relatorios.length) return { semDados: true };
+
+  const s = {
+    leadsEntraram:0, leadsTrabalhados:0, leadsAgendados:0, leadsRetornoContato:0, leadsSemInteresse:0, leadsSemRetorno:0,
+    pacientesAgendadosDia:0, compareceram:0, faltaram:0, reagendaram:0, semRetornoConfirmacao:0,
+    resgateTrabalhados:0, resgateAgendados:0, resgateRetornoComunicacao:0, resgateSemInteresse:0, resgateSemRetorno:0
+  };
+  relatorios.forEach(r => { Object.keys(s).forEach(k => { s[k] += Number(r[k])||0; }); });
+  const div = (a,b) => b>0 ? a/b : null;
+
+  const funilLeads = {
+    entraram: s.leadsEntraram, trabalhados: s.leadsTrabalhados, agendados: s.leadsAgendados,
+    taxaResposta: div(s.leadsTrabalhados, s.leadsEntraram),
+    taxaConversao: div(s.leadsAgendados, s.leadsTrabalhados)
+  };
+  const comparecimento = {
+    agendados: s.pacientesAgendadosDia, compareceram: s.compareceram, faltaram: s.faltaram, reagendaram: s.reagendaram,
+    taxaComparecimento: div(s.compareceram, s.pacientesAgendadosDia)
+  };
+  const resgate = {
+    trabalhados: s.resgateTrabalhados, agendados: s.resgateAgendados,
+    taxaConversao: div(s.resgateAgendados, s.resgateTrabalhados)
+  };
+
+  const contagemQualidade = { Bom:0, Ruim:0, "Péssimo":0 };
+  const motivosPessimoMap = {};
+  relatorios.forEach(r => {
+    if (contagemQualidade[r.qualidadeLead] !== undefined) contagemQualidade[r.qualidadeLead]++;
+    const motivo = r.qualidadeLead==="Péssimo" ? String(r.motivoQualidadeLead||"").trim() : "";
+    if (motivo) motivosPessimoMap[motivo] = (motivosPessimoMap[motivo]||0) + 1;
+  });
+  const motivosPessimo = Object.entries(motivosPessimoMap).map(([motivo,qtd])=>({motivo,qtd})).sort((a,b)=>b.qtd-a.qtd).slice(0,5);
+
+  const objecoesMap = {};
+  relatorios.forEach(r => { if (r.principalObjecao) objecoesMap[r.principalObjecao] = (objecoesMap[r.principalObjecao]||0) + 1; });
+  const objecoes = Object.entries(objecoesMap).map(([nome,qtd])=>({nome,qtd})).sort((a,b)=>b.qtd-a.qtd);
+
+  const contagemTemperatura = { "Muito Quente":0, "Quente":0, "Morno":0 };
+  (oportunidades||[]).forEach(o => { if (contagemTemperatura[o.temperatura] !== undefined) contagemTemperatura[o.temperatura]++; });
+  const quentesAbertas = (oportunidades||[]).filter(o => o.temperatura==="Muito Quente" && !String(o.proximaAcao||"").trim());
+
+  const ativos = faltantes || [];
+  const faltantesResumo = {
+    total: ativos.length,
+    naoAgendado: ativos.filter(f => f.status==="Não agendado").length,
+    naoDeseja: ativos.filter(f => f.status==="Não deseja reagendar").length,
+    tempoMedioDias: ativos.length ? Math.round(ativos.reduce((soma,f) => soma+diasDesde(f.criadoEm||f.data), 0)/ativos.length) : 0
+  };
+
+  return {
+    semDados: false, funilLeads, comparecimento, resgate,
+    qualidade: { contagem: contagemQualidade, motivosPessimo },
+    objecoes,
+    oportunidades: { contagem: contagemTemperatura, quentesAbertas },
+    faltantesResumo
+  };
+}
+
+function funilStepHtml(label, valor, maior){
+  const largura = maior>0 ? Math.round((valor/maior)*100) : 0;
+  return `
+    <div class="funil-step">
+      <div class="funil-label">${esc(label)}</div>
+      <div class="funil-track"><div class="funil-fill" style="width:${largura}%;"></div></div>
+      <div class="funil-valor">${valor}</div>
+    </div>
+  `;
+}
+
+function barraHHtml(label, valor, maior){
+  const largura = maior>0 ? Math.round((valor/maior)*100) : 0;
+  return `
+    <div class="barra-h-row">
+      <div class="barra-h-top"><span>${esc(label)}</span><strong>${valor}</strong></div>
+      <div class="barra-h-track"><div class="barra-h-fill" style="width:${largura}%;"></div></div>
+    </div>
+  `;
+}
+
+function donutEstiloHtml(contagem, cores){
+  const total = Object.values(contagem).reduce((a,b)=>a+b, 0);
+  if (!total) return "background:var(--bg-alt);";
+  let acumulado = 0;
+  const partes = Object.entries(contagem).map(([chave,valor]) => {
+    const inicio = (acumulado/total)*360;
+    acumulado += valor;
+    const fim = (acumulado/total)*360;
+    return `${cores[chave]||"var(--text-light)"} ${inicio}deg ${fim}deg`;
+  });
+  return `background:conic-gradient(${partes.join(",")});`;
+}
+
+function donutLegendaHtml(contagem, cores){
+  const total = Object.values(contagem).reduce((a,b)=>a+b, 0);
+  return Object.entries(contagem).map(([chave,valor]) => {
+    const percentual = total>0 ? Math.round((valor/total)*100) : 0;
+    return `<div><span class="dot" style="background:${cores[chave]||"var(--text-light)"};"></span>${esc(chave)}: <strong>${valor}</strong> (${percentual}%)</div>`;
+  }).join("");
+}
+
+const CORES_QUALIDADE = { Bom:"var(--green)", Ruim:"var(--orange)", "Péssimo":"var(--red)" };
+const CORES_TEMPERATURA = { "Muito Quente":"var(--red)", "Quente":"var(--orange)", "Morno":"var(--gold)" };
+
+function renderDashboardExecutivo(){
+  const el = document.getElementById("dashboard-executivo");
+  if (!el) return;
+  const a = calcularAnaliseExecutiva(RELATORIOS_MES_CACHE, OPORTUNIDADES_MES_CACHE, PACIENTES_FALTANTES_CACHE);
+  if (a.semDados){
+    el.innerHTML = `<div class="exec-card"><p class="exec-vazio">Nenhum relatório enviado este mês ainda — o resumo aparece assim que a primeira CRC enviar.</p></div>`;
+    return;
+  }
+  const pct = v => v===null ? "—" : Math.round(v*100)+"%";
+  const maiorFunil = Math.max(a.funilLeads.entraram, 1);
+  const maiorAgendados = Math.max(a.comparecimento.agendados, 1);
+  const maiorResgate = Math.max(a.resgate.trabalhados, 1);
+
+  const funilHtml = `
+    <div class="exec-card">
+      <h4>Funil de Leads (mês)</h4>
+      ${funilStepHtml("Entraram", a.funilLeads.entraram, maiorFunil)}
+      ${funilStepHtml("Trabalhados", a.funilLeads.trabalhados, maiorFunil)}
+      <div class="funil-conv">Taxa de resposta: ${pct(a.funilLeads.taxaResposta)}</div>
+      ${funilStepHtml("Agendados", a.funilLeads.agendados, maiorFunil)}
+      <div class="funil-conv">Taxa de conversão em agendamento: ${pct(a.funilLeads.taxaConversao)}</div>
+    </div>
+  `;
+
+  const comparecimentoHtml = `
+    <div class="exec-card">
+      <h4>Comparecimento (mês)</h4>
+      ${funilStepHtml("Agendados", a.comparecimento.agendados, maiorAgendados)}
+      ${funilStepHtml("Compareceram", a.comparecimento.compareceram, maiorAgendados)}
+      ${funilStepHtml("Faltaram", a.comparecimento.faltaram, maiorAgendados)}
+      ${funilStepHtml("Reagendaram", a.comparecimento.reagendaram, maiorAgendados)}
+      <div class="funil-conv">Taxa de comparecimento: ${pct(a.comparecimento.taxaComparecimento)}</div>
+    </div>
+  `;
+
+  const resgateHtml = `
+    <div class="exec-card">
+      <h4>Resgate de leads antigos (mês)</h4>
+      ${funilStepHtml("Trabalhados", a.resgate.trabalhados, maiorResgate)}
+      ${funilStepHtml("Agendados", a.resgate.agendados, maiorResgate)}
+      <div class="funil-conv">Taxa de conversão do resgate: ${pct(a.resgate.taxaConversao)}</div>
+    </div>
+  `;
+
+  const qualidadeHtml = `
+    <div class="exec-card">
+      <h4>Qualidade dos leads (mês)</h4>
+      <div class="donut-wrap">
+        <div class="donut" style="${donutEstiloHtml(a.qualidade.contagem, CORES_QUALIDADE)}"></div>
+        <div class="donut-legenda">${donutLegendaHtml(a.qualidade.contagem, CORES_QUALIDADE)}</div>
+      </div>
+      ${a.qualidade.motivosPessimo.length ? `
+        <div class="section-title" style="margin:16px 0 8px;font-size:11px;">Motivos mais citados (Péssimo)</div>
+        ${a.qualidade.motivosPessimo.map(m => barraHHtml(m.motivo, m.qtd, a.qualidade.motivosPessimo[0].qtd)).join("")}
+      ` : ""}
+    </div>
+  `;
+
+  const objecoesHtml = `
+    <div class="exec-card">
+      <h4>Principais objeções (mês)</h4>
+      ${a.objecoes.length ? a.objecoes.slice(0,6).map(o => barraHHtml(o.nome, o.qtd, a.objecoes[0].qtd)).join("") : `<p class="exec-vazio">Nenhuma objeção registrada este mês.</p>`}
+    </div>
+  `;
+
+  const oportunidadesHtml = `
+    <div class="exec-card">
+      <h4>Oportunidades por temperatura (mês)</h4>
+      <div class="donut-wrap">
+        <div class="donut" style="${donutEstiloHtml(a.oportunidades.contagem, CORES_TEMPERATURA)}"></div>
+        <div class="donut-legenda">${donutLegendaHtml(a.oportunidades.contagem, CORES_TEMPERATURA)}</div>
+      </div>
+      ${a.oportunidades.quentesAbertas.length ? `
+        <div class="section-title" style="margin:16px 0 4px;font-size:11px;">🔴 Muito quentes sem ação registrada</div>
+        ${a.oportunidades.quentesAbertas.map(o => `
+          <div class="oportunidade-quente">
+            <span>${esc(o.paciente)} · ${esc(o.crcNome||"")}</span>
+            ${o.telefone ? `<a href="${linkWhatsapp(o.telefone)}" target="_blank" class="btn small outline">WhatsApp</a>` : ""}
+          </div>
+        `).join("")}
+      ` : `<p class="exec-vazio" style="margin-top:12px;">Nenhuma oportunidade muito quente parada sem ação. 🎉</p>`}
+    </div>
+  `;
+
+  const faltantesHtml = `
+    <div class="exec-card">
+      <h4>Central de Reativação — visão geral</h4>
+      <p style="font-size:13px;margin-bottom:6px;">Total ativos na fila: <strong>${a.faltantesResumo.total}</strong></p>
+      <p style="font-size:12.5px;color:var(--text-light);">Não agendado: <strong>${a.faltantesResumo.naoAgendado}</strong> · Não deseja reagendar: <strong>${a.faltantesResumo.naoDeseja}</strong></p>
+      <p style="font-size:12.5px;color:var(--text-light);">Tempo médio na fila: <strong>${a.faltantesResumo.tempoMedioDias}</strong> dia(s)</p>
+    </div>
+  `;
+
+  el.innerHTML = `<div class="exec-grid">${funilHtml}${comparecimentoHtml}${resgateHtml}${qualidadeHtml}${objecoesHtml}${oportunidadesHtml}${faltantesHtml}</div>`;
+}
+
 function renderMetasAdmin(){
   const el = document.getElementById("metas-admin");
   if (!el) return;
@@ -995,36 +1286,54 @@ function renderMetasAdmin(){
     el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
     return;
   }
-  el.innerHTML = `
-    <table class="tabela-usuarios">
-      <tr><th>CRC</th><th>Meta de agendamentos (mês)</th><th></th></tr>
-      ${crcs.map(u => {
-        const registro = METAS_CACHE.find(m => m.crcEmail === u.email);
-        const valorAtual = registro ? registro.metaAgendamentos : "";
-        return `
-          <tr>
-            <td>${esc(u.nomeCurto || u.nomeCompleto)}</td>
-            <td><input type="number" min="0" id="f-meta-${esc(u.email)}" value="${valorAtual}" style="width:90px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;"></td>
-            <td><button class="btn small outline" onclick="App.salvarMetaCRC('${esc(u.email)}')">Salvar</button></td>
-          </tr>`;
-      }).join("")}
-    </table>
-  `;
+  el.innerHTML = crcs.map(u => {
+    const registro = METAS_CACHE.find(m => m.crcEmail === u.email);
+    const metaInfo = calcularMeta(u.email);
+    return `
+      <div class="meta-card">
+        <div class="meta-card-head">
+          <strong>${esc(u.nomeCurto || u.nomeCompleto)}</strong>
+          ${metaInfo ? `<span class="meta-nivel-badge nivel-${metaInfo.nivelAtingido}">${metaInfo.nivelAtingido>0 ? metaInfo.nivelLabel+" batida" : "Nenhum nível ainda"}</span>` : ""}
+        </div>
+        <div class="meta-inputs">
+          <div class="field"><label>🥉 Meta</label><input type="number" min="0" id="f-meta-${esc(u.email)}" value="${registro ? registro.metaAgendamentos : ""}"></div>
+          <div class="field"><label>🥈 Mega Meta</label><input type="number" min="0" id="f-mega-${esc(u.email)}" value="${registro ? registro.metaMegaAgendamentos : ""}"></div>
+          <div class="field"><label>🥇 Super Meta</label><input type="number" min="0" id="f-super-${esc(u.email)}" value="${registro ? registro.metaSuperAgendamentos : ""}"></div>
+          <button class="btn small primary" onclick="App.salvarMetaCRC('${esc(u.email)}')">Salvar</button>
+        </div>
+        ${metaInfo ? `
+          <div class="meta-preview-bar" style="margin:18px 0 20px;">
+            <div class="meta-preview-fill nivel-${metaInfo.nivelAtingido}" style="width:${metaInfo.percentual}%;"></div>
+            <div class="meta-marcador" style="left:${metaInfo.percentualMeta}%;"></div>
+            <div class="meta-marcador" style="left:${metaInfo.percentualMega}%;"></div>
+            <div class="meta-marcador" style="left:${metaInfo.percentualSuper}%;"></div>
+          </div>
+          <p class="meta-msg">Atual: <strong>${metaInfo.atual}</strong> agendamentos este mês.</p>
+        ` : ""}
+      </div>
+    `;
+  }).join("");
 }
 
 async function salvarMetaCRC(crcEmail){
-  const input = document.getElementById(`f-meta-${crcEmail}`);
-  const valor = Number(input?.value);
-  if (!valor || valor <= 0){
-    toast("Informe uma meta maior que zero.");
+  const meta = Number(document.getElementById(`f-meta-${crcEmail}`)?.value);
+  const mega = Number(document.getElementById(`f-mega-${crcEmail}`)?.value);
+  const superMeta = Number(document.getElementById(`f-super-${crcEmail}`)?.value);
+  if (!meta || meta <= 0 || !mega || mega <= 0 || !superMeta || superMeta <= 0){
+    toast("Informe os 3 níveis, todos maiores que zero.");
+    return;
+  }
+  if (mega < meta || superMeta < mega){
+    toast("A Mega Meta precisa ser maior ou igual à Meta, e a Super Meta maior ou igual à Mega Meta.");
     return;
   }
   try {
-    const data = await Api.salvarMeta(TOKEN_ATUAL, crcEmail, valor);
+    const data = await Api.salvarMeta(TOKEN_ATUAL, crcEmail, { meta, mega, super: superMeta });
     if (!data.ok){ toast(data.error || "Não foi possível salvar a meta."); return; }
     const idx = METAS_CACHE.findIndex(m => m.crcEmail === crcEmail);
     if (idx !== -1) METAS_CACHE[idx] = data.meta; else METAS_CACHE.push(data.meta);
-    toast("Meta salva.");
+    toast("Metas salvas.");
+    renderMetasAdmin();
   } catch(err){
     console.error(err);
     toast("Falha ao salvar — verifique sua conexão.");

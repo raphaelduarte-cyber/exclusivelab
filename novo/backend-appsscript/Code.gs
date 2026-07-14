@@ -67,7 +67,9 @@ var HEADERS_PACIENTES_FALTANTES = [
 ];
 var HEADERS_LOGS = ['id', 'data', 'hora', 'usuarioEmail', 'usuarioNome', 'acao', 'detalhes', 'criadoEm'];
 // Uma linha por CRC/mês — chave é crcEmail + anoMes (upsert, nunca duplica).
-var HEADERS_METAS = ['crcEmail', 'anoMes', 'metaAgendamentos', 'atualizadoEm', 'dadosJSON'];
+// 3 patamares crescentes do mesmo indicador (agendamentos no mês): Meta é o
+// mínimo esperado, Mega Meta é o ótimo, Super Meta é o excelente.
+var HEADERS_METAS = ['crcEmail', 'anoMes', 'metaAgendamentos', 'metaMegaAgendamentos', 'metaSuperAgendamentos', 'atualizadoEm', 'dadosJSON'];
 
 // Cole aqui o Client ID gerado no Google Cloud Console (Client ID OAuth, tipo
 // "Aplicativo da Web") — usado para validar o token de login com o Google.
@@ -112,7 +114,7 @@ function jsonResponse_(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-/** GET => devolve usuários, relatórios de hoje, relatórios do mês (para o IE-CRC) e a fila de pacientes faltantes ATIVOS (todas as CRCs — o front-end filtra pela própria).
+/** GET => devolve usuários, relatórios de hoje, relatórios do mês (para o IE-CRC e o Dashboard Executivo), oportunidades do mês, e a fila de pacientes faltantes ATIVOS (todas as CRCs — o front-end filtra pela própria).
  *  A fila de faltantes só devolve os ativos (não reagendados ainda) por padrão
  *  — os já resolvidos ficam de fora da resposta para a leitura não crescer
  *  sem limite conforme o histórico acumula; eles continuam existindo na
@@ -125,6 +127,7 @@ function doGet(e) {
     usuarios: lerUsuarios_(),
     relatoriosHoje: lerRelatoriosPorData_(hoje),
     relatoriosMes: lerRelatoriosPorMes_(mesAtual),
+    oportunidadesMes: lerOportunidadesPorMes_(mesAtual),
     pacientesFaltantes: lerPacientesFaltantesAtivos_(),
     metas: lerMetasDoMes_(mesAtual)
   });
@@ -139,7 +142,7 @@ function doGet(e) {
  *   { "action": "salvarRelatorio", "idToken": "...", "relatorio": { ...campos do formulário... } }
  *   { "action": "salvarUsuario", "idToken": "...", "usuario": { nomeCompleto, nomeCurto, email, perfil } }
  *   { "action": "atualizarStatusFaltante", "idToken": "...", "id": "...", "mudancas": { status?, incrementarTentativa?, observacao?, novaData?, novoHorario?, novoLocal? } }
- *   { "action": "salvarMeta", "idToken": "...", "crcEmail": "...", "metaAgendamentos": 120 }
+ *   { "action": "salvarMeta", "idToken": "...", "crcEmail": "...", "metas": { "meta": 80, "mega": 100, "super": 120 } }
  */
 function doPost(e) {
   var body;
@@ -153,7 +156,7 @@ function doPost(e) {
   if (body.action === 'salvarRelatorio') return salvarRelatorio_(body.idToken, body.relatorio);
   if (body.action === 'salvarUsuario') return salvarUsuario_(body.idToken, body.usuario);
   if (body.action === 'atualizarStatusFaltante') return atualizarStatusFaltante_(body.idToken, body.id, body.mudancas);
-  if (body.action === 'salvarMeta') return salvarMeta_(body.idToken, body.crcEmail, body.metaAgendamentos);
+  if (body.action === 'salvarMeta') return salvarMeta_(body.idToken, body.crcEmail, body.metas);
 
   return jsonResponse_({ ok: false, error: 'Ação desconhecida: ' + body.action });
 }
@@ -185,6 +188,11 @@ function lerRelatoriosPorData_(dataISO) {
 /** Todos os relatórios de um mês (formato 'yyyy-MM'), de todas as CRCs — usado para calcular o IE-CRC do mês atual. */
 function lerRelatoriosPorMes_(anoMes) {
   return lerRelatorios_().filter(function (r) { return String(r.data || '').slice(0, 7) === anoMes; });
+}
+function lerOportunidades_() { return lerSheetJSON_(SHEET_OPORTUNIDADES, HEADERS_OPORTUNIDADES); }
+/** Oportunidades de um mês (formato 'yyyy-MM'), de todas as CRCs — usado no Dashboard Executivo (temperatura, procedimentos, oportunidades quentes sem ação). */
+function lerOportunidadesPorMes_(anoMes) {
+  return lerOportunidades_().filter(function (o) { return String(o.data || '').slice(0, 7) === anoMes; });
 }
 function lerPacientesFaltantes_() { return lerSheetJSON_(SHEET_PACIENTES_FALTANTES, HEADERS_PACIENTES_FALTANTES); }
 /** Reduz o tamanho da resposta conforme o histórico de resolvidos antigos cresce — 'Reagendado' nunca fica salvo (a linha é excluída ao virar esse status). */
@@ -314,8 +322,8 @@ function upsertUsuario_(usuario) {
   }
 }
 
-/** Só um Administrador define a meta mensal (nº de agendamentos) de uma CRC. Upsert por crcEmail+anoMes (mês atual). */
-function salvarMeta_(idToken, crcEmail, metaAgendamentos) {
+/** Só um Administrador define os 3 patamares de meta mensal (nº de agendamentos) de uma CRC: Meta, Mega Meta e Super Meta, sempre crescentes. Upsert por crcEmail+anoMes (mês atual). */
+function salvarMeta_(idToken, crcEmail, metas) {
   var v = validarTokenGoogle_(idToken);
   if (!v.ok) return jsonResponse_({ ok: false, error: v.error });
   var solicitante = buscarUsuarioPorEmail_(v.email);
@@ -323,6 +331,17 @@ function salvarMeta_(idToken, crcEmail, metaAgendamentos) {
     return jsonResponse_({ ok: false, error: 'Apenas administradores podem definir metas.' });
   }
   if (!crcEmail) return jsonResponse_({ ok: false, error: 'CRC não informada.' });
+
+  metas = metas || {};
+  var meta = Number(metas.meta) || 0;
+  var mega = Number(metas.mega) || 0;
+  var superMeta = Number(metas.super) || 0;
+  if (meta < 0 || mega < 0 || superMeta < 0) {
+    return jsonResponse_({ ok: false, error: 'As metas não podem ser negativas.' });
+  }
+  if (mega < meta || superMeta < mega) {
+    return jsonResponse_({ ok: false, error: 'A Mega Meta precisa ser maior ou igual à Meta, e a Super Meta maior ou igual à Mega Meta.' });
+  }
 
   var anoMes = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM');
   var email = String(crcEmail).toLowerCase().trim();
@@ -332,15 +351,17 @@ function salvarMeta_(idToken, crcEmail, metaAgendamentos) {
   for (var i = 0; i < lista.length; i++) {
     if (lista[i].crcEmail === email && lista[i].anoMes === anoMes) { rowIndex = i + 2; break; }
   }
-  var meta = {
+  var registro = {
     crcEmail: email,
     anoMes: anoMes,
-    metaAgendamentos: Number(metaAgendamentos) || 0,
+    metaAgendamentos: meta,
+    metaMegaAgendamentos: mega,
+    metaSuperAgendamentos: superMeta,
     atualizadoEm: new Date().toISOString()
   };
   var row = HEADERS_METAS.map(function (h) {
-    if (h === 'dadosJSON') return JSON.stringify(meta);
-    var val = meta[h];
+    if (h === 'dadosJSON') return JSON.stringify(registro);
+    var val = registro[h];
     return (val === undefined || val === null) ? '' : val;
   });
   if (rowIndex === -1) {
@@ -348,8 +369,8 @@ function salvarMeta_(idToken, crcEmail, metaAgendamentos) {
   } else {
     sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
   }
-  registrarLog_(solicitante.email, solicitante.nomeCurto || solicitante.nomeCompleto, 'salvarMeta', 'Meta de ' + email + ' em ' + anoMes + ': ' + meta.metaAgendamentos);
-  return jsonResponse_({ ok: true, meta: meta });
+  registrarLog_(solicitante.email, solicitante.nomeCurto || solicitante.nomeCompleto, 'salvarMeta', 'Metas de ' + email + ' em ' + anoMes + ': ' + meta + ' / ' + mega + ' / ' + superMeta);
+  return jsonResponse_({ ok: true, meta: registro });
 }
 
 /** Escreve um objeto como nova linha, usando os nomes dos headers como chaves do objeto + o blob completo em dadosJSON. */
