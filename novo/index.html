@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Exclusive CRC — Inteligência Comercial</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+:root{
+  /* ---- Identidade Exclusive Odontologia (mesma paleta do painel de Alinhadores) ---- */
+  --gold:#c6a15b; --gold-dark:#a3813f; --gold-light:#f6ecd8;
+  --graphite:#20232b; --graphite-light:#565f72; --slate:#4b5468;
+  --bg:#f8f6f2; --bg-alt:#efece4; --card-bg:#ffffff; --border:#e6e1d4;
+  --text:#20232b; --text-light:#767b87;
+  --teal:#0d9488; --blue:#2563eb; --blue-light:#dde9ff;
+  --orange:#d97706; --orange-light:#fdf0da;
+  --red:#c0392b; --red-light:#fbe6e2;
+  --green:#1f8a52; --green-light:#e2f4e9;
+  --radius:14px; --radius-sm:9px;
+  --shadow:0 1px 2px rgba(32,35,43,.05),0 3px 12px rgba(32,35,43,.06);
+  --shadow-lg:0 16px 44px rgba(32,35,43,.24);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;
+  background:var(--bg); color:var(--text); font-size:14px; line-height:1.45;
+}
+button{font-family:inherit; cursor:pointer;}
+input,select,textarea{font-family:inherit; font-size:14px;}
+h1,h2,h3,h4{margin:0;}
+.hidden{display:none !important;}
+::-webkit-scrollbar{height:10px;width:10px;}
+::-webkit-scrollbar-thumb{background:#d8d2c2;border-radius:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+
+/* ---------- HEADER ---------- */
+.app-header{
+  position:sticky; top:0; z-index:40; background:#fffdf9; border-bottom:1px solid var(--border);
+  box-shadow:0 1px 2px rgba(32,35,43,.04);
+}
+.header-row{display:flex; align-items:center; gap:16px; padding:12px 22px; flex-wrap:wrap;}
+.brand{display:flex; align-items:center; gap:12px; margin-right:auto;}
+.logo-exclusive{height:38px; width:auto; display:block;}
+.brand-text{display:flex; flex-direction:column; line-height:1.3;}
+.brand-text strong{font-size:14.5px; letter-spacing:.4px; color:var(--graphite); font-weight:700;}
+.brand-text span{font-size:10.5px; color:var(--text-light); letter-spacing:.2px;}
+.header-actions{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+.operador-box{display:flex; align-items:center; gap:8px; background:var(--bg-alt); padding:6px 12px; border-radius:20px; border:1px solid var(--border);}
+.linkbtn{background:none;border:none;color:var(--gold-dark);text-decoration:underline;font-size:11px;padding:0; font-weight:600;}
+
+.btn{
+  border:1px solid var(--border); background:var(--bg-alt); color:var(--graphite); font-weight:600;
+  padding:9px 16px; border-radius:var(--radius-sm); font-size:13px; white-space:nowrap;
+  transition:filter .12s ease, transform .05s ease;
+}
+.btn:hover{filter:brightness(0.96);}
+.btn:active{transform:translateY(1px);}
+.btn.primary{background:linear-gradient(135deg,#d3b378,var(--gold)); color:var(--graphite); border-color:var(--gold-dark); font-weight:700;}
+.btn.outline{background:#fff; border-color:var(--border); color:var(--text);}
+.btn.small{padding:6px 11px; font-size:12px;}
+.btn:disabled{opacity:.45; cursor:not-allowed; filter:none;}
+
+/* ---------- MAIN / CONTAINER ---------- */
+.container{max-width:840px; margin:0 auto; padding:28px 20px 60px;}
+
+/* ---------- DASHBOARD ---------- */
+.saudacao{font-size:24px; color:var(--graphite); margin-bottom:4px;}
+.saudacao-sub{font-size:13px; color:var(--text-light); margin-bottom:22px;}
+.dash-cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin-bottom:24px;}
+.dash-card{
+  background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius); padding:18px;
+  box-shadow:var(--shadow);
+}
+.dash-card.status-ok{border-left:4px solid var(--green);}
+.dash-card.status-pendente{border-left:4px solid var(--orange);}
+.dash-card.muted{color:var(--text-light); font-size:12.5px; display:flex; align-items:center; justify-content:center; text-align:center; border-style:dashed;}
+.dash-card .lbl{font-size:10.5px; color:var(--text-light); text-transform:uppercase; letter-spacing:.3px; margin-bottom:6px;}
+.dash-card .val{font-size:17px; font-weight:700; color:var(--graphite);}
+
+/* ---------- FORM ---------- */
+.form-card{background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:26px; }
+.section-title{font-size:12.5px; font-weight:800; color:var(--gold-dark); text-transform:uppercase; letter-spacing:.3px; margin:24px 0 12px; border-bottom:2px solid var(--gold-light); padding-bottom:6px;}
+.section-title:first-child{margin-top:0;}
+.field-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px 18px;}
+.field label{display:block; font-size:11.5px; font-weight:700; color:var(--text-light); margin-bottom:5px; text-transform:uppercase; letter-spacing:.2px;}
+.field input, .field select, .field textarea{
+  width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:8px; background:#fbfaf7;
+}
+.field textarea{min-height:56px; resize:vertical;}
+.field .pct{display:inline-block; margin-top:4px; font-size:11.5px; font-weight:700; color:var(--gold-dark);}
+.radio-group{display:flex; gap:16px; flex-wrap:wrap;}
+.radio-group label{display:flex; align-items:center; gap:6px; font-weight:600; font-size:13px; text-transform:none; color:var(--text);}
+.temp-group{display:flex; gap:8px; flex-wrap:wrap;}
+.temp-btn{border:1px solid var(--border); background:#fff; border-radius:20px; padding:8px 14px; font-size:13px; font-weight:600;}
+.temp-btn.selected{border-color:var(--gold-dark); background:var(--gold-light); box-shadow:0 0 0 2px var(--gold-light) inset;}
+.faltante-row{display:flex; gap:8px; align-items:center;}
+.faltante-row input{flex:1; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:#fbfaf7;}
+.faltante-row input.invalid{border-color:var(--red); background:var(--red-light);}
+.faltante-row .btn{flex-shrink:0;}
+.faltantes-empty{font-size:12px; color:var(--text-light);}
+.tabela-usuarios{width:100%; border-collapse:collapse; font-size:12.5px; margin-bottom:8px;}
+.tabela-usuarios th, .tabela-usuarios td{border-bottom:1px solid var(--border); padding:8px 6px; text-align:left;}
+.tabela-usuarios th{color:var(--text-light); font-weight:700; font-size:10.5px; text-transform:uppercase;}
+.badge-perfil{font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px; text-transform:uppercase;}
+.badge-perfil.admin{background:var(--gold-light); color:var(--gold-dark);}
+.badge-perfil.crc{background:var(--blue-light); color:var(--blue);}
+.usuarios-vazio{font-size:12px; color:var(--text-light);}
+.form-erro{background:var(--red-light); color:var(--red); border:1px solid var(--red); border-radius:10px; padding:10px 14px; font-size:12.5px; margin:16px 0; font-weight:600;}
+.form-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:24px;}
+
+/* ---------- ADMIN PLACEHOLDER ---------- */
+.admin-placeholder{background:var(--card-bg); border:1px dashed var(--border); border-radius:var(--radius); padding:44px 24px; text-align:center; color:var(--text-light);}
+.admin-placeholder h2{color:var(--graphite); font-size:18px; margin-bottom:8px;}
+
+/* ---------- TOAST ---------- */
+.toast-wrap{position:fixed; bottom:16px; right:16px; z-index:200; display:flex; flex-direction:column; gap:8px;}
+.toast{background:var(--graphite); color:#fff; padding:10px 16px; border-radius:9px; font-size:13px; box-shadow:var(--shadow-lg); animation:pop .12s;}
+@keyframes pop{from{transform:translateY(6px); opacity:.6;} to{transform:translateY(0); opacity:1;}}
+
+/* ---------- SUCCESS OVERLAY ---------- */
+.sucesso-overlay{position:fixed; inset:0; z-index:150; background:rgba(32,35,43,.55); display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity .25s ease;}
+.sucesso-overlay.show{opacity:1; pointer-events:all;}
+.sucesso-box{background:#fff; border-radius:var(--radius); padding:40px 48px; text-align:center; box-shadow:var(--shadow-lg); animation:popSucesso .3s ease-out;}
+.sucesso-check{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#d3b378,var(--gold));color:#fff;font-size:32px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;animation:checkPop .4s ease-out .1s both;}
+@keyframes popSucesso{from{transform:scale(.92);opacity:0;} to{transform:scale(1);opacity:1;}}
+@keyframes checkPop{from{transform:scale(0);} to{transform:scale(1);}}
+.sucesso-box h2{font-size:18px;color:var(--graphite);margin-bottom:4px;}
+.sucesso-box p{font-size:13px;color:var(--text-light);}
+
+/* ---------- LOGIN GATE ---------- */
+.login-gate{
+  position:fixed; inset:0; z-index:90; background:var(--bg);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:24px; text-align:center;
+}
+.login-gate-logo{height:56px; width:auto; margin-bottom:10px;}
+.login-gate h1{font-size:20px; color:var(--graphite);}
+.login-gate p{font-size:13px; color:var(--text-light); margin:0 0 8px;}
+.login-gate-btn{min-height:40px; display:flex; flex-direction:column; gap:8px; align-items:center;}
+
+@media (max-width:720px){
+  .field-grid{grid-template-columns:1fr;}
+  .header-row{flex-direction:column; align-items:stretch;}
+  .brand{margin-right:0;}
+  .btn{padding:11px 16px; font-size:13.5px;}
+}
+</style>
+</head>
+<body>
+
+<div id="login-gate" class="login-gate">
+  <img src="logo-exclusive.png" alt="Exclusive Odontologia" class="login-gate-logo">
+  <h1>Exclusive CRC</h1>
+  <p>Inteligência Comercial — entre com sua conta Google para continuar</p>
+  <div id="google-signin-btn-gate" class="login-gate-btn"></div>
+  <div id="login-gate-bootstrap"></div>
+  <div id="bootstrap-form" class="hidden" style="max-width:300px; text-align:left; margin-top:6px;">
+    <div class="field"><label>Nome completo</label><input type="text" id="f-boot-nomeCompleto"></div>
+    <div class="field"><label>Nome curto</label><input type="text" id="f-boot-nomeCurto"></div>
+    <div class="field"><label>Seu e-mail Google</label><input type="email" id="f-boot-email"></div>
+    <div id="bootstrap-erro" class="form-erro hidden"></div>
+    <button class="btn primary" style="margin-top:8px; width:100%;" onclick="App.salvarBootstrap()">Cadastrar como administrador</button>
+  </div>
+</div>
+
+<div id="app-root" class="hidden">
+  <header class="app-header">
+    <div class="header-row">
+      <div class="brand">
+        <!-- Logomarca da Exclusive Odontologia. Para trocar, substitua o arquivo logo-exclusive.png nesta mesma pasta. -->
+        <img src="logo-exclusive.png" alt="Exclusive Odontologia" class="logo-exclusive">
+        <div class="brand-text">
+          <strong>Exclusive CRC</strong>
+          <span>Inteligência Comercial — Etapa 1</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="operador-box" id="operador-box"></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <div id="view-crc-dashboard"></div>
+    <div id="view-crc-relatorio" class="hidden"></div>
+    <div id="view-admin-placeholder" class="hidden">
+      <div class="form-card">
+        <div class="section-title">Gestão de usuários</div>
+        <div id="usuarios-lista"></div>
+
+        <div class="section-title" style="margin-top:22px;">Novo usuário</div>
+        <div class="field-grid">
+          <div class="field"><label>Nome completo</label><input type="text" id="f-usr-nomeCompleto"></div>
+          <div class="field"><label>Nome curto</label><input type="text" id="f-usr-nomeCurto"></div>
+          <div class="field"><label>E-mail (Google)</label><input type="email" id="f-usr-email"></div>
+          <div class="field"><label>Perfil</label>
+            <select id="f-usr-perfil"><option value="CRC">CRC</option><option value="Administrador">Administrador</option></select>
+          </div>
+        </div>
+        <div id="usuario-erro" class="form-erro hidden"></div>
+        <div class="form-actions">
+          <button class="btn primary" id="btn-salvar-usuario" onclick="App.salvarUsuario()">+ Adicionar usuário</button>
+        </div>
+      </div>
+
+      <div class="admin-placeholder" style="margin-top:20px;">
+        <h2>Dashboard Executivo</h2>
+        <p>Ranking, Indicadores, IE-CRC e Painel de Inteligência chegam na Etapa 2.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toast-wrap"></div>
+<div id="sucesso-overlay" class="sucesso-overlay">
+  <div class="sucesso-box">
+    <div class="sucesso-check">✓</div>
+    <h2>Relatório enviado com sucesso.</h2>
+    <p>Bom trabalho!</p>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   CONFIGURAÇÃO DE BACKEND
+   Deixe API_URL e GOOGLE_CLIENT_ID vazios para testar localmente (modo de
+   teste, sem planilha/login real). Depois de publicar o Apps Script e criar
+   o OAuth Client ID (ver README.md desta pasta), preencha os dois abaixo.
+   ========================================================================= */
+const CONFIG = {
+  API_URL: "https://script.google.com/a/macros/redeexclusive.com.br/s/AKfycbxEaf65i7J5FiowgDufNoW0otNKDkaWZ07SvAsOnGGEMPS3noq9cLYvPF788t_dPrkA/exec",
+  GOOGLE_CLIENT_ID: "668827078020-k0cujbre0poh5la5elvtp0u7a13i12e4.apps.googleusercontent.com"
+};
+
+const SESSION_KEY = "crc_sessao_v1";
+
+const OBJECOES = ["Preço","Sem interesse","Vai pensar","Vai conversar com esposo","Vai conversar com esposa","Sem tempo","Medo","Já faz tratamento","Sem resposta","Convênio","Outro"];
+const PROCEDIMENTOS = ["Implante Unitário","Protocolo","Implante Zigomático","Facetas","Lentes","Invisalign","Ortodontia","Ortodontia Cirúrgica","Clareamento","Prótese","Outro"];
+const TEMPERATURAS = [{v:"Muito Quente",e:"🔴"},{v:"Quente",e:"🟠"},{v:"Morno",e:"🟡"}];
+const PROXIMAS_ACOES = ["Ligação","WhatsApp","Áudio","Vídeo","Aguardando retorno"];
+const HORARIOS = ["Manhã","Tarde","Noite"];
+
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+function toast(msg){
+  const el = document.createElement("div");
+  el.className="toast"; el.textContent=msg;
+  document.getElementById("toast-wrap").appendChild(el);
+  setTimeout(()=>el.remove(), 3800);
+}
+
+/* =========================================================================
+   API — chama o Apps Script via fetch simples (text/plain evita preflight
+   de CORS, já que Apps Script não responde OPTIONS). Sem API_URL configurada,
+   funciona em modo de teste local (sem persistência real).
+   ========================================================================= */
+const Api = {
+  async login(idToken){
+    const resp = await fetch(CONFIG.API_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({ action:"login", idToken })
+    });
+    return resp.json();
+  },
+  async salvarRelatorio(idToken, relatorio){
+    if (!CONFIG.API_URL){
+      return { ok:true, relatorio }; // modo de teste local: simula sucesso sem backend
+    }
+    const resp = await fetch(CONFIG.API_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({ action:"salvarRelatorio", idToken, relatorio })
+    });
+    return resp.json();
+  },
+  async statusHoje(){
+    if (!CONFIG.API_URL) return { ok:true, usuarios:[], relatoriosHoje:[] };
+    const resp = await fetch(CONFIG.API_URL);
+    return resp.json();
+  },
+  async salvarUsuario(idToken, usuario){
+    if (!CONFIG.API_URL){
+      return { ok:true, usuario }; // modo de teste local: simula sucesso sem backend
+    }
+    const resp = await fetch(CONFIG.API_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({ action:"salvarUsuario", idToken, usuario })
+    });
+    return resp.json();
+  }
+};
+
+/* =========================================================================
+   SESSÃO — sessionStorage (não localStorage): fechar a aba encerra a sessão,
+   importante em computador compartilhado.
+   ========================================================================= */
+let PERFIL_ATUAL = null;
+let TOKEN_ATUAL = null;
+let RELATORIO_ENVIADO_HOJE = false;
+let USUARIOS_CACHE = [];
+
+function carregarSessao(){
+  const raw = sessionStorage.getItem(SESSION_KEY);
+  if (!raw) return;
+  try {
+    const s = JSON.parse(raw);
+    PERFIL_ATUAL = s.perfil || null;
+    TOKEN_ATUAL = s.idToken || null;
+  } catch(err){ /* sessão corrompida: ignora */ }
+}
+function salvarSessao(){
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify({ perfil: PERFIL_ATUAL, idToken: TOKEN_ATUAL }));
+}
+function limparSessao(){
+  PERFIL_ATUAL = null; TOKEN_ATUAL = null;
+  sessionStorage.removeItem(SESSION_KEY);
+}
+
+/* =========================================================================
+   LOGIN
+   ========================================================================= */
+function renderOperadorBox(){
+  const gate = document.getElementById("login-gate");
+  const root = document.getElementById("app-root");
+  const box = document.getElementById("operador-box");
+  if (PERFIL_ATUAL){
+    gate.classList.add("hidden");
+    root.classList.remove("hidden");
+    box.innerHTML = `
+      <span style="font-weight:700;color:var(--graphite);">${esc(PERFIL_ATUAL.nomeCurto||PERFIL_ATUAL.nomeCompleto)}</span>
+      <span style="font-size:10.5px;color:var(--text-light);text-transform:uppercase;">${esc(PERFIL_ATUAL.perfil||"")}</span>
+      <button class="linkbtn" onclick="App.logout()">sair</button>`;
+    return;
+  }
+  root.classList.add("hidden");
+  gate.classList.remove("hidden");
+  renderLoginGateButton();
+  renderLoginGateBootstrap();
+}
+
+/** Enquanto não existir nenhum usuário cadastrado, mostra um atalho para cadastrar o primeiro administrador — sem isso ninguém jamais conseguiria logar. */
+async function renderLoginGateBootstrap(){
+  const wrap = document.getElementById("login-gate-bootstrap");
+  if (!wrap) return;
+  if (!CONFIG.API_URL){ wrap.innerHTML = ""; return; }
+  try {
+    const status = await Api.statusHoje();
+    const semUsuarios = status && status.ok && (status.usuarios||[]).length === 0;
+    wrap.innerHTML = semUsuarios
+      ? `<button class="linkbtn" onclick="App.abrirBootstrap()">Ainda não tem ninguém cadastrado — cadastrar o primeiro administrador</button>`
+      : `<p style="font-size:11.5px;color:var(--text-light);max-width:280px;">Ainda não tem acesso? Peça para um administrador te cadastrar.</p>`;
+  } catch(err){
+    wrap.innerHTML = "";
+  }
+}
+
+function abrirBootstrap(){
+  document.getElementById("login-gate-bootstrap").classList.add("hidden");
+  document.getElementById("bootstrap-form").classList.remove("hidden");
+}
+
+async function salvarBootstrap(){
+  const usuario = {
+    nomeCompleto: document.getElementById("f-boot-nomeCompleto")?.value.trim() || "",
+    nomeCurto: document.getElementById("f-boot-nomeCurto")?.value.trim() || "",
+    email: document.getElementById("f-boot-email")?.value.trim() || "",
+    perfil: "Administrador"
+  };
+  const erroBox = document.getElementById("bootstrap-erro");
+  if (!usuario.nomeCompleto || !usuario.email){
+    erroBox.textContent = "Preencha nome completo e e-mail.";
+    erroBox.classList.remove("hidden");
+    return;
+  }
+  erroBox.classList.add("hidden");
+  try {
+    const data = await Api.salvarUsuario(null, usuario);
+    if (!data.ok){ erroBox.textContent = data.error || "Não foi possível cadastrar."; erroBox.classList.remove("hidden"); return; }
+    toast("Cadastro concluído — agora entre com o Google.");
+    document.getElementById("bootstrap-form").classList.add("hidden");
+    renderLoginGateBootstrap();
+  } catch(err){
+    console.error(err);
+    erroBox.textContent = "Falha ao cadastrar — verifique sua conexão.";
+    erroBox.classList.remove("hidden");
+  }
+}
+
+function renderLoginGateButton(){
+  const wrap = document.getElementById("google-signin-btn-gate");
+  if (!CONFIG.GOOGLE_CLIENT_ID){
+    wrap.innerHTML = `
+      <span style="font-size:11px;color:var(--text-light);max-width:260px;">Login com Google ainda não configurado (falta GOOGLE_CLIENT_ID) — use o modo de teste local abaixo.</span>
+      <button class="btn outline" onclick="App.loginTeste('CRC')">Entrar como CRC (teste) — Larissa</button>
+      <button class="btn outline" onclick="App.loginTeste('Administrador')">Entrar como Administrador (teste)</button>`;
+    return;
+  }
+  iniciarLogin();
+}
+
+function loginTeste(perfilTipo){
+  const nome = perfilTipo === "Administrador" ? "Raphael" : "Larissa";
+  PERFIL_ATUAL = { id:"teste-"+perfilTipo, nomeCompleto:nome, nomeCurto:nome, email:nome.toLowerCase()+"@teste.com", perfil:perfilTipo, ativo:true };
+  TOKEN_ATUAL = null;
+  salvarSessao();
+  aoLogar();
+}
+
+function iniciarLogin(){
+  const wrap = document.getElementById("google-signin-btn-gate");
+  if (typeof google === "undefined" || !google.accounts?.id){
+    setTimeout(iniciarLogin, 300); // biblioteca do Google ainda carregando (async defer)
+    return;
+  }
+  google.accounts.id.initialize({ client_id: CONFIG.GOOGLE_CLIENT_ID, callback: handleCredentialResponse });
+  google.accounts.id.renderButton(wrap, { theme:"outline", size:"large", text:"signin_with" });
+}
+
+async function handleCredentialResponse(response){
+  try {
+    const data = await Api.login(response.credential);
+    if (!data.ok){ toast(data.error || "Não foi possível entrar."); return; }
+    PERFIL_ATUAL = data.perfil;
+    TOKEN_ATUAL = response.credential;
+    salvarSessao();
+    aoLogar();
+    toast(`Bem-vindo(a), ${PERFIL_ATUAL.nomeCurto || PERFIL_ATUAL.nomeCompleto}.`);
+  } catch(err){
+    console.error(err);
+    toast("Falha ao validar login com o Google.");
+  }
+}
+
+function logout(){
+  limparSessao();
+  renderOperadorBox();
+}
+
+async function aoLogar(){
+  renderOperadorBox();
+  await carregarStatusHoje();
+  if (PERFIL_ATUAL.perfil === "Administrador"){
+    mostrarView("admin");
+  } else {
+    mostrarView("dashboard");
+  }
+}
+
+async function carregarStatusHoje(){
+  try {
+    const data = await Api.statusHoje();
+    if (data && data.ok){
+      RELATORIO_ENVIADO_HOJE = (data.relatoriosHoje||[]).some(r => r.crcEmail === PERFIL_ATUAL.email);
+      USUARIOS_CACHE = data.usuarios || [];
+    }
+  } catch(err){ /* sem backend real ainda: mantém padrão (não enviado) */ }
+}
+
+/* =========================================================================
+   ROTEAMENTO DE TELAS
+   ========================================================================= */
+function mostrarView(nome){
+  document.getElementById("view-crc-dashboard").classList.toggle("hidden", nome!=="dashboard");
+  document.getElementById("view-crc-relatorio").classList.toggle("hidden", nome!=="relatorio");
+  document.getElementById("view-admin-placeholder").classList.toggle("hidden", nome!=="admin");
+  if (nome==="dashboard") renderDashboard();
+  if (nome==="relatorio") renderFormularioRelatorio();
+  if (nome==="admin") renderUsuariosLista();
+}
+
+function abrirFormularioRelatorio(){ mostrarView("relatorio"); }
+function voltarDashboard(){ mostrarView("dashboard"); }
+
+function renderDashboard(){
+  const el = document.getElementById("view-crc-dashboard");
+  el.innerHTML = `
+    <div class="saudacao">Olá, ${esc(PERFIL_ATUAL.nomeCurto||PERFIL_ATUAL.nomeCompleto)} 👋</div>
+    <div class="saudacao-sub">Aqui está o resumo do seu dia.</div>
+    <div class="dash-cards">
+      <div class="dash-card ${RELATORIO_ENVIADO_HOJE?'status-ok':'status-pendente'}">
+        <div class="lbl">Relatório de hoje</div>
+        <div class="val">${RELATORIO_ENVIADO_HOJE ? "✅ Enviado" : "⏳ Pendente"}</div>
+      </div>
+      <div class="dash-card muted">IE-CRC atual<br>disponível na próxima etapa</div>
+      <div class="dash-card muted">Meta do mês<br>disponível na próxima etapa</div>
+      <div class="dash-card muted">Ranking atual<br>disponível na próxima etapa</div>
+    </div>
+    <button class="btn primary" onclick="App.abrirFormularioRelatorio()">📝 ${RELATORIO_ENVIADO_HOJE ? "Preencher outro relatório" : "Preencher relatório de hoje"}</button>
+  `;
+}
+
+/* =========================================================================
+   GESTÃO DE USUÁRIOS (Administrador)
+   ========================================================================= */
+function renderUsuariosLista(){
+  const el = document.getElementById("usuarios-lista");
+  if (!el) return;
+  if (!USUARIOS_CACHE.length){
+    el.innerHTML = `<p class="usuarios-vazio">Nenhum usuário cadastrado ainda.</p>`;
+    return;
+  }
+  el.innerHTML = `
+    <table class="tabela-usuarios">
+      <tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th></tr>
+      ${USUARIOS_CACHE.map(u => `
+        <tr>
+          <td>${esc(u.nomeCurto || u.nomeCompleto)}</td>
+          <td>${esc(u.email)}</td>
+          <td><span class="badge-perfil ${u.perfil==='Administrador'?'admin':'crc'}">${esc(u.perfil)}</span></td>
+          <td>${u.ativo===false ? "⛔ Inativo" : "✅ Ativo"}</td>
+        </tr>`).join("")}
+    </table>
+  `;
+}
+
+async function salvarUsuario(){
+  const usuario = {
+    nomeCompleto: document.getElementById("f-usr-nomeCompleto")?.value.trim() || "",
+    nomeCurto: document.getElementById("f-usr-nomeCurto")?.value.trim() || "",
+    email: document.getElementById("f-usr-email")?.value.trim() || "",
+    perfil: document.getElementById("f-usr-perfil")?.value || "CRC"
+  };
+  const erroBox = document.getElementById("usuario-erro");
+  if (!usuario.nomeCompleto || !usuario.email){
+    erroBox.textContent = "Preencha ao menos nome completo e e-mail.";
+    erroBox.classList.remove("hidden");
+    return;
+  }
+  erroBox.classList.add("hidden");
+  const btn = document.getElementById("btn-salvar-usuario");
+  btn.disabled = true;
+  try {
+    const data = await Api.salvarUsuario(TOKEN_ATUAL, usuario);
+    if (!data.ok){
+      erroBox.textContent = data.error || "Não foi possível cadastrar o usuário.";
+      erroBox.classList.remove("hidden");
+      return;
+    }
+    toast(`Usuário "${usuario.nomeCurto || usuario.nomeCompleto}" cadastrado.`);
+    ["f-usr-nomeCompleto","f-usr-nomeCurto","f-usr-email"].forEach(id => document.getElementById(id).value = "");
+    document.getElementById("f-usr-perfil").value = "CRC";
+    await carregarStatusHoje();
+    renderUsuariosLista();
+  } catch(err){
+    console.error(err);
+    erroBox.textContent = "Falha ao cadastrar — verifique sua conexão.";
+    erroBox.classList.remove("hidden");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* =========================================================================
+   FORMULÁRIO "MEU RELATÓRIO"
+   Tela única (sem etapas), pensada para caber nos ~2 minutos de preenchimento
+   pedidos: campos numéricos com percentual calculado ao vivo ao lado, mais os
+   blocos de objeção, melhor oportunidade do dia e alerta para a gestão.
+   ========================================================================= */
+let TEMPERATURA_SELECIONADA = { 1:"", 2:"" };
+let FALTANTES = [];
+let faltanteIdSeq = 0;
+
+function telefoneValido(v){
+  const digitos = (v||"").replace(/\D/g,"");
+  if (!digitos) return true; // telefone é opcional — só nome já basta
+  return digitos.length === 10 || digitos.length === 11; // DDD (2) + 8 ou 9 dígitos
+}
+
+function renderFaltantesRows(){
+  const wrap = document.getElementById("faltantes-rows");
+  if (!wrap) return;
+  wrap.innerHTML = FALTANTES.map(f => `
+    <div class="faltante-row" data-id="${f.id}">
+      <input type="text" placeholder="Nome do paciente" value="${esc(f.nome)}" oninput="App.atualizarFaltante(${f.id},'nome',this.value)">
+      <input type="tel" id="f-falt-tel-${f.id}" placeholder="DDD + telefone (ex.: 81 997424432)" value="${esc(f.telefone)}" oninput="App.atualizarFaltante(${f.id},'telefone',this.value)">
+      <button type="button" class="btn small outline" onclick="App.removerFaltante(${f.id})">✕</button>
+    </div>
+  `).join("");
+}
+
+function adicionarFaltante(){
+  FALTANTES.push({ id: ++faltanteIdSeq, nome:"", telefone:"" });
+  renderFaltantesRows();
+}
+function removerFaltante(id){
+  FALTANTES = FALTANTES.filter(f => f.id !== id);
+  if (!FALTANTES.length) adicionarFaltante(); else renderFaltantesRows();
+  validarFormulario();
+}
+function atualizarFaltante(id, campo, valor){
+  const f = FALTANTES.find(f => f.id === id);
+  if (f) f[campo] = valor;
+  if (campo === "telefone"){
+    const el = document.getElementById(`f-falt-tel-${id}`);
+    if (el) el.classList.toggle("invalid", valor && !telefoneValido(valor));
+  }
+  validarFormulario();
+}
+
+function renderFormularioRelatorio(){
+  const el = document.getElementById("view-crc-relatorio");
+  el.innerHTML = `
+    <div class="form-card">
+      <div class="section-title">Meu Relatório — ${new Date().toLocaleDateString('pt-BR')}</div>
+
+      <div class="section-title">📥 Controle de leads — dia</div>
+      <div class="field-grid">
+        <div class="field"><label>Leads que entraram no dia</label><input type="number" min="0" id="f-leadsEntraram" oninput="App.atualizarPercentuais()"></div>
+        <div class="field"><label>Leads trabalhados</label><input type="number" min="0" id="f-leadsTrabalhados" oninput="App.atualizarPercentuais()"><span class="pct" id="pct-trabalhados"></span></div>
+        <div class="field"><label>Leads agendados</label><input type="number" min="0" id="f-leadsAgendados" oninput="App.atualizarPercentuais()"><span class="pct" id="pct-agendados"></span></div>
+        <div class="field"><label>Agendou retorno de contato</label><input type="number" min="0" id="f-leadsRetornoContato" oninput="App.atualizarPercentuais()"></div>
+        <div class="field"><label>Clicou errado / Sem interesse</label><input type="number" min="0" id="f-leadsSemInteresse" oninput="App.atualizarPercentuais()"></div>
+        <div class="field"><label>Não deram retorno</label><input type="number" min="0" id="f-leadsSemRetorno" oninput="App.atualizarPercentuais()"></div>
+      </div>
+
+      <div class="section-title">👥 Controle de comparecimento — dia</div>
+      <div class="field-grid">
+        <div class="field"><label>Pacientes agendados para o dia</label><input type="number" min="0" id="f-pacientesAgendadosDia" oninput="App.atualizarPercentuais()"></div>
+        <div class="field"><label>Compareceram</label><input type="number" min="0" id="f-compareceram" oninput="App.atualizarPercentuais()"><span class="pct" id="pct-comparecimento"></span></div>
+        <div class="field"><label>Faltaram</label><input type="number" min="0" id="f-faltaram" oninput="App.atualizarPercentuais()"><span class="pct" id="pct-faltas"></span></div>
+        <div class="field"><label>Reagendaram</label><input type="number" min="0" id="f-reagendaram" oninput="App.atualizarPercentuais()"></div>
+        <div class="field"><label>Sem retorno (não confirmou / não respondeu)</label><input type="number" min="0" id="f-semRetornoConfirmacao" oninput="App.atualizarPercentuais()"></div>
+      </div>
+
+      <div style="margin-top:18px;">
+        <label style="display:block;font-size:11.5px;font-weight:700;color:var(--text-light);margin-bottom:8px;text-transform:uppercase;letter-spacing:.2px;">Pacientes que faltaram e não reagendaram</label>
+        <div id="faltantes-rows" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <button type="button" class="btn outline small" style="margin-top:8px;" onclick="App.adicionarFaltante()">+ Adicionar paciente</button>
+      </div>
+
+      <div class="section-title">🔄 Controle de resgate — leads antigos</div>
+      <div class="field-grid">
+        <div class="field"><label>Trabalhados</label><input type="number" min="0" id="f-resgateTrabalhados" oninput="App.atualizarPercentuais()"></div>
+        <div class="field"><label>Agendados</label><input type="number" min="0" id="f-resgateAgendados" oninput="App.atualizarPercentuais()"><span class="pct" id="pct-resgate"></span></div>
+        <div class="field"><label>Agendou retorno de comunicação</label><input type="number" min="0" id="f-resgateRetornoComunicacao" oninput="App.atualizarPercentuais()"></div>
+        <div class="field"><label>Sem interesse</label><input type="number" min="0" id="f-resgateSemInteresse" oninput="App.atualizarPercentuais()"></div>
+        <div class="field"><label>Sem retorno</label><input type="number" min="0" id="f-resgateSemRetorno" oninput="App.atualizarPercentuais()"></div>
+      </div>
+
+      <div class="section-title">Principal objeção hoje</div>
+      <div class="field-grid">
+        <div class="field"><label>Objeção mais recorrente hoje</label>
+          <select id="f-principalObjecao">${OBJECOES.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join("")}</select>
+        </div>
+      </div>
+
+      <div class="section-title">Qualidade do lead hoje</div>
+      <div class="radio-group">
+        <label><input type="radio" name="f-qualidadeLead" value="Bom" checked onchange="App.alternarMotivoQualidade()"> Bom</label>
+        <label><input type="radio" name="f-qualidadeLead" value="Ruim" onchange="App.alternarMotivoQualidade()"> Ruim</label>
+        <label><input type="radio" name="f-qualidadeLead" value="Péssimo" onchange="App.alternarMotivoQualidade()"> Péssimo</label>
+      </div>
+      <div id="motivo-qualidade-wrap" class="field hidden" style="margin-top:10px;">
+        <label>Motivo</label>
+        <textarea id="f-motivoQualidadeLead" maxlength="300" placeholder="Conte rapidamente por que a qualidade do lead foi péssima hoje..."></textarea>
+      </div>
+
+      <div class="section-title">Melhores oportunidades do dia (opcional, até 2)</div>
+      ${[1,2].map(i => `
+      <div class="oport-block" style="${i===2?'margin-top:20px;padding-top:20px;border-top:1px dashed var(--border);':''}">
+        <div style="font-size:11.5px;font-weight:800;color:var(--slate);text-transform:uppercase;letter-spacing:.2px;margin-bottom:10px;">Oportunidade ${i}</div>
+        <div class="field-grid">
+          <div class="field"><label>Paciente</label><input type="text" id="f-op${i}-paciente"></div>
+          <div class="field"><label>Telefone</label><input type="text" id="f-op${i}-telefone"></div>
+          <div class="field"><label>Procedimento</label>
+            <select id="f-op${i}-procedimento"><option value="">—</option>${PROCEDIMENTOS.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join("")}</select>
+          </div>
+          <div class="field"><label>Próxima ação</label>
+            <select id="f-op${i}-proximaAcao"><option value="">—</option>${PROXIMAS_ACOES.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join("")}</select>
+          </div>
+          <div class="field"><label>Melhor horário</label>
+            <select id="f-op${i}-melhorHorario"><option value="">—</option>${HORARIOS.map(h=>`<option value="${esc(h)}">${esc(h)}</option>`).join("")}</select>
+          </div>
+        </div>
+        <div class="field-grid" style="margin-top:14px;">
+          <div class="field" style="grid-column:1/-1;">
+            <label>Temperatura</label>
+            <div class="temp-group" id="temp-group-${i}">
+              ${TEMPERATURAS.map(t=>`<button type="button" class="temp-btn" data-v="${esc(t.v)}" onclick="App.selecionarTemperatura(${i},'${esc(t.v)}')">${t.e} ${esc(t.v)}</button>`).join("")}
+            </div>
+          </div>
+          <div class="field" style="grid-column:1/-1;"><label>Observação</label><textarea id="f-op${i}-observacao" maxlength="200"></textarea></div>
+        </div>
+      </div>`).join("")}
+
+      <div class="section-title">Tem algo que a gestão precisa saber sobre os leads de hoje?</div>
+      <div class="radio-group">
+        <label><input type="radio" name="f-gestao" value="nao" checked onchange="App.alternarGestaoTexto()"> Não</label>
+        <label><input type="radio" name="f-gestao" value="sim" onchange="App.alternarGestaoTexto()"> Sim</label>
+      </div>
+      <div id="gestao-texto-wrap" class="field hidden" style="margin-top:10px;">
+        <textarea id="f-gestao-texto" maxlength="300" placeholder="Conte rapidamente o que a gestão precisa saber..."></textarea>
+      </div>
+
+      <div id="form-erro" class="form-erro hidden"></div>
+
+      <div class="form-actions">
+        <button class="btn outline" onclick="App.voltarDashboard()">Cancelar</button>
+        <button class="btn primary" id="btn-salvar-relatorio" onclick="App.salvarRelatorio()">Salvar Relatório</button>
+      </div>
+    </div>
+  `;
+  TEMPERATURA_SELECIONADA = { 1:"", 2:"" };
+  faltanteIdSeq = 0;
+  FALTANTES = [{ id: ++faltanteIdSeq, nome:"", telefone:"" }]; // já deixa uma linha pronta
+  renderFaltantesRows();
+  atualizarPercentuais();
+}
+
+function selecionarTemperatura(idx, v){
+  TEMPERATURA_SELECIONADA[idx] = v;
+  document.querySelectorAll(`#temp-group-${idx} .temp-btn`).forEach(b=>{
+    b.classList.toggle("selected", b.dataset.v === v);
+  });
+}
+
+function alternarGestaoTexto(){
+  const sim = document.querySelector('input[name="f-gestao"]:checked').value === "sim";
+  document.getElementById("gestao-texto-wrap").classList.toggle("hidden", !sim);
+}
+
+function alternarMotivoQualidade(){
+  const pessimo = document.querySelector('input[name="f-qualidadeLead"]:checked').value === "Péssimo";
+  document.getElementById("motivo-qualidade-wrap").classList.toggle("hidden", !pessimo);
+}
+
+function num(id){
+  const el = document.getElementById(id);
+  const v = Number(el && el.value);
+  return isNaN(v) ? 0 : v;
+}
+
+function pct(numerador, denominador){
+  if (denominador <= 0) return "—";
+  return Math.round((numerador/denominador)*100) + "%";
+}
+
+function atualizarPercentuais(){
+  const entraram = num("f-leadsEntraram");
+  const trabalhados = num("f-leadsTrabalhados");
+  const leadsAgendados = num("f-leadsAgendados");
+  const agendadosDia = num("f-pacientesAgendadosDia");
+  const compareceram = num("f-compareceram");
+  const faltaram = num("f-faltaram");
+  const resgateTrabalhados = num("f-resgateTrabalhados");
+  const resgateAgendados = num("f-resgateAgendados");
+
+  document.getElementById("pct-trabalhados").textContent = pct(trabalhados, entraram);
+  document.getElementById("pct-agendados").textContent = pct(leadsAgendados, trabalhados);
+  document.getElementById("pct-comparecimento").textContent = pct(compareceram, agendadosDia);
+  document.getElementById("pct-faltas").textContent = pct(faltaram, agendadosDia);
+  document.getElementById("pct-resgate").textContent = pct(resgateAgendados, resgateTrabalhados);
+
+  validarFormulario();
+}
+
+function validarRegrasRelatorio(r){
+  if (r.leadsTrabalhados > r.leadsEntraram) return "Leads trabalhados não podem ser mais que os leads que entraram no dia.";
+  if (r.leadsAgendados > r.leadsTrabalhados) return "Leads agendados não podem ser mais que leads trabalhados.";
+  if (r.compareceram > r.pacientesAgendadosDia) return "Compareceram não pode ser maior que pacientes agendados para o dia.";
+  if (r.faltaram > r.pacientesAgendadosDia) return "Faltaram não pode ser maior que pacientes agendados para o dia.";
+  if (r.reagendaram > r.pacientesAgendadosDia) return "Reagendaram não pode ser maior que pacientes agendados para o dia.";
+  if (r.resgateAgendados > r.resgateTrabalhados) return "Resgates agendados não podem ser mais que resgates trabalhados.";
+  for (const f of (r.pacientesFaltantesSemRetorno || [])){
+    if (f.telefone && !telefoneValido(f.telefone)){
+      return `Telefone de "${f.nome || "paciente sem nome"}" precisa ter DDD (ex.: 81 997424432).`;
+    }
+  }
+  return null;
+}
+
+function validarFormulario(){
+  const relatorio = coletarRelatorioDoFormulario();
+  const erro = validarRegrasRelatorio(relatorio);
+  const erroBox = document.getElementById("form-erro");
+  const btn = document.getElementById("btn-salvar-relatorio");
+  if (erro){
+    erroBox.textContent = erro;
+    erroBox.classList.remove("hidden");
+    if (btn) btn.disabled = true;
+  } else {
+    erroBox.classList.add("hidden");
+    if (btn) btn.disabled = false;
+  }
+  return erro;
+}
+
+function coletarRelatorioDoFormulario(){
+  const gestaoSim = document.querySelector('input[name="f-gestao"]')
+    ? document.querySelector('input[name="f-gestao"]:checked').value === "sim"
+    : false;
+  return {
+    data: new Date().toISOString().slice(0,10),
+    leadsEntraram: num("f-leadsEntraram"),
+    leadsTrabalhados: num("f-leadsTrabalhados"),
+    leadsAgendados: num("f-leadsAgendados"),
+    leadsRetornoContato: num("f-leadsRetornoContato"),
+    leadsSemInteresse: num("f-leadsSemInteresse"),
+    leadsSemRetorno: num("f-leadsSemRetorno"),
+    pacientesAgendadosDia: num("f-pacientesAgendadosDia"),
+    compareceram: num("f-compareceram"),
+    faltaram: num("f-faltaram"),
+    reagendaram: num("f-reagendaram"),
+    semRetornoConfirmacao: num("f-semRetornoConfirmacao"),
+    resgateTrabalhados: num("f-resgateTrabalhados"),
+    resgateAgendados: num("f-resgateAgendados"),
+    resgateRetornoComunicacao: num("f-resgateRetornoComunicacao"),
+    resgateSemInteresse: num("f-resgateSemInteresse"),
+    resgateSemRetorno: num("f-resgateSemRetorno"),
+    pacientesFaltantesSemRetorno: FALTANTES
+      .map(f => ({ nome: (f.nome||"").trim(), telefone: (f.telefone||"").trim() }))
+      .filter(f => f.nome || f.telefone),
+    principalObjecao: document.getElementById("f-principalObjecao")?.value || "",
+    qualidadeLead: document.querySelector('input[name="f-qualidadeLead"]')
+      ? document.querySelector('input[name="f-qualidadeLead"]:checked').value
+      : "",
+    motivoQualidadeLead: document.querySelector('input[name="f-qualidadeLead"]:checked')?.value === "Péssimo"
+      ? (document.getElementById("f-motivoQualidadeLead")?.value.trim() || "")
+      : "",
+    oportunidades: [1,2].map(i => ({
+      paciente: document.getElementById(`f-op${i}-paciente`)?.value.trim() || "",
+      telefone: document.getElementById(`f-op${i}-telefone`)?.value.trim() || "",
+      procedimento: document.getElementById(`f-op${i}-procedimento`)?.value || "",
+      temperatura: TEMPERATURA_SELECIONADA[i] || "",
+      proximaAcao: document.getElementById(`f-op${i}-proximaAcao`)?.value || "",
+      melhorHorario: document.getElementById(`f-op${i}-melhorHorario`)?.value || "",
+      observacao: document.getElementById(`f-op${i}-observacao`)?.value.trim() || ""
+    })),
+    gestaoPrecisaSaber: gestaoSim,
+    gestaoObservacao: gestaoSim ? (document.getElementById("f-gestao-texto")?.value.trim() || "") : ""
+  };
+}
+
+async function salvarRelatorio(){
+  const relatorio = coletarRelatorioDoFormulario();
+  const erro = validarRegrasRelatorio(relatorio);
+  if (erro){ validarFormulario(); return; }
+
+  const btn = document.getElementById("btn-salvar-relatorio");
+  btn.disabled = true;
+  btn.textContent = "Salvando...";
+  try {
+    const data = await Api.salvarRelatorio(TOKEN_ATUAL, relatorio);
+    if (!data.ok){
+      toast(data.error || "Não foi possível salvar o relatório.");
+      btn.disabled = false;
+      btn.textContent = "Salvar Relatório";
+      return;
+    }
+    RELATORIO_ENVIADO_HOJE = true;
+    mostrarSucesso();
+  } catch(err){
+    console.error(err);
+    toast("Falha ao salvar relatório — verifique sua conexão.");
+    btn.disabled = false;
+    btn.textContent = "Salvar Relatório";
+  }
+}
+
+function mostrarSucesso(){
+  const overlay = document.getElementById("sucesso-overlay");
+  overlay.classList.add("show");
+  setTimeout(()=>{
+    overlay.classList.remove("show");
+    voltarDashboard();
+  }, 2200);
+}
+
+/* =========================================================================
+   INICIALIZAÇÃO
+   ========================================================================= */
+async function init(){
+  carregarSessao();
+  if (PERFIL_ATUAL){
+    await aoLogar();
+  } else {
+    renderOperadorBox();
+  }
+}
+
+window.App = {
+  loginTeste, logout, abrirFormularioRelatorio, voltarDashboard,
+  atualizarPercentuais, selecionarTemperatura, alternarGestaoTexto, alternarMotivoQualidade, salvarRelatorio,
+  adicionarFaltante, removerFaltante, atualizarFaltante,
+  abrirBootstrap, salvarBootstrap, salvarUsuario
+};
+
+init();
+</script>
+</body>
+</html>
