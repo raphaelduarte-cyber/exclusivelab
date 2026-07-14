@@ -200,6 +200,11 @@ h1,h2,h3,h4{margin:0;}
       </div>
 
       <div class="form-card" style="margin-top:20px;">
+        <div class="section-title">Metas do mês — Agendamentos por CRC</div>
+        <div id="metas-admin"></div>
+      </div>
+
+      <div class="form-card" style="margin-top:20px;">
         <div class="section-title">Pacientes não reagendados por CRC</div>
         <div id="resumo-faltantes-por-crc"></div>
       </div>
@@ -278,6 +283,11 @@ const RELATORIOS_MES_EXEMPLO = [
   { crcEmail:"larissa@teste.com", data:"2026-07-13", leadsEntraram:70, leadsTrabalhados:28, leadsAgendados:5, leadsSemRetorno:9, pacientesAgendadosDia:5, compareceram:3, faltaram:2, resgateTrabalhados:3, resgateAgendados:1 }
 ];
 
+// Meta de exemplo, só para o modo de teste local.
+const METAS_EXEMPLO = [
+  { crcEmail:"larissa@teste.com", anoMes:"2026-07", metaAgendamentos:25 }
+];
+
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
 function toast(msg){
@@ -313,7 +323,7 @@ const Api = {
     return resp.json();
   },
   async statusHoje(){
-    if (!CONFIG.API_URL) return { ok:true, usuarios:[], relatoriosHoje:[], relatoriosMes: RELATORIOS_MES_EXEMPLO, pacientesFaltantes: PACIENTES_FALTANTES_EXEMPLO };
+    if (!CONFIG.API_URL) return { ok:true, usuarios:[], relatoriosHoje:[], relatoriosMes: RELATORIOS_MES_EXEMPLO, pacientesFaltantes: PACIENTES_FALTANTES_EXEMPLO, metas: METAS_EXEMPLO };
     const resp = await fetch(CONFIG.API_URL);
     return resp.json();
   },
@@ -339,6 +349,18 @@ const Api = {
       body: JSON.stringify({ action:"atualizarStatusFaltante", idToken, id, mudancas })
     });
     return resp.json();
+  },
+  async salvarMeta(idToken, crcEmail, metaAgendamentos){
+    if (!CONFIG.API_URL){
+      const meta = { crcEmail, anoMes: new Date().toISOString().slice(0,7), metaAgendamentos: Number(metaAgendamentos)||0 };
+      return { ok:true, meta };
+    }
+    const resp = await fetch(CONFIG.API_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({ action:"salvarMeta", idToken, crcEmail, metaAgendamentos })
+    });
+    return resp.json();
   }
 };
 
@@ -352,6 +374,7 @@ let RELATORIO_ENVIADO_HOJE = false;
 let USUARIOS_CACHE = [];
 let PACIENTES_FALTANTES_CACHE = [];
 let RELATORIOS_MES_CACHE = [];
+let METAS_CACHE = [];
 let FILTRO_REATIVACAO = { status:"", busca:"", ordenacao:"padrao" };
 let ESTADO_MOTIVO = {};
 let ESTADO_CONFIRMAR_REMOCAO = {};
@@ -515,6 +538,7 @@ async function carregarStatusHoje(){
       USUARIOS_CACHE = data.usuarios || [];
       PACIENTES_FALTANTES_CACHE = data.pacientesFaltantes || [];
       RELATORIOS_MES_CACHE = data.relatoriosMes || [];
+      METAS_CACHE = data.metas || [];
     }
   } catch(err){ /* sem backend real ainda: mantém padrão (não enviado) */ }
 }
@@ -530,7 +554,7 @@ function mostrarView(nome){
   if (nome==="dashboard") renderDashboard();
   if (nome==="relatorio") renderFormularioRelatorio();
   if (nome==="reativacao") renderReativacao();
-  if (nome==="admin"){ renderUsuariosLista(); renderResumoFaltantesPorCRC(); renderRankingAdmin(); }
+  if (nome==="admin"){ renderUsuariosLista(); renderResumoFaltantesPorCRC(); renderRankingAdmin(); renderMetasAdmin(); }
 }
 
 /** Ranking das CRCs pelo IE-CRC do mês atual — maior pontuação primeiro; quem ainda não tem relatório no mês fica por último. */
@@ -616,6 +640,41 @@ function renderDetalheIECRC(ie){
   `;
 }
 
+function calcularMeta(crcEmail){
+  const registro = METAS_CACHE.find(m => m.crcEmail === crcEmail);
+  if (!registro || !registro.metaAgendamentos) return null;
+  const meta = Number(registro.metaAgendamentos) || 0;
+  const relatorios = RELATORIOS_MES_CACHE.filter(r => r.crcEmail === crcEmail);
+  const atual = relatorios.reduce((soma,r) => soma + (Number(r.leadsAgendados)||0), 0);
+  const hoje = new Date();
+  const diasNoMes = new Date(hoje.getFullYear(), hoje.getMonth()+1, 0).getDate();
+  const diasPassados = hoje.getDate();
+  const projecao = diasPassados>0 ? Math.round((atual/diasPassados)*diasNoMes) : atual;
+  const faltam = Math.max(0, meta-atual);
+  const percentual = meta>0 ? Math.min(100, Math.round((atual/meta)*100)) : 0;
+  return { meta, atual, faltam, projecao, percentual, atingida: atual>=meta };
+}
+
+let DETALHE_META_ABERTO = false;
+function alternarDetalheMeta(){
+  DETALHE_META_ABERTO = !DETALHE_META_ABERTO;
+  renderDashboard();
+}
+
+function renderDetalheMeta(metaInfo){
+  if (!metaInfo) return `<div class="ie-detalhe"><p class="usuarios-vazio">Nenhuma meta definida para este mês ainda. Peça para um administrador definir.</p></div>`;
+  return `
+    <div class="ie-detalhe">
+      <div class="section-title" style="margin-top:0;">Meta do mês — Agendamentos</div>
+      <p style="font-size:13px;margin-bottom:8px;">Meta: <strong>${metaInfo.meta}</strong> · Atual: <strong>${metaInfo.atual}</strong> · Faltam: <strong>${metaInfo.faltam}</strong></p>
+      <div style="background:var(--bg-alt);border-radius:20px;height:10px;overflow:hidden;margin-bottom:8px;">
+        <div style="background:${metaInfo.atingida?'var(--green)':'var(--gold)'};height:100%;width:${metaInfo.percentual}%;"></div>
+      </div>
+      <p style="font-size:12.5px;color:var(--text-light);">Se continuar nesse ritmo, a projeção de fechamento é <strong>${metaInfo.projecao}</strong>${metaInfo.projecao>=metaInfo.meta ? " — meta será atingida! 🎉" : " — abaixo da meta, ainda dá tempo de acelerar."}</p>
+    </div>
+  `;
+}
+
 function renderDashboard(){
   const el = document.getElementById("view-crc-dashboard");
   const totalNaoReagendados = minhaFilaReativacao().length;
@@ -624,6 +683,7 @@ function renderDashboard(){
   const ranking = calcularRankingCRCs();
   const minhaPosicao = ranking.findIndex(r => r.email === PERFIL_ATUAL.email);
   const rankingTexto = minhaPosicao === -1 ? "—" : `${minhaPosicao+1}º de ${ranking.length}`;
+  const metaInfo = calcularMeta(PERFIL_ATUAL.email);
   el.innerHTML = `
     <div class="saudacao">Olá, ${esc(PERFIL_ATUAL.nomeCurto||PERFIL_ATUAL.nomeCompleto)} 👋</div>
     <div class="saudacao-sub">Aqui está o resumo do seu dia.</div>
@@ -640,13 +700,17 @@ function renderDashboard(){
         <div class="lbl">IE-CRC atual (mês)</div>
         <div class="val">${ie.semDados ? "—" : ie.total}</div>
       </div>
-      <div class="dash-card muted">Meta do mês<br>disponível na próxima etapa</div>
+      <div class="dash-card" style="cursor:pointer;" onclick="App.alternarDetalheMeta()">
+        <div class="lbl">Meta do mês</div>
+        <div class="val">${metaInfo ? metaInfo.atual+" / "+metaInfo.meta : "—"}</div>
+      </div>
       <div class="dash-card">
         <div class="lbl">Ranking atual</div>
         <div class="val">${rankingTexto}</div>
       </div>
     </div>
     ${DETALHE_IECRC_ABERTO ? renderDetalheIECRC(ie) : ""}
+    ${DETALHE_META_ABERTO ? renderDetalheMeta(metaInfo) : ""}
     <button class="btn primary" onclick="App.abrirFormularioRelatorio()">📝 ${RELATORIO_ENVIADO_HOJE ? "Preencher outro relatório" : "Preencher relatório de hoje"}</button>
   `;
 }
@@ -901,6 +965,50 @@ function renderResumoFaltantesPorCRC(){
       }).join("")}
     </table>
   `;
+}
+
+function renderMetasAdmin(){
+  const el = document.getElementById("metas-admin");
+  if (!el) return;
+  const crcs = USUARIOS_CACHE.filter(u => u.perfil === "CRC");
+  if (!crcs.length){
+    el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
+    return;
+  }
+  el.innerHTML = `
+    <table class="tabela-usuarios">
+      <tr><th>CRC</th><th>Meta de agendamentos (mês)</th><th></th></tr>
+      ${crcs.map(u => {
+        const registro = METAS_CACHE.find(m => m.crcEmail === u.email);
+        const valorAtual = registro ? registro.metaAgendamentos : "";
+        return `
+          <tr>
+            <td>${esc(u.nomeCurto || u.nomeCompleto)}</td>
+            <td><input type="number" min="0" id="f-meta-${esc(u.email)}" value="${valorAtual}" style="width:90px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;"></td>
+            <td><button class="btn small outline" onclick="App.salvarMetaCRC('${esc(u.email)}')">Salvar</button></td>
+          </tr>`;
+      }).join("")}
+    </table>
+  `;
+}
+
+async function salvarMetaCRC(crcEmail){
+  const input = document.getElementById(`f-meta-${crcEmail}`);
+  const valor = Number(input?.value);
+  if (!valor || valor <= 0){
+    toast("Informe uma meta maior que zero.");
+    return;
+  }
+  try {
+    const data = await Api.salvarMeta(TOKEN_ATUAL, crcEmail, valor);
+    if (!data.ok){ toast(data.error || "Não foi possível salvar a meta."); return; }
+    const idx = METAS_CACHE.findIndex(m => m.crcEmail === crcEmail);
+    if (idx !== -1) METAS_CACHE[idx] = data.meta; else METAS_CACHE.push(data.meta);
+    toast("Meta salva.");
+  } catch(err){
+    console.error(err);
+    toast("Falha ao salvar — verifique sua conexão.");
+  }
 }
 
 async function salvarUsuario(){
@@ -1297,7 +1405,8 @@ window.App = {
   abrirBootstrap, salvarBootstrap, salvarUsuario,
   abrirReativacao, atualizarFiltroReativacao, selecionarNovoStatus,
   cancelarMotivo, confirmarMotivo, registrarTentativa,
-  cancelarRemocao, confirmarRemocao, alternarDetalheIECRC
+  cancelarRemocao, confirmarRemocao, alternarDetalheIECRC,
+  alternarDetalheMeta, salvarMetaCRC
 };
 
 init();
