@@ -195,6 +195,11 @@ h1,h2,h3,h4{margin:0;}
     <div id="view-crc-reativacao" class="hidden"></div>
     <div id="view-admin-placeholder" class="hidden">
       <div class="form-card">
+        <div class="section-title">Pacientes não reagendados por CRC</div>
+        <div id="resumo-faltantes-por-crc"></div>
+      </div>
+
+      <div class="form-card" style="margin-top:20px;">
         <div class="section-title">Gestão de usuários</div>
         <div id="usuarios-lista"></div>
 
@@ -520,7 +525,7 @@ function mostrarView(nome){
   if (nome==="dashboard") renderDashboard();
   if (nome==="relatorio") renderFormularioRelatorio();
   if (nome==="reativacao") renderReativacao();
-  if (nome==="admin") renderUsuariosLista();
+  if (nome==="admin"){ renderUsuariosLista(); renderResumoFaltantesPorCRC(); }
 }
 
 function abrirFormularioRelatorio(){ mostrarView("relatorio"); }
@@ -830,6 +835,25 @@ function renderUsuariosLista(){
           <td><span class="badge-perfil ${u.perfil==='Administrador'?'admin':'crc'}">${esc(u.perfil)}</span></td>
           <td>${u.ativo===false ? "⛔ Inativo" : "✅ Ativo"}</td>
         </tr>`).join("")}
+    </table>
+  `;
+}
+
+function renderResumoFaltantesPorCRC(){
+  const el = document.getElementById("resumo-faltantes-por-crc");
+  if (!el) return;
+  const crcs = USUARIOS_CACHE.filter(u => u.perfil === "CRC");
+  if (!crcs.length){
+    el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
+    return;
+  }
+  el.innerHTML = `
+    <table class="tabela-usuarios">
+      <tr><th>CRC</th><th>Pacientes não reagendados</th></tr>
+      ${crcs.map(u => {
+        const total = PACIENTES_FALTANTES_CACHE.filter(f => f.crcEmail === u.email).length;
+        return `<tr><td>${esc(u.nomeCurto || u.nomeCompleto)}</td><td>${total}</td></tr>`;
+      }).join("")}
     </table>
   `;
 }
