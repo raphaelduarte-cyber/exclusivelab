@@ -348,11 +348,12 @@ planejada** (superior e inferior) como uma etiqueta colorida individual,
 independente de a qual lote ela pertence:
 
 - ⚪ **Branco** — pendente: ainda não foi incluída em nenhum lote.
-- 🟢 **Verde** — OK: impressa e liberada para confecção (inclui tanto placas
-  já explicitamente conferidas e aprovadas quanto placas recém-impressas que
-  ainda não passaram pela primeira conferência — visualmente indistintas,
-  mas só a placa com um evento **OK** explícito conta para liberar a
-  confecção do lote).
+- 🟢 **Verde claro** (`.impresso`) — a placa entrou no lote e foi impressa,
+  mas **ainda não passou pela conferência**. Não libera confecção.
+- 🟢 **Verde escuro** (`.conferido`) — conferida com evento **OK** explícito.
+  Só esse estado conta pra liberar a confecção do lote (`loteFinalizacaoOk`/
+  `loteEtapaAtual` já exigiam isso antes; a diferença agora é só que fica
+  visível — antes as duas situações eram indistinguíveis no card).
 - 🔴 **Vermelho** — precisa reimprimir (conferida e reprovada).
 - 🟠 **Laranja** — foi impressa novamente, mas ainda aguarda nova conferência
   antes de poder virar OK. Estado intermediário entre vermelho e verde.
@@ -371,6 +372,33 @@ mapa **não substitui** o histórico (lotes criados, eventos de impressão,
 reimpressão, confecção, entrega, recebimento, responsáveis, datas e
 observações continuam completos e consultáveis) — ele é só a leitura rápida
 "bater o olho" do andamento de cada placa do caso.
+
+### 2.4-A Placas avulsas
+
+Ação **"Inserir placas avulsas"**, disponível na ficha do caso (qualquer
+etapa, não só Planejamento — serve justamente para casos já em produção que
+precisam de mais alguns modelos específicos, sem refazer o planejamento
+inteiro). Campo de texto livre por arcada, ex. `12-15, 20` → interpretado
+como placas 12, 13, 14, 15 e 20 (`parseListaPlacas`).
+
+- **Sem fluxo separado**: as placas avulsas somam a `reqSeqSup`/`reqSeqInf`
+  (a mesma sequência usada por tudo — criação de lote, status geral,
+  contagem de total) — a partir daí seguem exatamente o mesmo caminho de
+  qualquer outra placa do planejamento original.
+- **Duplicidade**: se algum número já existir no planejamento, o sistema
+  avisa (`confirm()`) e só adiciona os que forem realmente novos — nunca
+  duplica.
+- **Identificação visual**: placas avulsas ganham borda tracejada no chip
+  (`.plate-chip.avulsa`) e "— placa avulsa" no tooltip; o card ganha um selo
+  "placas avulsas" enquanto o caso tiver alguma.
+- **Histórico**: toda inserção gera uma entrada tipo "Placas avulsas
+  adicionadas — Superior: ... · Inferior: ...", com responsável (login
+  atual), data e hora — via `logHistorico`, igual a qualquer outra mudança.
+- **Permissão** (`podeInserirPlacasAvulsas`): administrador, "Dentista
+  planejador" e "Laboratório" sempre podem; qualquer outro perfil só se um
+  administrador marcar `podeInserirAvulsas: true` para essa pessoa
+  especificamente em "cadastro de profissionais" (ex.: liberar pra uma ASB
+  específica sem liberar pra recepção).
 
 ### 2.5 Nomes dos botões de cada lote
 
@@ -435,6 +463,11 @@ Caso {
   } | null
   attachSuperior: boolean
   attachInferior: boolean
+
+  // placas avulsas — adicionadas depois do planejamento original (ex.: caso
+  // já em produção que precisa de mais alguns modelos específicos). Somam ao
+  // total de reqSeqSup/reqSeqInf — sem fluxo separado, ver seção 2.4-A.
+  placasAvulsas: { superiores: number[], inferiores: number[] } | undefined
 
   // produção — ver 4.2. Um caso pode ter vários lotes, cada um em um
   // estágio diferente do funil (impressão → finalização → envio → recebimento).

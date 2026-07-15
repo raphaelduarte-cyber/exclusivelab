@@ -147,6 +147,7 @@ h1,h2,h3,h4{margin:0;}
 .badge.reimpressao{background:var(--red-light); color:var(--red);}
 .badge.parcial{background:var(--blue-light); color:var(--blue);}
 .badge.refinamento{background:var(--yellow-light); color:var(--yellow);}
+.badge.avulsas{background:var(--teal-light); color:var(--teal-dark);}
 .card-status{font-size:11px; color:var(--text-light); margin:4px 0;}
 .plates-row{display:flex; gap:6px; margin:6px 0;}
 .plate-box{flex:1; background:var(--bg); border-radius:8px; padding:6px 6px; text-align:center;}
@@ -170,11 +171,14 @@ h1,h2,h3,h4{margin:0;}
 .impressao-panel{background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:11px 13px; margin:8px 0;}
 .plate-chip{display:inline-flex; align-items:center; justify-content:center; min-width:27px; height:25px; padding:0 6px; border-radius:8px; font-size:11.5px; font-weight:800; border:1px solid var(--border); background:var(--bg); color:var(--text-light);}
 .plate-chip.done{background:var(--green-light); color:var(--green); border-color:var(--green);}
+.plate-chip.impresso{background:var(--green-light); color:var(--green); border-color:var(--green);}
+.plate-chip.conferido{background:var(--green); color:#fff; border-color:var(--green); font-weight:900;}
 .plate-chip.reimp{background:var(--red); color:#fff; border-color:var(--red);}
 .plate-chip.reimpresso{background:var(--orange-light); color:var(--orange); border-color:var(--orange);}
 .plate-chip.confeccionado{background:var(--blue-light); color:var(--blue); border-color:var(--blue);}
 .plate-chip.entregue{background:var(--yellow-light); color:var(--yellow); border-color:var(--yellow);}
 .plate-chip.recebido{background:var(--gray-recebido); color:#fff; border-color:var(--gray-recebido);}
+.plate-chip.avulsa{border-style:dashed; border-width:2px;}
 .plate-legend{display:flex; flex-wrap:wrap; gap:12px; font-size:11px; color:var(--text-light); margin:6px 0;}
 .plate-legend span{display:inline-flex; align-items:center; gap:4px;}
 
@@ -598,8 +602,8 @@ function pQtdSup(c){ return c.planejamento?.qtdSuperior ?? 0; }
 function pQtdInf(c){ return c.planejamento?.qtdInferior ?? 0; }
 function pPlaca0Sup(c){ return !!c.planejamento?.placa0Superior; }
 function pPlaca0Inf(c){ return !!c.planejamento?.placa0Inferior; }
-function totalRealSup(c){ return pQtdSup(c) + (pPlaca0Sup(c)?1:0); }
-function totalRealInf(c){ return pQtdInf(c) + (pPlaca0Inf(c)?1:0); }
+function totalRealSup(c){ return reqSeqSup(c).length; }
+function totalRealInf(c){ return reqSeqInf(c).length; }
 function totalRealPlacas(c){ return totalRealSup(c) + totalRealInf(c); }
 function planejamentoValido(c){
   const p = c.planejamento;
@@ -607,18 +611,24 @@ function planejamentoValido(c){
     && typeof p.placa0Superior==="boolean" && typeof p.placa0Inferior==="boolean"
     && (p.qtdSuperior + p.qtdInferior) > 0;
 }
-// Sequência de modelos realmente necessários, incluindo a placa 0 quando existir.
+// Sequência de modelos realmente necessários, incluindo a placa 0 (quando
+// existir) e as placas avulsas inseridas depois (ver "PLACAS AVULSAS") —
+// tudo entra no mesmo fluxo, sem distinção nenhuma pra baixo daqui.
 function reqSeqSup(c){
   if (!planejamentoValido(c)) return [];
   const start = pPlaca0Sup(c) ? 0 : 1;
   const end = pQtdSup(c);
-  const arr=[]; for(let i=start;i<=end;i++) arr.push(i); return arr;
+  const arr=[]; for(let i=start;i<=end;i++) arr.push(i);
+  const avulsas = c.placasAvulsas?.superiores || [];
+  return [...new Set([...arr, ...avulsas])].sort((a,b)=>a-b);
 }
 function reqSeqInf(c){
   if (!planejamentoValido(c)) return [];
   const start = pPlaca0Inf(c) ? 0 : 1;
   const end = pQtdInf(c);
-  const arr=[]; for(let i=start;i<=end;i++) arr.push(i); return arr;
+  const arr=[]; for(let i=start;i<=end;i++) arr.push(i);
+  const avulsas = c.placasAvulsas?.inferiores || [];
+  return [...new Set([...arr, ...avulsas])].sort((a,b)=>a-b);
 }
 function seqStartSup(c){ return pPlaca0Sup(c) ? 0 : 1; }
 function seqStartInf(c){ return pPlaca0Inf(c) ? 0 : 1; }
@@ -630,6 +640,20 @@ function rangeArr(de, ate){
   de = parseInt(de); ate = parseInt(ate);
   if (isNaN(de) || isNaN(ate) || ate<de) return [];
   const arr=[]; for(let i=de;i<=ate;i++) arr.push(i); return arr;
+}
+// Interpreta texto livre tipo "12-15, 20" em [12,13,14,15,20] — usado no
+// campo de placas avulsas (ver "PLACAS AVULSAS").
+function parseListaPlacas(texto){
+  if (!texto) return [];
+  const resultado = new Set();
+  String(texto).split(",").forEach(parte=>{
+    parte = parte.trim();
+    if (!parte) return;
+    const m = parte.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (m) rangeArr(m[1], m[2]).forEach(n=>resultado.add(n));
+    else { const n = parseInt(parte); if (!isNaN(n)) resultado.add(n); }
+  });
+  return [...resultado].sort((a,b)=>a-b);
 }
 function fmtRanges(arr, emptyLabel){
   emptyLabel = emptyLabel===undefined ? "—" : emptyLabel;
@@ -872,11 +896,12 @@ function algumaProducaoConcluidaParcial(caso){
    completo do caso (branco/verde/vermelho/azul/cinza), independente de qual
    lote cada placa pertence. Serve para "bater o olho" no card e na ficha.
    ========================================================================= */
-// Retorna: "branco" (pendente/não alocada), "verde" (OK — inclui placas
-// ainda não conferidas, que aparentam corretas até a conferência dizer o
-// contrário), "vermelho" (precisa reimprimir), "laranja" (foi reimpressa mas
-// ainda aguarda nova conferência), "azul" (confeccionada, aguardando entrega
-// à clínica), "amarelo" (entregue à clínica, aguardando recebimento pela
+// Retorna: "branco" (pendente/não alocada), "verdeClaro" (impressa/lote
+// criado, ainda NÃO conferida), "verdeEscuro" (conferida e marcada OK —
+// só esse estado libera a confecção, ver loteFinalizacaoOk/loteEtapaAtual),
+// "vermelho" (precisa reimprimir), "laranja" (foi reimpressa mas ainda
+// aguarda nova conferência), "azul" (confeccionada, aguardando entrega à
+// clínica), "amarelo" (entregue à clínica, aguardando recebimento pela
 // ASB), "cinza" (recebida).
 function placaStatus(caso, arco, n){
   const lote = (caso.lotes||[]).find(l => (arco==="sup"?l.superiores:l.inferiores).includes(n));
@@ -890,11 +915,17 @@ function placaStatus(caso, arco, n){
   if (reimprimir.has(n)) return "vermelho";
   const reimpresso = arco==="sup" ? st.reimpressoSup : st.reimpressoInf;
   if (reimpresso.has(n)) return "laranja";
-  return "verde";
+  const naoConferido = arco==="sup" ? st.naoConferidoSup : st.naoConferidoInf;
+  if (naoConferido.has(n)) return "verdeClaro";
+  return "verdeEscuro";
 }
-const PLACA_STATUS_CLASS = { branco:"", verde:"done", vermelho:"reimp", laranja:"reimpresso", azul:"confeccionado", amarelo:"entregue", cinza:"recebido" };
+const PLACA_STATUS_CLASS = {
+  branco:"", verde:"done", verdeClaro:"impresso", verdeEscuro:"conferido",
+  vermelho:"reimp", laranja:"reimpresso", azul:"confeccionado", amarelo:"entregue", cinza:"recebido"
+};
 const PLACA_STATUS_LABEL = {
   branco:"Pendente / não alocada a nenhum lote", verde:"OK — impressa e liberada para confecção",
+  verdeClaro:"Impressa — lote criado, aguardando conferência", verdeEscuro:"Conferida e OK — liberada para confecção",
   vermelho:"Precisa reimprimir", laranja:"Foi impressa novamente — aguardando nova conferência",
   azul:"Confeccionada — aguardando entrega à clínica",
   amarelo:"Entregue à clínica — aguardando recebimento pela ASB",
@@ -903,7 +934,12 @@ const PLACA_STATUS_LABEL = {
 function statusGeralPlacasHTML(caso){
   if (!planejamentoValido(caso)) return "";
   const reqSup = reqSeqSup(caso), reqInf = reqSeqInf(caso);
-  const chip = (arco,n) => { const s = placaStatus(caso,arco,n); return `<span class="plate-chip ${PLACA_STATUS_CLASS[s]}" title="${PLACA_STATUS_LABEL[s]}">${n}</span>`; };
+  const chip = (arco,n) => {
+    const s = placaStatus(caso,arco,n);
+    const avulsa = (arco==="sup" ? caso.placasAvulsas?.superiores : caso.placasAvulsas?.inferiores)?.includes(n);
+    const title = PLACA_STATUS_LABEL[s] + (avulsa ? " — placa avulsa" : "");
+    return `<span class="plate-chip ${PLACA_STATUS_CLASS[s]}${avulsa?' avulsa':''}" title="${esc(title)}">${n}</span>`;
+  };
   return `
   <div style="font-size:10.5px;font-weight:700;color:var(--text-light);text-transform:uppercase;margin-top:6px;">Status geral das placas — Superior</div>
   <div style="display:flex;flex-wrap:wrap;gap:4px;">${reqSup.map(n=>chip("sup",n)).join("")}</div>
@@ -915,12 +951,14 @@ function statusGeralLegendaHTML(){
   return `
   <div class="plate-legend">
     <span><span class="plate-chip">0</span> pendente</span>
-    <span><span class="plate-chip done">0</span> impressa</span>
+    <span><span class="plate-chip impresso">0</span> impressa — aguardando conferência</span>
+    <span><span class="plate-chip conferido">0</span> conferida OK — liberada</span>
     <span><span class="plate-chip reimp">0</span> precisa reimprimir</span>
     <span><span class="plate-chip reimpresso">0</span> impressa novamente — aguardando conferência</span>
     <span><span class="plate-chip confeccionado">0</span> confeccionada</span>
     <span><span class="plate-chip entregue">0</span> entregue à clínica</span>
     <span><span class="plate-chip recebido">0</span> recebida pela ASB</span>
+    <span><span class="plate-chip avulsa impresso">0</span> borda tracejada = placa avulsa</span>
   </div>`;
 }
 
@@ -1341,6 +1379,7 @@ function cardHTML(c){
         ${d.reimpressaoPendente?'<span class="badge reimpressao">reimpressão pendente</span>':""}
         ${d.parcialEntregue?'<span class="badge parcial">parcial</span>':""}
         ${c.refinamento?.isRefinamento?`<span class="badge refinamento">Refinamento nº ${esc(c.refinamento.numero??"?")}</span>`:""}
+        ${(c.placasAvulsas?.superiores?.length || c.placasAvulsas?.inferiores?.length)?'<span class="badge avulsas">placas avulsas</span>':""}
         <div class="card-patient">${esc(c.paciente) || "(sem nome)"}</div>
       </div>
       <div class="deadline">📅 ${fmtDate(c.dataPrevistaEntrega)}</div>
@@ -1821,6 +1860,52 @@ function __submitPlanejamento(id){
 }
 
 /* =========================================================================
+   PLACAS AVULSAS — placas específicas adicionadas fora do planejamento
+   original (ex.: caso já em produção que precisa de mais alguns modelos).
+   Entram em caso.placasAvulsas.{superiores,inferiores} e a partir daí somam
+   ao total de placas de reqSeqSup/reqSeqInf — não existe fluxo separado: uma
+   vez inseridas, seguem o mesmo caminho de qualquer outra placa (lote,
+   conferência, confecção, entrega, recebimento).
+   ========================================================================= */
+function promptPlacasAvulsas(id){
+  if (!podeInserirPlacasAvulsas()){ toast("Você não tem permissão para inserir placas avulsas."); return; }
+  openModal("Inserir placas avulsas", `
+    <p style="font-size:12px;color:var(--text-light);">Informe números soltos ou intervalos, separados por vírgula. Ex.: 12-15, 20</p>
+    <div class="form-grid">
+      <div class="field full"><label>Placas avulsas superiores</label><input id="pa-sup" placeholder="Ex.: 12-15, 20"></div>
+      <div class="field full"><label>Placas avulsas inferiores</label><input id="pa-inf" placeholder="Ex.: 3, 5, 9"></div>
+    </div>
+  `, `<button class="btn outline" onclick="App.abrirFicha('${id}')">Cancelar</button>
+      <button class="btn primary" onclick="App.__submitPlacasAvulsas('${id}')">Inserir placas avulsas</button>`);
+}
+function __submitPlacasAvulsas(id){
+  if (!podeInserirPlacasAvulsas()){ toast("Você não tem permissão para inserir placas avulsas."); return; }
+  const caso = findCaso(id);
+  const novasSup = parseListaPlacas(document.getElementById("pa-sup").value);
+  const novasInf = parseListaPlacas(document.getElementById("pa-inf").value);
+  if (!novasSup.length && !novasInf.length){ toast("Informe ao menos uma placa avulsa."); return; }
+  const jaSup = new Set(reqSeqSup(caso));
+  const jaInf = new Set(reqSeqInf(caso));
+  const dupSup = novasSup.filter(n=>jaSup.has(n));
+  const dupInf = novasInf.filter(n=>jaInf.has(n));
+  if (dupSup.length || dupInf.length){
+    const aviso = `Já existem no planejamento:${dupSup.length?` Superior ${fmtRanges(dupSup)}.`:""}${dupInf.length?` Inferior ${fmtRanges(dupInf)}.`:""} Deseja continuar só com as novas (sem duplicar)?`;
+    if (!confirm(aviso)) return;
+  }
+  const addSup = novasSup.filter(n=>!jaSup.has(n));
+  const addInf = novasInf.filter(n=>!jaInf.has(n));
+  if (!addSup.length && !addInf.length){ toast("Nenhuma placa nova — todas já existiam no planejamento."); return; }
+  caso.placasAvulsas = caso.placasAvulsas || { superiores:[], inferiores:[] };
+  caso.placasAvulsas.superiores = [...new Set([...caso.placasAvulsas.superiores, ...addSup])].sort((a,b)=>a-b);
+  caso.placasAvulsas.inferiores = [...new Set([...caso.placasAvulsas.inferiores, ...addInf])].sort((a,b)=>a-b);
+  const partes = [];
+  if (addSup.length) partes.push(`Superior: ${fmtRanges(addSup)}`);
+  if (addInf.length) partes.push(`Inferior: ${fmtRanges(addInf)}`);
+  logHistorico(caso, caso.statusAtual, caso.statusAtual, `Placas avulsas adicionadas — ${partes.join(" · ")}`);
+  persist(caso).then(()=>{ abrirFicha(id); toast("Placas avulsas adicionadas."); });
+}
+
+/* =========================================================================
    FICHA COMPLETA (visão + painéis de produção + ações + histórico)
    ========================================================================= */
 function getActionsForCaso(caso){
@@ -1834,6 +1919,12 @@ function getActionsForCaso(caso){
 
   if (naEtapaPlanejamento){
     actions.push({label: planejamentoValido(caso) ? "Editar placas do planejamento" : "Definir placas do planejamento", fn:()=>promptPlanejamento(caso.id)});
+  }
+  // "Inserir placas avulsas" fica disponível em qualquer etapa (não só
+  // Planejamento) — serve justamente para casos já em produção que precisam
+  // de mais alguns modelos, sem refazer o planejamento inteiro.
+  if (ehTipoAlinhadores(caso) && planejamentoValido(caso) && s!=="Finalizado" && podeInserirPlacasAvulsas()){
+    actions.push({label:"Inserir placas avulsas", fn:()=>promptPlacasAvulsas(caso.id)});
   }
   if (ext && s==="Aguardando aprovação do cliente/dentista externo"){
     actions.push({label:"Aprovar planejamento", fn:()=>promptAprovacao(caso.id)});
@@ -2558,6 +2649,16 @@ function profissionalSelectHTML(idAttr, selectedValue){
    importante em computador compartilhado (recepção/ASB).
    ========================================================================= */
 function podeExcluir(){ return !!PERFIL_ATUAL?.administrador; }
+// Inserir placas avulsas: administrador, dentista planejador e responsável
+// do laboratório sempre podem; qualquer outro perfil (ex.: ASB) só se um
+// administrador marcar a liberação específica dele em "cadastro de
+// profissionais" (campo podeInserirAvulsas).
+function podeInserirPlacasAvulsas(){
+  if (!PERFIL_ATUAL) return false;
+  if (PERFIL_ATUAL.administrador) return true;
+  if (["Dentista planejador","Laboratório"].includes(PERFIL_ATUAL.funcao)) return true;
+  return !!PERFIL_ATUAL.podeInserirAvulsas;
+}
 
 // Tela inicial (#login-gate) bloqueia o acesso ao sistema (#app-root) até
 // haver login — a única ação possível na tela de login, além de entrar, é
@@ -2685,6 +2786,9 @@ function gerenciarProfissionais(){
       <div class="field"><label>E-mail (Google/Gmail)</label><input id="p-email" type="email" placeholder="pessoa@gmail.com"></div>
       ${bootstrap ? "" : `<div class="field"><label>É administrador?</label>
         <label style="display:flex;align-items:center;gap:6px;text-transform:none;font-weight:600;"><input type="checkbox" id="p-admin"> Pode excluir casos e profissionais</label>
+      </div>
+      <div class="field"><label>Placas avulsas?</label>
+        <label style="display:flex;align-items:center;gap:6px;text-transform:none;font-weight:600;"><input type="checkbox" id="p-avulsas"> Pode inserir placas avulsas (além de administrador/planejador/laboratório, que já podem)</label>
       </div>`}
     </div>
   `, `<button class="btn outline" onclick="App.closeModal()">Fechar</button>
@@ -2697,8 +2801,9 @@ async function __submitNovoProfissional(bootstrap){
   const funcao = document.getElementById("p-funcao").value;
   const email = document.getElementById("p-email").value.trim().toLowerCase();
   const administrador = bootstrap ? true : document.getElementById("p-admin").checked;
+  const podeInserirAvulsas = bootstrap ? false : document.getElementById("p-avulsas").checked;
   const lista = profissionaisAtuais();
-  lista.push({ id: uuid(), nomeCompleto, nomeCurto, funcao, email, administrador, ativo:true });
+  lista.push({ id: uuid(), nomeCompleto, nomeCurto, funcao, email, administrador, podeInserirAvulsas, ativo:true });
   if (!(await salvarProfissionais(lista))) return;
   if (bootstrap) PROFISSIONAIS_VAZIO_PRELOGIN = false; // acabou de deixar de estar vazia
   if (!bootstrap && email) STORAGE.notificarNovoProfissional(email, nomeCurto).catch(()=>{});
@@ -2720,6 +2825,9 @@ function promptEditarProfissional(id){
       <div class="field"><label>É administrador?</label>
         <label style="display:flex;align-items:center;gap:6px;text-transform:none;font-weight:600;"><input type="checkbox" id="p-admin" ${p.administrador?"checked":""}> Pode excluir casos e profissionais</label>
       </div>
+      <div class="field"><label>Placas avulsas?</label>
+        <label style="display:flex;align-items:center;gap:6px;text-transform:none;font-weight:600;"><input type="checkbox" id="p-avulsas" ${p.podeInserirAvulsas?"checked":""}> Pode inserir placas avulsas (além de administrador/planejador/laboratório, que já podem)</label>
+      </div>
     </div>
   `, `<button class="btn outline" onclick="App.gerenciarProfissionais()">Cancelar</button>
       <button class="btn ready" onclick="App.__submitEditarProfissional('${id}')">Salvar alterações</button>`);
@@ -2733,6 +2841,7 @@ async function __submitEditarProfissional(id){
   p.funcao = document.getElementById("p-funcao").value;
   p.email = document.getElementById("p-email").value.trim().toLowerCase();
   p.administrador = document.getElementById("p-admin").checked;
+  p.podeInserirAvulsas = document.getElementById("p-avulsas").checked;
   if (!(await salvarProfissionais(lista))) return;
   if (PERFIL_ATUAL && PERFIL_ATUAL.id === p.id){
     PERFIL_ATUAL = p;
@@ -2834,6 +2943,7 @@ window.App = {
   __runAction, __submitPlanejamento, promptPlanejamento,
   aprovarPlanejamento, solicitarAjuste, promptAprovacao, promptAjuste,
   promptCriarLote, __submitCriarLote,
+  promptPlacasAvulsas, __submitPlacasAvulsas,
   promptConferenciaImpressaoLote, __submitConferenciaImpressaoLote,
   promptFinalizacaoLote, __submitFinalizacaoLote,
   promptEnvioLote, __submitEnvioLote,
