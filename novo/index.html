@@ -282,8 +282,8 @@ h1,h2,h3,h4{margin:0;}
       </div>
 
       <div class="form-card" style="margin-top:20px;">
-        <div class="section-title">Pacientes não reagendados por CRC</div>
-        <div id="resumo-faltantes-por-crc"></div>
+        <div class="section-title">Central de Reativação — prazos, cobrança e reagendamentos</div>
+        <div id="central-reativacao-admin"></div>
       </div>
 
       <div class="form-card" style="margin-top:20px;">
@@ -339,13 +339,32 @@ const HORARIOS = ["Manhã","Tarde","Noite"];
 const STATUS_FALTANTES = ["Não agendado","Reagendado","Não deseja reagendar"];
 
 // Dados de exemplo só para o modo de teste local (sem API_URL) — mostra a Central de Reativação populada na demonstração.
+// Cobre as 4 faixas de prazo (0-3 / 4-7 / 8-15 / 15+ dias) e pelo menos um caso "sem contato" crítico, espalhados entre CRCs com perfis diferentes de acompanhamento.
 const PACIENTES_FALTANTES_EXEMPLO = [
   { id:"exemplo-1", crcEmail:"larissa@teste.com", crcNome:"Larissa", nome:"Ana Costa", telefone:"81997424432",
-    data:"2026-07-05", status:"Não agendado", tentativasContato:0, ultimoContato:"", observacao:"" },
+    criadoEm:"2026-07-12", data:"2026-07-12", status:"Não agendado", tentativasContato:1, ultimoContato:"2026-07-13", observacao:"" },
   { id:"exemplo-2", crcEmail:"larissa@teste.com", crcNome:"Larissa", nome:"Bruno Lima", telefone:"81988887777",
-    data:"2026-07-12", status:"Não agendado", tentativasContato:2, ultimoContato:"2026-07-13", observacao:"" },
-  { id:"exemplo-3", crcEmail:"larissa@teste.com", crcNome:"Larissa", nome:"Carla Souza", telefone:"81900001111",
-    data:"2026-07-10", status:"Não deseja reagendar", tentativasContato:3, ultimoContato:"2026-07-11", observacao:"Mudou de cidade" }
+    criadoEm:"2026-07-08", data:"2026-07-08", status:"Não agendado", tentativasContato:2, ultimoContato:"2026-07-13", observacao:"" },
+  { id:"exemplo-3", crcEmail:"larissa@teste.com", crcNome:"Larissa", nome:"Helena Prado", telefone:"81900001111",
+    criadoEm:"2026-07-09", data:"2026-07-09", status:"Não deseja reagendar", tentativasContato:3, ultimoContato:"2026-07-11", observacao:"Mudou de cidade" },
+  { id:"exemplo-4", crcEmail:"suzani@teste.com", crcNome:"Suzani", nome:"Carla Souza", telefone:"81991112222",
+    criadoEm:"2026-07-02", data:"2026-07-02", status:"Não agendado", tentativasContato:0, ultimoContato:"", observacao:"" },
+  { id:"exemplo-5", crcEmail:"suzani@teste.com", crcNome:"Suzani", nome:"Diego Alves", telefone:"81993334444",
+    criadoEm:"2026-06-20", data:"2026-06-20", status:"Não agendado", tentativasContato:0, ultimoContato:"", observacao:"" },
+  { id:"exemplo-6", crcEmail:"suzani@teste.com", crcNome:"Suzani", nome:"Elaine Rocha", telefone:"81995556666",
+    criadoEm:"2026-07-10", data:"2026-07-10", status:"Não agendado", tentativasContato:1, ultimoContato:"2026-07-11", observacao:"" },
+  { id:"exemplo-7", crcEmail:"camila@teste.com", crcNome:"Camila", nome:"Fabio Nunes", telefone:"81997778888",
+    criadoEm:"2026-07-13", data:"2026-07-13", status:"Não agendado", tentativasContato:0, ultimoContato:"", observacao:"" },
+  { id:"exemplo-8", crcEmail:"debora@teste.com", crcNome:"Débora", nome:"Gabriela Melo", telefone:"81999990000",
+    criadoEm:"2026-07-01", data:"2026-07-01", status:"Não agendado", tentativasContato:1, ultimoContato:"2026-07-02", observacao:"" }
+];
+
+// Reagendados no mês, só para o modo de teste local — mede quanto tempo cada CRC leva pra resolver uma pendência (resolvidoEm - criadoEm).
+const PACIENTES_REAGENDADOS_MES_EXEMPLO = [
+  { id:"reag-1", crcEmail:"larissa@teste.com", crcNome:"Larissa", nome:"Igor Santos", criadoEm:"2026-07-03", resolvidoEm:"2026-07-05", status:"Reagendado" },
+  { id:"reag-2", crcEmail:"larissa@teste.com", crcNome:"Larissa", nome:"Julia Reis", criadoEm:"2026-07-06", resolvidoEm:"2026-07-08", status:"Reagendado" },
+  { id:"reag-3", crcEmail:"suzani@teste.com", crcNome:"Suzani", nome:"Karla Dias", criadoEm:"2026-06-25", resolvidoEm:"2026-07-10", status:"Reagendado" },
+  { id:"reag-4", crcEmail:"camila@teste.com", crcNome:"Camila", nome:"Leo Farias", criadoEm:"2026-07-04", resolvidoEm:"2026-07-06", status:"Reagendado" }
 ];
 
 // Relatórios de exemplo do mês, só para o modo de teste local — alimenta o cálculo do IE-CRC, o Dashboard Executivo e o IEC na demonstração.
@@ -455,7 +474,7 @@ const Api = {
     return resp.json();
   },
   async statusHoje(){
-    if (!CONFIG.API_URL) return { ok:true, usuarios: USUARIOS_EXEMPLO, relatoriosHoje:[], relatoriosMes: RELATORIOS_MES_EXEMPLO, relatoriosHistorico: RELATORIOS_HISTORICO_EXEMPLO, oportunidadesMes: OPORTUNIDADES_MES_EXEMPLO, pacientesFaltantes: PACIENTES_FALTANTES_EXEMPLO, metas: METAS_EXEMPLO };
+    if (!CONFIG.API_URL) return { ok:true, usuarios: USUARIOS_EXEMPLO, relatoriosHoje:[], relatoriosMes: RELATORIOS_MES_EXEMPLO, relatoriosHistorico: RELATORIOS_HISTORICO_EXEMPLO, oportunidadesMes: OPORTUNIDADES_MES_EXEMPLO, pacientesFaltantes: PACIENTES_FALTANTES_EXEMPLO, pacientesReagendadosMes: PACIENTES_REAGENDADOS_MES_EXEMPLO, metas: METAS_EXEMPLO };
     const resp = await fetch(CONFIG.API_URL);
     return resp.json();
   },
@@ -505,6 +524,7 @@ let TOKEN_ATUAL = null;
 let RELATORIO_ENVIADO_HOJE = false;
 let USUARIOS_CACHE = [];
 let PACIENTES_FALTANTES_CACHE = [];
+let PACIENTES_REAGENDADOS_MES_CACHE = [];
 let RELATORIOS_MES_CACHE = [];
 let RELATORIOS_HISTORICO_CACHE = [];
 let OPORTUNIDADES_MES_CACHE = [];
@@ -674,6 +694,7 @@ async function carregarStatusHoje(){
       RELATORIO_ENVIADO_HOJE = (data.relatoriosHoje||[]).some(r => r.crcEmail === PERFIL_ATUAL.email);
       USUARIOS_CACHE = data.usuarios || [];
       PACIENTES_FALTANTES_CACHE = data.pacientesFaltantes || [];
+      PACIENTES_REAGENDADOS_MES_CACHE = data.pacientesReagendadosMes || [];
       RELATORIOS_MES_CACHE = data.relatoriosMes || [];
       RELATORIOS_HISTORICO_CACHE = data.relatoriosHistorico || [];
       OPORTUNIDADES_MES_CACHE = data.oportunidadesMes || [];
@@ -693,7 +714,7 @@ function mostrarView(nome){
   if (nome==="dashboard") renderDashboard();
   if (nome==="relatorio") renderFormularioRelatorio();
   if (nome==="reativacao") renderReativacao();
-  if (nome==="admin"){ renderDashboardExecutivo(); renderUsuariosLista(); renderResumoFaltantesPorCRC(); renderRankingAdmin(); renderAlertasEquipe(); renderMetasAdmin(); }
+  if (nome==="admin"){ renderDashboardExecutivo(); renderUsuariosLista(); renderCentralReativacaoAdmin(); renderRankingAdmin(); renderAlertasEquipe(); renderMetasAdmin(); }
 }
 
 /* =========================================================================
@@ -1518,22 +1539,138 @@ async function alternarAtivoUsuario(email){
   }
 }
 
-function renderResumoFaltantesPorCRC(){
-  const el = document.getElementById("resumo-faltantes-por-crc");
+/* =========================================================================
+   CENTRAL DE REATIVAÇÃO — visão de CEO: prazos, se as CRCs estão de fato
+   trabalhando a fila, e quantos reagendamentos foram resolvidos no mês.
+   ========================================================================= */
+
+// Limites de prazo — valores iniciais, ficam editáveis pelo gestor numa
+// próxima rodada (mesmo espírito do IEC_LIMITES).
+const PRAZO_LIMITES = {
+  atencaoDias: 4,
+  criticoDias: 8,
+  muitoCriticoDias: 15,
+  semContatoDias: 5
+};
+
+/** Quebra os pendentes ativos em faixas de espera desde que entraram na fila. */
+function calcularPrazosFila(ativos){
+  const faixas = { "0-3 dias":0, "4-7 dias":0, "8-15 dias":0, "15+ dias":0 };
+  ativos.forEach(f => {
+    const dias = diasDesde(f.criadoEm||f.data);
+    if (dias<PRAZO_LIMITES.atencaoDias) faixas["0-3 dias"]++;
+    else if (dias<PRAZO_LIMITES.criticoDias) faixas["4-7 dias"]++;
+    else if (dias<PRAZO_LIMITES.muitoCriticoDias) faixas["8-15 dias"]++;
+    else faixas["15+ dias"]++;
+  });
+  return faixas;
+}
+
+/** Pendentes sem nenhuma tentativa de contato, ou cujo último contato já está velho — sinal de fila parada. */
+function calcularSemContato(ativos){
+  return ativos.filter(f => !Number(f.tentativasContato) || diasDesde(f.ultimoContato||f.criadoEm||f.data)>=PRAZO_LIMITES.semContatoDias);
+}
+
+/** Resumo por CRC: quantos ativos, quanto tempo médio de espera, quantos sem contato recente, e quantos reagendamentos ela resolveu no mês (e em quanto tempo, em média). */
+function calcularResumoReativacaoPorCRC(ativos, reagendadosMes, crcsAtivas){
+  return crcsAtivas.map(u => {
+    const dela = ativos.filter(f => f.crcEmail===u.email);
+    const semContatoDela = calcularSemContato(dela);
+    const diasMedios = dela.length ? Math.round(dela.reduce((s,f) => s+diasDesde(f.criadoEm||f.data), 0)/dela.length) : 0;
+    const tentativasMedias = dela.length ? Math.round((dela.reduce((s,f) => s+(Number(f.tentativasContato)||0), 0)/dela.length)*10)/10 : 0;
+    const reagendadosDela = reagendadosMes.filter(f => f.crcEmail===u.email);
+    const tempoMedioResolucao = reagendadosDela.length
+      ? Math.round(reagendadosDela.reduce((s,f) => {
+          const criado = new Date((f.criadoEm||"").slice(0,10)+"T00:00:00");
+          const resolvido = new Date((f.resolvidoEm||"").slice(0,10)+"T00:00:00");
+          return s + Math.max(0, Math.round((resolvido-criado)/(1000*60*60*24)));
+        }, 0)/reagendadosDela.length)
+      : null;
+    const precisaAtencao = dela.length>0 && (diasMedios>=PRAZO_LIMITES.criticoDias || semContatoDela.length/dela.length>=0.5);
+    return {
+      email: u.email, nome: u.nomeCurto||u.nomeCompleto,
+      ativos: dela.length, tentativasMedias, diasMedios, semContato: semContatoDela.length,
+      reagendadosMes: reagendadosDela.length, tempoMedioResolucao, precisaAtencao
+    };
+  });
+}
+
+/** Lista os pendentes mais críticos (parados há muito tempo, sem nenhuma tentativa) — a fila de cobrança direta do CEO. */
+function calcularAlertasReativacao(ativos){
+  return ativos
+    .filter(f => diasDesde(f.criadoEm||f.data)>=PRAZO_LIMITES.muitoCriticoDias && !Number(f.tentativasContato))
+    .map(f => ({ ...f, dias: diasDesde(f.criadoEm||f.data) }))
+    .sort((a,b) => b.dias-a.dias);
+}
+
+const CORES_PRAZO = { "0-3 dias":"var(--green)", "4-7 dias":"var(--gold)", "8-15 dias":"var(--orange)", "15+ dias":"var(--red)" };
+
+function renderCentralReativacaoAdmin(){
+  const el = document.getElementById("central-reativacao-admin");
   if (!el) return;
-  const crcs = USUARIOS_CACHE.filter(u => u.perfil === "CRC" && u.ativo !== false);
-  if (!crcs.length){
-    el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
+  const crcsAtivas = USUARIOS_CACHE.filter(u => u.perfil === "CRC" && u.ativo !== false);
+  if (!crcsAtivas.length){
+    el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC ativa cadastrada ainda.</p>`;
     return;
   }
-  el.innerHTML = `
+  const emailsAtivos = new Set(crcsAtivas.map(u => u.email));
+  const ativos = PACIENTES_FALTANTES_CACHE.filter(f => emailsAtivos.has(f.crcEmail));
+  const reagendadosMes = PACIENTES_REAGENDADOS_MES_CACHE.filter(f => emailsAtivos.has(f.crcEmail));
+
+  const naoAgendado = ativos.filter(f => f.status==="Não agendado").length;
+  const naoDeseja = ativos.filter(f => f.status==="Não deseja reagendar").length;
+  const tempoMedioDias = ativos.length ? Math.round(ativos.reduce((s,f) => s+diasDesde(f.criadoEm||f.data), 0)/ativos.length) : 0;
+
+  const faixas = calcularPrazosFila(ativos);
+  const maiorFaixa = Math.max(1, ...Object.values(faixas));
+  const faixasHtml = Object.entries(faixas).map(([label,valor]) => `
+    <div class="barra-h-row">
+      <div class="barra-h-top"><span>${esc(label)}</span><strong>${valor}</strong></div>
+      <div class="barra-h-track"><div class="barra-h-fill" style="width:${Math.round((valor/maiorFaixa)*100)}%;background:${CORES_PRAZO[label]};"></div></div>
+    </div>
+  `).join("");
+
+  const resumoPorCRC = calcularResumoReativacaoPorCRC(ativos, reagendadosMes, crcsAtivas);
+  const tabelaCrcHtml = `
     <table class="tabela-usuarios">
-      <tr><th>CRC</th><th>Pacientes não reagendados</th></tr>
-      ${crcs.map(u => {
-        const total = PACIENTES_FALTANTES_CACHE.filter(f => f.crcEmail === u.email).length;
-        return `<tr><td>${esc(u.nomeCurto || u.nomeCompleto)}</td><td>${total}</td></tr>`;
-      }).join("")}
+      <tr><th>CRC</th><th>Ativos</th><th>Tentativas médias</th><th>Dias médios de espera</th><th>Sem contato recente</th><th>Reagendados no mês</th><th>Tempo médio até reagendar</th><th></th></tr>
+      ${resumoPorCRC.map(r => `
+        <tr>
+          <td>${esc(r.nome)}</td>
+          <td>${r.ativos}</td>
+          <td>${r.tentativasMedias}</td>
+          <td>${r.diasMedios}</td>
+          <td>${r.semContato}</td>
+          <td>${r.reagendadosMes}</td>
+          <td>${r.tempoMedioResolucao===null ? "—" : r.tempoMedioResolucao+" dia(s)"}</td>
+          <td>${r.precisaAtencao ? `<span class="badge-perfil" style="background:#fbe3e3;color:var(--red);">Precisa de atenção</span>` : ""}</td>
+        </tr>
+      `).join("")}
     </table>
+  `;
+
+  const criticos = calcularAlertasReativacao(ativos);
+  const alertasHtml = criticos.length ? `
+    <div class="section-title" style="margin:18px 0 8px;font-size:11px;">🔴 Pendentes críticos — parados há ${PRAZO_LIMITES.muitoCriticoDias}+ dias sem nenhuma tentativa de contato</div>
+    ${criticos.slice(0,10).map(f => `
+      <div class="alerta-chip nivel-vermelho" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <div>
+          <strong>${esc(f.nome)}</strong>
+          <p>${esc(f.crcNome||"")} · ${f.dias} dia(s) parado, sem nenhuma tentativa de contato</p>
+        </div>
+        ${f.telefone ? `<a href="${linkWhatsapp(f.telefone)}" target="_blank" class="btn small outline">WhatsApp</a>` : ""}
+      </div>
+    `).join("")}
+  ` : `<p class="exec-vazio" style="margin-top:16px;">Nenhum pendente crítico parado sem contato. 🎉</p>`;
+
+  el.innerHTML = `
+    <p style="font-size:13px;margin-bottom:6px;">Total ativos na fila: <strong>${ativos.length}</strong></p>
+    <p style="font-size:12.5px;color:var(--text-light);margin-bottom:16px;">Não agendado: <strong>${naoAgendado}</strong> · Não deseja reagendar: <strong>${naoDeseja}</strong> · Tempo médio na fila: <strong>${tempoMedioDias}</strong> dia(s)</p>
+    <div class="section-title" style="margin:0 0 10px;font-size:11px;">Faixas de prazo (pendentes ativos)</div>
+    ${faixasHtml}
+    <div class="section-title" style="margin:20px 0 8px;font-size:11px;">Por CRC</div>
+    ${tabelaCrcHtml}
+    ${alertasHtml}
   `;
 }
 
@@ -1542,7 +1679,7 @@ function renderResumoFaltantesPorCRC(){
    tudo que já é coletado no relatório diário: funil de leads, comparecimento,
    resgate, qualidade dos leads, objeções e oportunidades por temperatura.
    ========================================================================= */
-function calcularAnaliseExecutiva(relatorios, oportunidades, faltantes){
+function calcularAnaliseExecutiva(relatorios, oportunidades){
   if (!relatorios || !relatorios.length) return { semDados: true };
 
   const s = {
@@ -1584,20 +1721,11 @@ function calcularAnaliseExecutiva(relatorios, oportunidades, faltantes){
   (oportunidades||[]).forEach(o => { if (contagemTemperatura[o.temperatura] !== undefined) contagemTemperatura[o.temperatura]++; });
   const quentesAbertas = (oportunidades||[]).filter(o => o.temperatura==="Muito Quente" && !String(o.proximaAcao||"").trim());
 
-  const ativos = faltantes || [];
-  const faltantesResumo = {
-    total: ativos.length,
-    naoAgendado: ativos.filter(f => f.status==="Não agendado").length,
-    naoDeseja: ativos.filter(f => f.status==="Não deseja reagendar").length,
-    tempoMedioDias: ativos.length ? Math.round(ativos.reduce((soma,f) => soma+diasDesde(f.criadoEm||f.data), 0)/ativos.length) : 0
-  };
-
   return {
     semDados: false, funilLeads, comparecimento, resgate,
     qualidade: { contagem: contagemQualidade, motivosPessimo },
     objecoes,
-    oportunidades: { contagem: contagemTemperatura, quentesAbertas },
-    faltantesResumo
+    oportunidades: { contagem: contagemTemperatura, quentesAbertas }
   };
 }
 
@@ -1799,9 +1927,8 @@ function renderDashboardExecutivo(){
   const filtroCrc = r => emailsAtivos.has(r.crcEmail) && (!CRC_SELECIONADA_DASHBOARD || r.crcEmail===CRC_SELECIONADA_DASHBOARD);
   const relatoriosFiltrados = filtrarRelatoriosPorPeriodo(RELATORIOS_MES_CACHE.filter(filtroCrc), PERIODO_DASHBOARD);
   const oportunidadesFiltradas = OPORTUNIDADES_MES_CACHE.filter(filtroCrc);
-  const faltantesFiltrados = PACIENTES_FALTANTES_CACHE.filter(filtroCrc);
 
-  const a = calcularAnaliseExecutiva(relatoriosFiltrados, oportunidadesFiltradas, faltantesFiltrados);
+  const a = calcularAnaliseExecutiva(relatoriosFiltrados, oportunidadesFiltradas);
   const crcsParaCalendarioTendencia = CRC_SELECIONADA_DASHBOARD ? crcsAtivas.filter(u => u.email===CRC_SELECIONADA_DASHBOARD) : crcsAtivas;
   const extrasHtml = renderCalendarioPreenchimento(crcsParaCalendarioTendencia) + renderGraficosTendencia(crcsParaCalendarioTendencia);
 
@@ -1886,16 +2013,7 @@ function renderDashboardExecutivo(){
     </div>
   `;
 
-  const faltantesHtml = `
-    <div class="exec-card">
-      <h4>Central de Reativação — visão geral</h4>
-      <p style="font-size:13px;margin-bottom:6px;">Total ativos na fila: <strong>${a.faltantesResumo.total}</strong></p>
-      <p style="font-size:12.5px;color:var(--text-light);">Não agendado: <strong>${a.faltantesResumo.naoAgendado}</strong> · Não deseja reagendar: <strong>${a.faltantesResumo.naoDeseja}</strong></p>
-      <p style="font-size:12.5px;color:var(--text-light);">Tempo médio na fila: <strong>${a.faltantesResumo.tempoMedioDias}</strong> dia(s)</p>
-    </div>
-  `;
-
-  el.innerHTML = controlesHtml + `<div class="exec-grid">${funilHtml}${comparecimentoHtml}${resgateHtml}${qualidadeHtml}${objecoesHtml}${oportunidadesHtml}${faltantesHtml}</div>` + extrasHtml;
+  el.innerHTML = controlesHtml + `<div class="exec-grid">${funilHtml}${comparecimentoHtml}${resgateHtml}${qualidadeHtml}${objecoesHtml}${oportunidadesHtml}</div>` + extrasHtml;
 }
 
 function renderMetasAdmin(){

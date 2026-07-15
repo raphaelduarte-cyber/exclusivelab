@@ -57,13 +57,14 @@ var HEADERS_OPORTUNIDADES = [
   'observacao', 'criadoEm', 'dadosJSON'
 ];
 // Status possíveis da fila de reativação — nasce sempre como 'Não agendado'.
-// 'Reagendado' não fica salvo: quando o status vira esse, a linha é excluída
-// da planilha (ver atualizarStatusFaltante_).
+// 'Reagendado' sai da fila de pendentes ativos mas a linha continua na
+// planilha (guarda resolvidoEm) — histórico usado no painel de reativação
+// do admin (quantos reagendaram, por qual CRC, em quanto tempo).
 var STATUS_FALTANTES = ['Não agendado', 'Reagendado', 'Não deseja reagendar'];
 var HEADERS_PACIENTES_FALTANTES = [
   'id', 'relatorioId', 'data', 'crcEmail', 'crcNome', 'nome', 'telefone',
   'procedimento', 'profissional', 'status', 'tentativasContato', 'ultimoContato',
-  'observacao', 'novaData', 'novoHorario', 'novoLocal', 'criadoEm', 'atualizadoEm', 'dadosJSON'
+  'observacao', 'novaData', 'novoHorario', 'novoLocal', 'criadoEm', 'atualizadoEm', 'resolvidoEm', 'dadosJSON'
 ];
 var HEADERS_LOGS = ['id', 'data', 'hora', 'usuarioEmail', 'usuarioNome', 'acao', 'detalhes', 'criadoEm'];
 // Uma linha por CRC/mês — chave é crcEmail + anoMes (upsert, nunca duplica).
@@ -132,6 +133,7 @@ function doGet(e) {
     relatoriosHistorico: lerRelatoriosUltimosMeses_(6),
     oportunidadesMes: lerOportunidadesPorMes_(mesAtual),
     pacientesFaltantes: lerPacientesFaltantesAtivos_(),
+    pacientesReagendadosMes: lerPacientesReagendadosPorMes_(mesAtual),
     metas: lerMetasDoMes_(mesAtual)
   });
 }
@@ -208,11 +210,15 @@ function lerOportunidadesPorMes_(anoMes) {
   return lerOportunidades_().filter(function (o) { return String(o.data || '').slice(0, 7) === anoMes; });
 }
 function lerPacientesFaltantes_() { return lerSheetJSON_(SHEET_PACIENTES_FALTANTES, HEADERS_PACIENTES_FALTANTES); }
-/** Reduz o tamanho da resposta conforme o histórico de resolvidos antigos cresce — 'Reagendado' nunca fica salvo (a linha é excluída ao virar esse status). */
+/** Só os pendentes de verdade — 'Reagendado' continua na planilha (histórico), mas sai da fila ativa. */
 function lerPacientesFaltantesAtivos_() {
-  // 'Reagendado' nunca fica salvo (a linha é excluída ao virar esse status),
-  // então tudo que sobra na planilha já é ativo por definição.
-  return lerPacientesFaltantes_();
+  return lerPacientesFaltantes_().filter(function (f) { return f.status !== 'Reagendado'; });
+}
+/** Pacientes reagendados num mês (formato 'yyyy-MM') — usado no painel de reativação do admin pra medir quantos reagendaram e em quanto tempo. */
+function lerPacientesReagendadosPorMes_(anoMes) {
+  return lerPacientesFaltantes_().filter(function (f) {
+    return f.status === 'Reagendado' && String(f.resolvidoEm || '').slice(0, 7) === anoMes;
+  });
 }
 
 function lerMetas_() { return lerSheetJSON_(SHEET_METAS, HEADERS_METAS); }
@@ -543,17 +549,20 @@ function atualizarStatusFaltante_(idToken, id, mudancas) {
   mudancas = mudancas || {};
   var statusAnterior = registro.status;
 
-  // Reagendado não fica salvo: sai da fila E da planilha (pedido explícito —
-  // diferente do resto do sistema, aqui não guarda histórico do resolvido).
+  // Reagendado sai da fila de pendentes ativos, mas a linha continua na
+  // planilha (guarda resolvidoEm) — histórico usado no painel de
+  // reativação do admin. O contrato de resposta continua { removido:true }
+  // pro front-end tirar da fila local exatamente como antes.
   if (mudancas.status === 'Reagendado') {
-    var sheet = getSheet_(SHEET_PACIENTES_FALTANTES);
-    var rowIndex = findRowByColumnValue_(sheet, HEADERS_PACIENTES_FALTANTES, 'id', id);
-    if (rowIndex !== -1) sheet.deleteRow(rowIndex);
+    registro.status = 'Reagendado';
+    registro.resolvidoEm = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    registro.atualizadoEm = new Date().toISOString();
+    upsertPacienteFaltante_(registro);
     registrarLog_(
       perfil.email, perfil.nomeCurto || perfil.nomeCompleto, 'atualizarStatusFaltante',
-      'Paciente ' + registro.nome + ': ' + statusAnterior + ' -> Reagendado (removido da fila)'
+      'Paciente ' + registro.nome + ': ' + statusAnterior + ' -> Reagendado'
     );
-    return jsonResponse_({ ok: true, removido: true, id: id });
+    return jsonResponse_({ ok: true, removido: true, id: id, paciente: registro });
   }
 
   if (mudancas.status && STATUS_FALTANTES.indexOf(mudancas.status) !== -1) {
