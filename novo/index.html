@@ -732,7 +732,7 @@ function classificarIEC(iec){
 /** IEC = 70% taxa de comparecimento + 30% atingimento da meta de comparecimentos (capado em 100%). */
 function calcularIEC(relatorios, metaComparecimentos){
   if (!relatorios || !relatorios.length) return { semDados:true, iec:null };
-  const s = { pacientesAgendadosDia:0, compareceram:0, faltaram:0, reagendaram:0, leadsAgendados:0 };
+  const s = { pacientesAgendadosDia:0, compareceram:0, faltaram:0, reagendaram:0 };
   relatorios.forEach(r => { Object.keys(s).forEach(k => { s[k] += Number(r[k])||0; }); });
   const taxaComparecimento = s.pacientesAgendadosDia>0 ? s.compareceram/s.pacientesAgendadosDia : null;
   const meta = Number(metaComparecimentos)||0;
@@ -746,7 +746,7 @@ function calcularIEC(relatorios, metaComparecimentos){
     semDados:false, iec, semMetaComparecimento, metaComparecimentos:meta,
     taxaComparecimento, atingimentoMetaComparecimento,
     agendados: s.pacientesAgendadosDia, compareceram: s.compareceram, faltaram: s.faltaram, reagendaram: s.reagendaram,
-    leadsAgendados: s.leadsAgendados, agendamentosDesperdicados, taxaDesperdicio, taxaFaltas,
+    agendamentosDesperdicados, taxaDesperdicio, taxaFaltas,
     classificacao: classificarIEC(iec)
   };
 }
@@ -777,9 +777,9 @@ function somarPeriodo(lista, crcEmail, inicio, fim){
 }
 
 /** Só vale mínimo de 30 agendamentos + 70% da meta pro recorte Mensal — diário/semanal nunca bateriam esse volume. */
-function elegivelRanking(leadsAgendados, atingimentoMetaAgendamentos, periodo){
+function elegivelRanking(agendados, atingimentoMetaAgendamentos, periodo){
   if (periodo!=="mes") return true;
-  return leadsAgendados>=IEC_LIMITES.minAgendamentosRanking && atingimentoMetaAgendamentos*100>=IEC_LIMITES.minAtingimentoMetaRanking;
+  return agendados>=IEC_LIMITES.minAgendamentosRanking && atingimentoMetaAgendamentos*100>=IEC_LIMITES.minAtingimentoMetaRanking;
 }
 
 /** Ranking pelo IEC (comparecimento real), não pelo IE-CRC de produtividade. Devolve elegíveis (ordenados, disputam o pódio) e não-elegíveis (mostram números, fora da disputa). */
@@ -793,10 +793,11 @@ function calcularRankingIEC(crcsAtivas, periodo){
     const metaAgendamentos = registro ? registro.metaAgendamentos : 0;
     const iecInfo = calcularIEC(relatoriosAtual, metaComparecimentos);
     const iecAnterior = calcularIEC(relatoriosAnterior, metaComparecimentos);
-    const leadsAgendados = relatoriosAtual.reduce((s,r) => s+(Number(r.leadsAgendados)||0), 0);
-    const atingimentoMetaAgendamentos = metaAgendamentos>0 ? leadsAgendados/metaAgendamentos : 0;
-    const elegivel = elegivelRanking(leadsAgendados, atingimentoMetaAgendamentos, periodo);
-    return { email:u.email, nome:u.nomeCurto||u.nomeCompleto, iecInfo, iecAnterior, leadsAgendados, atingimentoMetaAgendamentos, elegivel };
+    // pacientesAgendadosDia (não leadsAgendados) — mesma métrica de "agendamentos" usada em todo o IEC, pra não divergir da Meta nem dos gráficos.
+    const agendados = relatoriosAtual.reduce((s,r) => s+(Number(r.pacientesAgendadosDia)||0), 0);
+    const atingimentoMetaAgendamentos = metaAgendamentos>0 ? agendados/metaAgendamentos : 0;
+    const elegivel = elegivelRanking(agendados, atingimentoMetaAgendamentos, periodo);
+    return { email:u.email, nome:u.nomeCurto||u.nomeCompleto, iecInfo, iecAnterior, agendados, atingimentoMetaAgendamentos, elegivel };
   });
   const desempate = (a,b) => {
     if ((b.iecInfo.iec||0) !== (a.iecInfo.iec||0)) return (b.iecInfo.iec||0)-(a.iecInfo.iec||0);
@@ -841,13 +842,13 @@ function calcularAlertasCRC(linha, contexto){
   const faltasAnterior = anterior.semDados ? 0 : anterior.faltaram;
   const aumentoFaltasPct = faltasAnterior>0 ? ((info.faltaram-faltasAnterior)/faltasAnterior)*100 : (info.faltaram>0 ? 100 : 0);
 
-  const critVermelho = (taxa<IEC_LIMITES.comparecimentoAmareloMin && linha.leadsAgendados>=IEC_LIMITES.minAgendamentosRanking)
+  const critVermelho = (taxa<IEC_LIMITES.comparecimentoAmareloMin && linha.agendados>=IEC_LIMITES.minAgendamentosRanking)
     || (desvioEquipe!==null && desvioEquipe<-IEC_LIMITES.desvioVermelhoEquipe);
   const critVerde = taxa>=IEC_LIMITES.comparecimentoSaudavel && atingimentoComparecimento>=80 && aumentoFaltasPct<IEC_LIMITES.aumentoFaltasRelevante;
   const nivel = critVermelho ? "vermelho" : (critVerde ? "verde" : "amarelo");
   alertas.push(Object.assign({ nivel }, NIVEL_TEXTOS_IEC[nivel]));
 
-  if (atingimentoAgendamentos>=80 && taxa<65 && linha.leadsAgendados>=IEC_LIMITES.minAgendamentosRanking){
+  if (atingimentoAgendamentos>=80 && taxa<65 && linha.agendados>=IEC_LIMITES.minAgendamentosRanking){
     alertas.push({ nivel:"vermelho", titulo:"Agenda cheia, baixa presença", mensagem:"Esta CRC está agendando em bom volume, mas os pacientes não estão comparecendo na proporção esperada. É necessário revisar a qualidade da abordagem, a criação de compromisso, a confirmação da consulta e o acompanhamento pré-consulta." });
   }
   if (atingimentoAgendamentos<70 && atingimentoComparecimento<70){
@@ -1151,7 +1152,8 @@ function calcularMeta(crcEmail){
   const mega = Number(registro.metaMegaAgendamentos) || 0;
   const superMeta = Number(registro.metaSuperAgendamentos) || 0;
   const relatorios = RELATORIOS_MES_CACHE.filter(r => r.crcEmail === crcEmail);
-  const atual = relatorios.reduce((soma,r) => soma + (Number(r.leadsAgendados)||0), 0);
+  // pacientesAgendadosDia (não leadsAgendados) — mesma métrica usada no IEC e nos gráficos, pra não divergir do que a CRC vê nos outros cards.
+  const atual = relatorios.reduce((soma,r) => soma + (Number(r.pacientesAgendadosDia)||0), 0);
   const hoje = new Date();
   const diasNoMes = new Date(hoje.getFullYear(), hoje.getMonth()+1, 0).getDate();
   const diasPassados = hoje.getDate();
@@ -1723,7 +1725,7 @@ function calcularTendenciaMensal(historico, crcsAtivas){
       email: u.email,
       nome: u.nomeCurto || u.nomeCompleto,
       cor: CORES_LINHA_CRC[i % CORES_LINHA_CRC.length],
-      agendados: meses.map(m => doMes(m).reduce((s,r) => s+(Number(r.leadsAgendados)||0), 0)),
+      agendados: meses.map(m => doMes(m).reduce((s,r) => s+(Number(r.pacientesAgendadosDia)||0), 0)),
       compareceram: meses.map(m => doMes(m).reduce((s,r) => s+(Number(r.compareceram)||0), 0))
     };
   });
