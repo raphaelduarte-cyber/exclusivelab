@@ -127,6 +127,7 @@ function doGet(e) {
     usuarios: lerUsuarios_(),
     relatoriosHoje: lerRelatoriosPorData_(hoje),
     relatoriosMes: lerRelatoriosPorMes_(mesAtual),
+    relatoriosHistorico: lerRelatoriosUltimosMeses_(6),
     oportunidadesMes: lerOportunidadesPorMes_(mesAtual),
     pacientesFaltantes: lerPacientesFaltantesAtivos_(),
     metas: lerMetasDoMes_(mesAtual)
@@ -188,6 +189,16 @@ function lerRelatoriosPorData_(dataISO) {
 /** Todos os relatórios de um mês (formato 'yyyy-MM'), de todas as CRCs — usado para calcular o IE-CRC do mês atual. */
 function lerRelatoriosPorMes_(anoMes) {
   return lerRelatorios_().filter(function (r) { return String(r.data || '').slice(0, 7) === anoMes; });
+}
+/** Relatórios dos últimos N meses (incluindo o atual) — usado nos gráficos de linha do Dashboard Executivo (tendência mês a mês). */
+function lerRelatoriosUltimosMeses_(n) {
+  var hoje = new Date();
+  var mesesValidos = {};
+  for (var i = 0; i < n; i++) {
+    var d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    mesesValidos[Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM')] = true;
+  }
+  return lerRelatorios_().filter(function (r) { return mesesValidos[String(r.data || '').slice(0, 7)]; });
 }
 function lerOportunidades_() { return lerSheetJSON_(SHEET_OPORTUNIDADES, HEADERS_OPORTUNIDADES); }
 /** Oportunidades de um mês (formato 'yyyy-MM'), de todas as CRCs — usado no Dashboard Executivo (temperatura, procedimentos, oportunidades quentes sem ação). */

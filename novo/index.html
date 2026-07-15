@@ -148,6 +148,21 @@ h1,h2,h3,h4{margin:0;}
 .barra-h-row .barra-h-top{display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px; color:var(--text);}
 .barra-h-row .barra-h-track{background:var(--bg-alt); border-radius:6px; height:9px; overflow:hidden;}
 .barra-h-row .barra-h-fill{height:100%; background:var(--blue); border-radius:6px;}
+.dash-exec-controles{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px; justify-content:space-between;}
+.pill-group{display:flex; flex-wrap:wrap; gap:6px;}
+.pill{border:1px solid var(--border); background:var(--card-bg); color:var(--text); font-size:12px; font-weight:600; padding:6px 14px; border-radius:20px; cursor:pointer;}
+.pill.ativo{background:var(--gold); border-color:var(--gold); color:#fff;}
+.calendario-crc{margin-bottom:16px;}
+.calendario-crc:last-child{margin-bottom:0;}
+.calendario-crc-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:12.5px;}
+.calendario-crc-head span{color:var(--text-light);}
+.calendario-dias{display:flex; flex-wrap:wrap; gap:4px;}
+.dia-cel{width:24px; height:24px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700;}
+.dia-cel.dia-ok{background:var(--green); color:#fff;}
+.dia-cel.dia-faltando{background:var(--red); color:#fff;}
+.dia-cel.dia-futuro{background:var(--bg-alt); color:var(--text-light);}
+.linha-legenda{display:flex; flex-wrap:wrap; gap:12px; margin-top:8px; font-size:11.5px; color:var(--text);}
+.linha-legenda-item .dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px;}
 .oportunidade-quente{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:12.5px;}
 .oportunidade-quente:last-child{border-bottom:none;}
 .exec-vazio{font-size:12px; color:var(--text-light);}
@@ -234,7 +249,7 @@ h1,h2,h3,h4{margin:0;}
     <div id="view-crc-reativacao" class="hidden"></div>
     <div id="view-admin-placeholder" class="hidden">
       <div class="saudacao" style="font-size:20px;">Dashboard Executivo</div>
-      <div class="saudacao-sub">Consolidado de todas as CRCs — mês atual.</div>
+      <div class="saudacao-sub">Use os filtros abaixo para ver o total ou uma CRC específica, no período que quiser.</div>
       <div id="dashboard-executivo"></div>
 
       <div class="form-card" style="margin-top:20px;">
@@ -322,6 +337,19 @@ const RELATORIOS_MES_EXEMPLO = [
   { crcEmail:"suzani@teste.com", data:"2026-07-06", leadsEntraram:60, leadsTrabalhados:26, leadsAgendados:4, leadsRetornoContato:12, leadsSemInteresse:6, leadsSemRetorno:8, pacientesAgendadosDia:4, compareceram:3, faltaram:1, reagendaram:0, semRetornoConfirmacao:0, resgateTrabalhados:3, resgateAgendados:1, resgateRetornoComunicacao:1, resgateSemInteresse:0, resgateSemRetorno:1, principalObjecao:"Sem interesse", qualidadeLead:"Bom", motivoQualidadeLead:"" }
 ];
 
+// Histórico de exemplo (últimos meses), só para o modo de teste local — alimenta os gráficos de linha mês a mês do Dashboard Executivo.
+const RELATORIOS_HISTORICO_EXEMPLO = [
+  ...RELATORIOS_MES_EXEMPLO,
+  { crcEmail:"larissa@teste.com", data:"2026-06-10", leadsAgendados:5, compareceram:3 },
+  { crcEmail:"larissa@teste.com", data:"2026-06-20", leadsAgendados:4, compareceram:4 },
+  { crcEmail:"larissa@teste.com", data:"2026-05-15", leadsAgendados:6, compareceram:3 },
+  { crcEmail:"larissa@teste.com", data:"2026-04-15", leadsAgendados:3, compareceram:2 },
+  { crcEmail:"suzani@teste.com", data:"2026-06-08", leadsAgendados:3, compareceram:2 },
+  { crcEmail:"suzani@teste.com", data:"2026-06-22", leadsAgendados:3, compareceram:3 },
+  { crcEmail:"suzani@teste.com", data:"2026-05-12", leadsAgendados:2, compareceram:1 },
+  { crcEmail:"suzani@teste.com", data:"2026-04-18", leadsAgendados:4, compareceram:2 }
+];
+
 // Oportunidades de exemplo do mês, só para o modo de teste local — alimenta o Dashboard Executivo (temperatura, procedimentos, oportunidades quentes sem ação).
 const OPORTUNIDADES_MES_EXEMPLO = [
   { crcEmail:"larissa@teste.com", crcNome:"Larissa", paciente:"Fernanda Alves", telefone:"81997771111", procedimento:"Implante Unitário", temperatura:"Muito Quente", proximaAcao:"" },
@@ -333,6 +361,13 @@ const OPORTUNIDADES_MES_EXEMPLO = [
 // Metas de exemplo (3 níveis), só para o modo de teste local.
 const METAS_EXEMPLO = [
   { crcEmail:"larissa@teste.com", anoMes:"2026-07", metaAgendamentos:15, metaMegaAgendamentos:20, metaSuperAgendamentos:25 }
+];
+
+// Usuários de exemplo, só para o modo de teste local — sem isso as telas de Ranking/Metas/Dashboard Executivo do admin ficam vazias na demonstração.
+const USUARIOS_EXEMPLO = [
+  { id:"usr-larissa", nomeCompleto:"Larissa", nomeCurto:"Larissa", email:"larissa@teste.com", perfil:"CRC", ativo:true },
+  { id:"usr-suzani", nomeCompleto:"Suzani", nomeCurto:"Suzani", email:"suzani@teste.com", perfil:"CRC", ativo:true },
+  { id:"usr-raphael", nomeCompleto:"Raphael", nomeCurto:"Raphael", email:"raphael@teste.com", perfil:"Administrador", ativo:true }
 ];
 
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -370,7 +405,7 @@ const Api = {
     return resp.json();
   },
   async statusHoje(){
-    if (!CONFIG.API_URL) return { ok:true, usuarios:[], relatoriosHoje:[], relatoriosMes: RELATORIOS_MES_EXEMPLO, oportunidadesMes: OPORTUNIDADES_MES_EXEMPLO, pacientesFaltantes: PACIENTES_FALTANTES_EXEMPLO, metas: METAS_EXEMPLO };
+    if (!CONFIG.API_URL) return { ok:true, usuarios: USUARIOS_EXEMPLO, relatoriosHoje:[], relatoriosMes: RELATORIOS_MES_EXEMPLO, relatoriosHistorico: RELATORIOS_HISTORICO_EXEMPLO, oportunidadesMes: OPORTUNIDADES_MES_EXEMPLO, pacientesFaltantes: PACIENTES_FALTANTES_EXEMPLO, metas: METAS_EXEMPLO };
     const resp = await fetch(CONFIG.API_URL);
     return resp.json();
   },
@@ -421,8 +456,12 @@ let RELATORIO_ENVIADO_HOJE = false;
 let USUARIOS_CACHE = [];
 let PACIENTES_FALTANTES_CACHE = [];
 let RELATORIOS_MES_CACHE = [];
+let RELATORIOS_HISTORICO_CACHE = [];
 let OPORTUNIDADES_MES_CACHE = [];
 let METAS_CACHE = [];
+let METAS_EDITANDO = new Set();
+let PERIODO_DASHBOARD = "mes";
+let CRC_SELECIONADA_DASHBOARD = "";
 let FILTRO_REATIVACAO = { status:"", busca:"", ordenacao:"padrao" };
 let ESTADO_MOTIVO = {};
 let ESTADO_CONFIRMAR_REMOCAO = {};
@@ -586,6 +625,7 @@ async function carregarStatusHoje(){
       USUARIOS_CACHE = data.usuarios || [];
       PACIENTES_FALTANTES_CACHE = data.pacientesFaltantes || [];
       RELATORIOS_MES_CACHE = data.relatoriosMes || [];
+      RELATORIOS_HISTORICO_CACHE = data.relatoriosHistorico || [];
       OPORTUNIDADES_MES_CACHE = data.oportunidadesMes || [];
       METAS_CACHE = data.metas || [];
     }
@@ -608,7 +648,7 @@ function mostrarView(nome){
 
 /** Ranking das CRCs pelo IE-CRC do mês atual — maior pontuação primeiro; quem ainda não tem relatório no mês fica por último. */
 function calcularRankingCRCs(){
-  const crcs = USUARIOS_CACHE.filter(u => u.perfil === "CRC");
+  const crcs = USUARIOS_CACHE.filter(u => u.perfil === "CRC" && u.ativo !== false);
   const ranking = crcs.map(u => {
     const relatorios = RELATORIOS_MES_CACHE.filter(r => r.crcEmail === u.email);
     const ie = calcularIECRC(relatorios);
@@ -1057,7 +1097,7 @@ async function alternarAtivoUsuario(email){
 function renderResumoFaltantesPorCRC(){
   const el = document.getElementById("resumo-faltantes-por-crc");
   if (!el) return;
-  const crcs = USUARIOS_CACHE.filter(u => u.perfil === "CRC");
+  const crcs = USUARIOS_CACHE.filter(u => u.perfil === "CRC" && u.ativo !== false);
   if (!crcs.length){
     el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
     return;
@@ -1182,22 +1222,178 @@ function donutLegendaHtml(contagem, cores){
 const CORES_QUALIDADE = { Bom:"var(--green)", Ruim:"var(--orange)", "Péssimo":"var(--red)" };
 const CORES_TEMPERATURA = { "Muito Quente":"var(--red)", "Quente":"var(--orange)", "Morno":"var(--gold)" };
 
+/** Filtra relatórios (já recortados no mês atual pelo backend) para o recorte Diário/Semanal/Mensal escolhido no Dashboard Executivo. */
+function filtrarRelatoriosPorPeriodo(lista, periodo){
+  if (periodo === "mes") return lista;
+  const hoje = new Date().toISOString().slice(0,10);
+  if (periodo === "dia") return lista.filter(r => r.data === hoje);
+  if (periodo === "semana"){
+    const limite = new Date();
+    limite.setDate(limite.getDate()-6);
+    const limiteISO = limite.toISOString().slice(0,10);
+    return lista.filter(r => r.data >= limiteISO && r.data <= hoje);
+  }
+  return lista;
+}
+
+function alternarPeriodoDashboard(periodo){
+  PERIODO_DASHBOARD = periodo;
+  renderDashboardExecutivo();
+}
+
+function selecionarCrcDashboard(email){
+  CRC_SELECIONADA_DASHBOARD = email;
+  renderDashboardExecutivo();
+}
+
+function mesLabelCurto(anoMes){
+  const nomes = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+  const [ano,mes] = anoMes.split("-");
+  return `${nomes[Number(mes)-1]}/${ano.slice(2)}`;
+}
+
+/** Dias do mês atual em que a CRC já enviou relatório — base do calendário de preenchimento (visão de cobrança). */
+function calcularPreenchimentoMes(crcEmail){
+  const hoje = new Date();
+  const diasNoMes = new Date(hoje.getFullYear(), hoje.getMonth()+1, 0).getDate();
+  const diasPassados = hoje.getDate();
+  const diasComRelatorio = new Set(
+    RELATORIOS_MES_CACHE.filter(r => r.crcEmail===crcEmail).map(r => Number(String(r.data).slice(8,10)))
+  );
+  return { diasNoMes, diasPassados, diasComRelatorio };
+}
+
+function renderCalendarioPreenchimento(crcsAtivas){
+  if (!crcsAtivas.length) return "";
+  return `
+    <div class="exec-card" style="margin-bottom:16px;">
+      <h4>Preenchimento do relatório diário (mês atual)</h4>
+      ${crcsAtivas.map(u => {
+        const p = calcularPreenchimentoMes(u.email);
+        const dias = [];
+        for (let d=1; d<=p.diasNoMes; d++){
+          const futuro = d > p.diasPassados;
+          const preenchido = p.diasComRelatorio.has(d);
+          const cls = futuro ? "dia-futuro" : (preenchido ? "dia-ok" : "dia-faltando");
+          const titulo = futuro ? `Dia ${d} — ainda não chegou` : (preenchido ? `Dia ${d} — relatório enviado` : `Dia ${d} — sem relatório`);
+          dias.push(`<span class="dia-cel ${cls}" title="${titulo}">${d}</span>`);
+        }
+        const diasFaltando = Array.from({length:p.diasPassados}, (_,i)=>i+1).filter(d => !p.diasComRelatorio.has(d)).length;
+        return `
+          <div class="calendario-crc">
+            <div class="calendario-crc-head"><strong>${esc(u.nomeCurto||u.nomeCompleto)}</strong><span>${diasFaltando>0 ? diasFaltando+" dia(s) sem relatório" : "Em dia ✅"}</span></div>
+            <div class="calendario-dias">${dias.join("")}</div>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+const CORES_LINHA_CRC = ["var(--gold)","var(--blue)","var(--green)","var(--orange)","var(--red)","var(--graphite)"];
+
+/** Agrupa o histórico de relatórios (últimos meses) por CRC/mês para os gráficos de linha — soma de agendados e de comparecimentos, mês a mês. */
+function calcularTendenciaMensal(historico, crcsAtivas){
+  const meses = Array.from(new Set(historico.map(r => String(r.data||"").slice(0,7)))).sort().slice(-6);
+  const series = crcsAtivas.map((u,i) => {
+    const doMes = m => historico.filter(r => r.crcEmail===u.email && String(r.data).slice(0,7)===m);
+    return {
+      email: u.email,
+      nome: u.nomeCurto || u.nomeCompleto,
+      cor: CORES_LINHA_CRC[i % CORES_LINHA_CRC.length],
+      agendados: meses.map(m => doMes(m).reduce((s,r) => s+(Number(r.leadsAgendados)||0), 0)),
+      compareceram: meses.map(m => doMes(m).reduce((s,r) => s+(Number(r.compareceram)||0), 0))
+    };
+  });
+  return { meses, series };
+}
+
+function graficoLinhaSvg(meses, series, campo){
+  const largura = 560, altura = 180, margemEsq = 16, margemDir = 16, margemBaixo = 22, margemTopo = 10;
+  const maxValor = Math.max(1, ...series.flatMap(s => s[campo]));
+  const passoX = meses.length>1 ? (largura-margemEsq-margemDir)/(meses.length-1) : 0;
+  const escalaY = v => altura-margemBaixo - (v/maxValor)*(altura-margemBaixo-margemTopo);
+  const linhas = series.map(s => {
+    const pontos = s[campo].map((v,i) => `${margemEsq+i*passoX},${escalaY(v)}`).join(" ");
+    const circulos = s[campo].map((v,i) => `<circle cx="${margemEsq+i*passoX}" cy="${escalaY(v)}" r="3" style="fill:${s.cor};" />`).join("");
+    return `<polyline points="${pontos}" style="fill:none;stroke:${s.cor};stroke-width:2.5;" />${circulos}`;
+  }).join("");
+  const eixoX = meses.map((m,i) => `<text x="${margemEsq+i*passoX}" y="${altura-4}" font-size="10" text-anchor="middle" style="fill:var(--text-light);">${mesLabelCurto(m)}</text>`).join("");
+  return `<svg viewBox="0 0 ${largura} ${altura}" style="width:100%;height:auto;display:block;">${linhas}${eixoX}</svg>`;
+}
+
+function renderGraficosTendencia(crcsAtivas){
+  if (!crcsAtivas.length) return "";
+  const historico = RELATORIOS_HISTORICO_CACHE.filter(r => crcsAtivas.some(u => u.email===r.crcEmail));
+  const { meses, series } = calcularTendenciaMensal(historico, crcsAtivas);
+  if (!meses.length) return "";
+  const legenda = series.map(s => `<span class="linha-legenda-item"><span class="dot" style="background:${s.cor};"></span>${esc(s.nome)}</span>`).join("");
+  return `
+    <div class="exec-grid" style="margin-top:16px;">
+      <div class="exec-card">
+        <h4>Quem mais agenda — tendência mensal</h4>
+        ${graficoLinhaSvg(meses, series, "agendados")}
+        <div class="linha-legenda">${legenda}</div>
+      </div>
+      <div class="exec-card">
+        <h4>Quem mais comparece — tendência mensal</h4>
+        ${graficoLinhaSvg(meses, series, "compareceram")}
+        <div class="linha-legenda">${legenda}</div>
+      </div>
+    </div>
+  `;
+}
+
 function renderDashboardExecutivo(){
   const el = document.getElementById("dashboard-executivo");
   if (!el) return;
-  const a = calcularAnaliseExecutiva(RELATORIOS_MES_CACHE, OPORTUNIDADES_MES_CACHE, PACIENTES_FALTANTES_CACHE);
+  const crcsAtivas = USUARIOS_CACHE.filter(u => u.perfil === "CRC" && u.ativo !== false);
+  const emailsAtivos = new Set(crcsAtivas.map(u => u.email));
+  if (CRC_SELECIONADA_DASHBOARD && !emailsAtivos.has(CRC_SELECIONADA_DASHBOARD)) CRC_SELECIONADA_DASHBOARD = "";
+
+  const controlesHtml = `
+    <div class="dash-exec-controles">
+      <div class="pill-group">
+        ${[["dia","Diário"],["semana","Semanal"],["mes","Mensal"]].map(([v,l]) => `
+          <button class="pill ${PERIODO_DASHBOARD===v?'ativo':''}" onclick="App.alternarPeriodoDashboard('${v}')">${l}</button>
+        `).join("")}
+      </div>
+      <div class="pill-group">
+        <button class="pill ${!CRC_SELECIONADA_DASHBOARD?'ativo':''}" onclick="App.selecionarCrcDashboard('')">Total</button>
+        ${crcsAtivas.map(u => `
+          <button class="pill ${CRC_SELECIONADA_DASHBOARD===u.email?'ativo':''}" onclick="App.selecionarCrcDashboard('${esc(u.email)}')">${esc(u.nomeCurto||u.nomeCompleto)}</button>
+        `).join("")}
+      </div>
+    </div>
+  `;
+
+  if (!crcsAtivas.length){
+    el.innerHTML = controlesHtml + `<div class="exec-card"><p class="exec-vazio">Nenhuma CRC ativa cadastrada ainda.</p></div>`;
+    return;
+  }
+
+  const filtroCrc = r => emailsAtivos.has(r.crcEmail) && (!CRC_SELECIONADA_DASHBOARD || r.crcEmail===CRC_SELECIONADA_DASHBOARD);
+  const relatoriosFiltrados = filtrarRelatoriosPorPeriodo(RELATORIOS_MES_CACHE.filter(filtroCrc), PERIODO_DASHBOARD);
+  const oportunidadesFiltradas = OPORTUNIDADES_MES_CACHE.filter(filtroCrc);
+  const faltantesFiltrados = PACIENTES_FALTANTES_CACHE.filter(filtroCrc);
+
+  const a = calcularAnaliseExecutiva(relatoriosFiltrados, oportunidadesFiltradas, faltantesFiltrados);
+  const crcsParaCalendarioTendencia = CRC_SELECIONADA_DASHBOARD ? crcsAtivas.filter(u => u.email===CRC_SELECIONADA_DASHBOARD) : crcsAtivas;
+  const extrasHtml = renderCalendarioPreenchimento(crcsParaCalendarioTendencia) + renderGraficosTendencia(crcsParaCalendarioTendencia);
+
   if (a.semDados){
-    el.innerHTML = `<div class="exec-card"><p class="exec-vazio">Nenhum relatório enviado este mês ainda — o resumo aparece assim que a primeira CRC enviar.</p></div>`;
+    el.innerHTML = controlesHtml + `<div class="exec-card"><p class="exec-vazio">Nenhum relatório enviado neste recorte ainda.</p></div>` + extrasHtml;
     return;
   }
   const pct = v => v===null ? "—" : Math.round(v*100)+"%";
+  const periodoLabel = { dia:"hoje", semana:"últimos 7 dias", mes:"mês" }[PERIODO_DASHBOARD];
   const maiorFunil = Math.max(a.funilLeads.entraram, 1);
   const maiorAgendados = Math.max(a.comparecimento.agendados, 1);
   const maiorResgate = Math.max(a.resgate.trabalhados, 1);
 
   const funilHtml = `
     <div class="exec-card">
-      <h4>Funil de Leads (mês)</h4>
+      <h4>Funil de Leads (${periodoLabel})</h4>
       ${funilStepHtml("Entraram", a.funilLeads.entraram, maiorFunil)}
       ${funilStepHtml("Trabalhados", a.funilLeads.trabalhados, maiorFunil)}
       <div class="funil-conv">Taxa de resposta: ${pct(a.funilLeads.taxaResposta)}</div>
@@ -1208,7 +1404,7 @@ function renderDashboardExecutivo(){
 
   const comparecimentoHtml = `
     <div class="exec-card">
-      <h4>Comparecimento (mês)</h4>
+      <h4>Comparecimento (${periodoLabel})</h4>
       ${funilStepHtml("Agendados", a.comparecimento.agendados, maiorAgendados)}
       ${funilStepHtml("Compareceram", a.comparecimento.compareceram, maiorAgendados)}
       ${funilStepHtml("Faltaram", a.comparecimento.faltaram, maiorAgendados)}
@@ -1219,7 +1415,7 @@ function renderDashboardExecutivo(){
 
   const resgateHtml = `
     <div class="exec-card">
-      <h4>Resgate de leads antigos (mês)</h4>
+      <h4>Resgate de leads antigos (${periodoLabel})</h4>
       ${funilStepHtml("Trabalhados", a.resgate.trabalhados, maiorResgate)}
       ${funilStepHtml("Agendados", a.resgate.agendados, maiorResgate)}
       <div class="funil-conv">Taxa de conversão do resgate: ${pct(a.resgate.taxaConversao)}</div>
@@ -1228,7 +1424,7 @@ function renderDashboardExecutivo(){
 
   const qualidadeHtml = `
     <div class="exec-card">
-      <h4>Qualidade dos leads (mês)</h4>
+      <h4>Qualidade dos leads (${periodoLabel})</h4>
       <div class="donut-wrap">
         <div class="donut" style="${donutEstiloHtml(a.qualidade.contagem, CORES_QUALIDADE)}"></div>
         <div class="donut-legenda">${donutLegendaHtml(a.qualidade.contagem, CORES_QUALIDADE)}</div>
@@ -1242,8 +1438,8 @@ function renderDashboardExecutivo(){
 
   const objecoesHtml = `
     <div class="exec-card">
-      <h4>Principais objeções (mês)</h4>
-      ${a.objecoes.length ? a.objecoes.slice(0,6).map(o => barraHHtml(o.nome, o.qtd, a.objecoes[0].qtd)).join("") : `<p class="exec-vazio">Nenhuma objeção registrada este mês.</p>`}
+      <h4>Principais objeções (${periodoLabel})</h4>
+      ${a.objecoes.length ? a.objecoes.slice(0,6).map(o => barraHHtml(o.nome, o.qtd, a.objecoes[0].qtd)).join("") : `<p class="exec-vazio">Nenhuma objeção registrada neste recorte.</p>`}
     </div>
   `;
 
@@ -1275,13 +1471,13 @@ function renderDashboardExecutivo(){
     </div>
   `;
 
-  el.innerHTML = `<div class="exec-grid">${funilHtml}${comparecimentoHtml}${resgateHtml}${qualidadeHtml}${objecoesHtml}${oportunidadesHtml}${faltantesHtml}</div>`;
+  el.innerHTML = controlesHtml + `<div class="exec-grid">${funilHtml}${comparecimentoHtml}${resgateHtml}${qualidadeHtml}${objecoesHtml}${oportunidadesHtml}${faltantesHtml}</div>` + extrasHtml;
 }
 
 function renderMetasAdmin(){
   const el = document.getElementById("metas-admin");
   if (!el) return;
-  const crcs = USUARIOS_CACHE.filter(u => u.perfil === "CRC");
+  const crcs = USUARIOS_CACHE.filter(u => u.perfil === "CRC" && u.ativo !== false);
   if (!crcs.length){
     el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
     return;
@@ -1289,18 +1485,24 @@ function renderMetasAdmin(){
   el.innerHTML = crcs.map(u => {
     const registro = METAS_CACHE.find(m => m.crcEmail === u.email);
     const metaInfo = calcularMeta(u.email);
+    const emEdicao = !registro || METAS_EDITANDO.has(u.email);
     return `
       <div class="meta-card">
         <div class="meta-card-head">
           <strong>${esc(u.nomeCurto || u.nomeCompleto)}</strong>
           ${metaInfo ? `<span class="meta-nivel-badge nivel-${metaInfo.nivelAtingido}">${metaInfo.nivelAtingido>0 ? metaInfo.nivelLabel+" batida" : "Nenhum nível ainda"}</span>` : ""}
         </div>
-        <div class="meta-inputs">
-          <div class="field"><label>🥉 Meta</label><input type="number" min="0" id="f-meta-${esc(u.email)}" value="${registro ? registro.metaAgendamentos : ""}"></div>
-          <div class="field"><label>🥈 Mega Meta</label><input type="number" min="0" id="f-mega-${esc(u.email)}" value="${registro ? registro.metaMegaAgendamentos : ""}"></div>
-          <div class="field"><label>🥇 Super Meta</label><input type="number" min="0" id="f-super-${esc(u.email)}" value="${registro ? registro.metaSuperAgendamentos : ""}"></div>
-          <button class="btn small primary" onclick="App.salvarMetaCRC('${esc(u.email)}')">Salvar</button>
-        </div>
+        ${emEdicao ? `
+          <div class="meta-inputs">
+            <div class="field"><label>🥉 Meta</label><input type="number" min="0" id="f-meta-${esc(u.email)}" value="${registro ? registro.metaAgendamentos : ""}"></div>
+            <div class="field"><label>🥈 Mega Meta</label><input type="number" min="0" id="f-mega-${esc(u.email)}" value="${registro ? registro.metaMegaAgendamentos : ""}"></div>
+            <div class="field"><label>🥇 Super Meta</label><input type="number" min="0" id="f-super-${esc(u.email)}" value="${registro ? registro.metaSuperAgendamentos : ""}"></div>
+            <button class="btn small primary" onclick="App.salvarMetaCRC('${esc(u.email)}')">Salvar</button>
+          </div>
+        ` : `
+          <p style="font-size:13px;margin:2px 0 10px;">🥉 Meta: <strong>${registro.metaAgendamentos}</strong> · 🥈 Mega Meta: <strong>${registro.metaMegaAgendamentos}</strong> · 🥇 Super Meta: <strong>${registro.metaSuperAgendamentos}</strong></p>
+          <button class="btn small outline" onclick="App.alternarEdicaoMeta('${esc(u.email)}')">Alterar</button>
+        `}
         ${metaInfo ? `
           <div class="meta-preview-bar" style="margin:18px 0 20px;">
             <div class="meta-preview-fill nivel-${metaInfo.nivelAtingido}" style="width:${metaInfo.percentual}%;"></div>
@@ -1313,6 +1515,11 @@ function renderMetasAdmin(){
       </div>
     `;
   }).join("");
+}
+
+function alternarEdicaoMeta(crcEmail){
+  METAS_EDITANDO.add(crcEmail);
+  renderMetasAdmin();
 }
 
 async function salvarMetaCRC(crcEmail){
@@ -1332,6 +1539,7 @@ async function salvarMetaCRC(crcEmail){
     if (!data.ok){ toast(data.error || "Não foi possível salvar a meta."); return; }
     const idx = METAS_CACHE.findIndex(m => m.crcEmail === crcEmail);
     if (idx !== -1) METAS_CACHE[idx] = data.meta; else METAS_CACHE.push(data.meta);
+    METAS_EDITANDO.delete(crcEmail);
     toast("Metas salvas.");
     renderMetasAdmin();
   } catch(err){
@@ -1735,7 +1943,8 @@ window.App = {
   abrirReativacao, atualizarFiltroReativacao, selecionarNovoStatus,
   cancelarMotivo, confirmarMotivo, registrarTentativa,
   cancelarRemocao, confirmarRemocao, alternarDetalheIECRC,
-  alternarDetalheMeta, salvarMetaCRC, alternarAtivoUsuario
+  alternarDetalheMeta, salvarMetaCRC, alternarAtivoUsuario,
+  alternarEdicaoMeta, alternarPeriodoDashboard, selecionarCrcDashboard
 };
 
 init();
