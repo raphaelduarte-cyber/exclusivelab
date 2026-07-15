@@ -130,6 +130,19 @@ h1,h2,h3,h4{margin:0;}
 .meta-marcador-label{position:absolute; top:15px; font-size:9.5px; color:var(--text-light); white-space:nowrap; transform:translateX(-50%);}
 .meta-msg{font-size:12.5px; color:var(--text-light);}
 
+/* ---------- IEC — ÍNDICE DE EFETIVIDADE DA CRC ---------- */
+.alerta-chip{border-left:4px solid var(--text-light); background:var(--bg-alt); border-radius:8px; padding:8px 12px; margin-bottom:8px;}
+.alerta-chip strong{font-size:12.5px; display:block; margin-bottom:2px;}
+.alerta-chip p{font-size:12px; color:var(--text-light); margin:0;}
+.alerta-chip.nivel-verde{border-left-color:var(--green);}
+.alerta-chip.nivel-amarelo{border-left-color:var(--orange);}
+.alerta-chip.nivel-vermelho{border-left-color:var(--red);}
+.alerta-equipe-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px;}
+.alerta-equipe-item{background:var(--bg-alt); border-radius:10px; padding:10px 12px; font-size:12px;}
+.alerta-equipe-item .lbl-item{display:block; color:var(--text-light); font-size:10.5px; text-transform:uppercase; margin-bottom:4px;}
+.alerta-equipe-item strong{font-size:13.5px; color:var(--graphite);}
+.alerta-equipe-item .v{margin-left:6px; color:var(--text-light);}
+
 /* ---------- DASHBOARD EXECUTIVO ---------- */
 .exec-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; margin-bottom:16px;}
 .exec-card{background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow);}
@@ -253,8 +266,14 @@ h1,h2,h3,h4{margin:0;}
       <div id="dashboard-executivo"></div>
 
       <div class="form-card" style="margin-top:20px;">
-        <div class="section-title">Ranking — IE-CRC do mês</div>
+        <div class="section-title">Ranking — IEC (Índice de Efetividade da CRC)</div>
+        <p style="font-size:12px;color:var(--text-light);margin:-6px 0 14px;">O trabalho da CRC não termina quando o paciente agenda. O trabalho termina quando o paciente comparece à clínica.</p>
         <div id="ranking-admin"></div>
+      </div>
+
+      <div class="form-card" style="margin-top:20px;">
+        <div class="section-title">Alertas da Equipe</div>
+        <div id="alertas-equipe"></div>
       </div>
 
       <div class="form-card" style="margin-top:20px;">
@@ -329,25 +348,42 @@ const PACIENTES_FALTANTES_EXEMPLO = [
     data:"2026-07-10", status:"Não deseja reagendar", tentativasContato:3, ultimoContato:"2026-07-11", observacao:"Mudou de cidade" }
 ];
 
-// Relatórios de exemplo do mês, só para o modo de teste local — alimenta o cálculo do IE-CRC e o Dashboard Executivo na demonstração.
+// Relatórios de exemplo do mês, só para o modo de teste local — alimenta o cálculo do IE-CRC, o Dashboard Executivo e o IEC na demonstração.
+// 4 perfis propositais (mesmo vocabulário do pedido do IEC): Larissa agenda muito e comparece muito (excelente);
+// Suzani agenda muito mas comparece pouco (agenda cheia, baixa presença); Camila tem boa taxa mas baixo volume
+// (fora da disputa do ranking mensal); Débora agenda pouco e comparece pouco (baixa produção).
 const RELATORIOS_MES_EXEMPLO = [
-  { crcEmail:"larissa@teste.com", data:"2026-07-05", leadsEntraram:80, leadsTrabalhados:30, leadsAgendados:6, leadsRetornoContato:14, leadsSemInteresse:4, leadsSemRetorno:10, pacientesAgendadosDia:6, compareceram:4, faltaram:1, reagendaram:1, semRetornoConfirmacao:0, resgateTrabalhados:5, resgateAgendados:2, resgateRetornoComunicacao:2, resgateSemInteresse:1, resgateSemRetorno:0, principalObjecao:"Preço", qualidadeLead:"Bom", motivoQualidadeLead:"" },
-  { crcEmail:"larissa@teste.com", data:"2026-07-12", leadsEntraram:90, leadsTrabalhados:35, leadsAgendados:7, leadsRetornoContato:15, leadsSemInteresse:8, leadsSemRetorno:12, pacientesAgendadosDia:7, compareceram:5, faltaram:1, reagendaram:1, semRetornoConfirmacao:0, resgateTrabalhados:4, resgateAgendados:1, resgateRetornoComunicacao:1, resgateSemInteresse:1, resgateSemRetorno:1, principalObjecao:"Vai pensar", qualidadeLead:"Ruim", motivoQualidadeLead:"" },
-  { crcEmail:"larissa@teste.com", data:"2026-07-13", leadsEntraram:70, leadsTrabalhados:28, leadsAgendados:5, leadsRetornoContato:10, leadsSemInteresse:9, leadsSemRetorno:9, pacientesAgendadosDia:5, compareceram:3, faltaram:2, reagendaram:0, semRetornoConfirmacao:0, resgateTrabalhados:3, resgateAgendados:1, resgateRetornoComunicacao:1, resgateSemInteresse:0, resgateSemRetorno:1, principalObjecao:"Preço", qualidadeLead:"Péssimo", motivoQualidadeLead:"Números errados, muito lead sem telefone válido" },
-  { crcEmail:"suzani@teste.com", data:"2026-07-06", leadsEntraram:60, leadsTrabalhados:26, leadsAgendados:4, leadsRetornoContato:12, leadsSemInteresse:6, leadsSemRetorno:8, pacientesAgendadosDia:4, compareceram:3, faltaram:1, reagendaram:0, semRetornoConfirmacao:0, resgateTrabalhados:3, resgateAgendados:1, resgateRetornoComunicacao:1, resgateSemInteresse:0, resgateSemRetorno:1, principalObjecao:"Sem interesse", qualidadeLead:"Bom", motivoQualidadeLead:"" }
+  { crcEmail:"larissa@teste.com", data:"2026-07-02", leadsEntraram:80, leadsTrabalhados:30, leadsAgendados:7, leadsRetornoContato:14, leadsSemInteresse:4, leadsSemRetorno:10, pacientesAgendadosDia:7, compareceram:6, faltaram:1, reagendaram:0, semRetornoConfirmacao:0, resgateTrabalhados:5, resgateAgendados:2, resgateRetornoComunicacao:2, resgateSemInteresse:1, resgateSemRetorno:0, principalObjecao:"Preço", qualidadeLead:"Bom", motivoQualidadeLead:"" },
+  { crcEmail:"larissa@teste.com", data:"2026-07-06", leadsEntraram:90, leadsTrabalhados:35, leadsAgendados:7, leadsRetornoContato:15, leadsSemInteresse:8, leadsSemRetorno:12, pacientesAgendadosDia:7, compareceram:6, faltaram:1, reagendaram:0, semRetornoConfirmacao:0, resgateTrabalhados:4, resgateAgendados:1, resgateRetornoComunicacao:1, resgateSemInteresse:1, resgateSemRetorno:1, principalObjecao:"Vai pensar", qualidadeLead:"Bom", motivoQualidadeLead:"" },
+  { crcEmail:"larissa@teste.com", data:"2026-07-09", leadsEntraram:70, leadsTrabalhados:28, leadsAgendados:7, leadsRetornoContato:10, leadsSemInteresse:9, leadsSemRetorno:9, pacientesAgendadosDia:7, compareceram:6, faltaram:0, reagendaram:1, semRetornoConfirmacao:0, resgateTrabalhados:3, resgateAgendados:1, resgateRetornoComunicacao:1, resgateSemInteresse:0, resgateSemRetorno:1, principalObjecao:"Preço", qualidadeLead:"Bom", motivoQualidadeLead:"" },
+  { crcEmail:"larissa@teste.com", data:"2026-07-13", leadsEntraram:75, leadsTrabalhados:29, leadsAgendados:7, leadsRetornoContato:11, leadsSemInteresse:7, leadsSemRetorno:9, pacientesAgendadosDia:7, compareceram:6, faltaram:1, reagendaram:0, semRetornoConfirmacao:0, resgateTrabalhados:3, resgateAgendados:1, resgateRetornoComunicacao:1, resgateSemInteresse:1, resgateSemRetorno:0, principalObjecao:"Sem tempo", qualidadeLead:"Bom", motivoQualidadeLead:"" },
+  { crcEmail:"larissa@teste.com", data:"2026-07-14", leadsEntraram:65, leadsTrabalhados:25, leadsAgendados:6, leadsRetornoContato:9, leadsSemInteresse:6, leadsSemRetorno:8, pacientesAgendadosDia:6, compareceram:6, faltaram:0, reagendaram:0, semRetornoConfirmacao:0, resgateTrabalhados:2, resgateAgendados:1, resgateRetornoComunicacao:1, resgateSemInteresse:0, resgateSemRetorno:0, principalObjecao:"Vai pensar", qualidadeLead:"Bom", motivoQualidadeLead:"" },
+
+  { crcEmail:"suzani@teste.com", data:"2026-07-03", leadsEntraram:70, leadsTrabalhados:28, leadsAgendados:7, leadsRetornoContato:10, leadsSemInteresse:8, leadsSemRetorno:9, pacientesAgendadosDia:7, compareceram:3, faltaram:3, reagendaram:1, semRetornoConfirmacao:0, resgateTrabalhados:3, resgateAgendados:1, resgateRetornoComunicacao:1, resgateSemInteresse:1, resgateSemRetorno:0, principalObjecao:"Sem interesse", qualidadeLead:"Ruim", motivoQualidadeLead:"" },
+  { crcEmail:"suzani@teste.com", data:"2026-07-07", leadsEntraram:65, leadsTrabalhados:27, leadsAgendados:6, leadsRetornoContato:9, leadsSemInteresse:9, leadsSemRetorno:9, pacientesAgendadosDia:6, compareceram:3, faltaram:3, reagendaram:0, semRetornoConfirmacao:0, resgateTrabalhados:2, resgateAgendados:0, resgateRetornoComunicacao:0, resgateSemInteresse:1, resgateSemRetorno:1, principalObjecao:"Preço", qualidadeLead:"Ruim", motivoQualidadeLead:"Muitos leads sem telefone válido" },
+  { crcEmail:"suzani@teste.com", data:"2026-07-10", leadsEntraram:60, leadsTrabalhados:24, leadsAgendados:6, leadsRetornoContato:8, leadsSemInteresse:8, leadsSemRetorno:8, pacientesAgendadosDia:6, compareceram:3, faltaram:2, reagendaram:1, semRetornoConfirmacao:0, resgateTrabalhados:2, resgateAgendados:0, resgateRetornoComunicacao:0, resgateSemInteresse:1, resgateSemRetorno:1, principalObjecao:"Sem interesse", qualidadeLead:"Péssimo", motivoQualidadeLead:"Agendou sem confirmar interesse real" },
+  { crcEmail:"suzani@teste.com", data:"2026-07-13", leadsEntraram:68, leadsTrabalhados:26, leadsAgendados:6, leadsRetornoContato:9, leadsSemInteresse:8, leadsSemRetorno:8, pacientesAgendadosDia:6, compareceram:3, faltaram:3, reagendaram:0, semRetornoConfirmacao:0, resgateTrabalhados:2, resgateAgendados:0, resgateRetornoComunicacao:0, resgateSemInteresse:1, resgateSemRetorno:1, principalObjecao:"Sem interesse", qualidadeLead:"Ruim", motivoQualidadeLead:"" },
+  { crcEmail:"suzani@teste.com", data:"2026-07-14", leadsEntraram:62, leadsTrabalhados:25, leadsAgendados:7, leadsRetornoContato:8, leadsSemInteresse:8, leadsSemRetorno:9, pacientesAgendadosDia:7, compareceram:3, faltaram:3, reagendaram:1, semRetornoConfirmacao:0, resgateTrabalhados:2, resgateAgendados:0, resgateRetornoComunicacao:0, resgateSemInteresse:1, resgateSemRetorno:1, principalObjecao:"Preço", qualidadeLead:"Ruim", motivoQualidadeLead:"" },
+
+  { crcEmail:"camila@teste.com", data:"2026-07-05", leadsEntraram:20, leadsTrabalhados:10, leadsAgendados:5, leadsRetornoContato:4, leadsSemInteresse:2, leadsSemRetorno:3, pacientesAgendadosDia:5, compareceram:5, faltaram:0, reagendaram:0, semRetornoConfirmacao:0, resgateTrabalhados:1, resgateAgendados:1, resgateRetornoComunicacao:1, resgateSemInteresse:0, resgateSemRetorno:0, principalObjecao:"Outro", qualidadeLead:"Bom", motivoQualidadeLead:"" },
+  { crcEmail:"camila@teste.com", data:"2026-07-12", leadsEntraram:18, leadsTrabalhados:9, leadsAgendados:5, leadsRetornoContato:3, leadsSemInteresse:2, leadsSemRetorno:3, pacientesAgendadosDia:5, compareceram:4, faltaram:1, reagendaram:0, semRetornoConfirmacao:0, resgateTrabalhados:1, resgateAgendados:0, resgateRetornoComunicacao:0, resgateSemInteresse:0, resgateSemRetorno:1, principalObjecao:"Sem tempo", qualidadeLead:"Bom", motivoQualidadeLead:"" },
+
+  { crcEmail:"debora@teste.com", data:"2026-07-04", leadsEntraram:15, leadsTrabalhados:6, leadsAgendados:4, leadsRetornoContato:2, leadsSemInteresse:3, leadsSemRetorno:2, pacientesAgendadosDia:4, compareceram:2, faltaram:2, reagendaram:0, semRetornoConfirmacao:0, resgateTrabalhados:1, resgateAgendados:0, resgateRetornoComunicacao:0, resgateSemInteresse:1, resgateSemRetorno:0, principalObjecao:"Sem resposta", qualidadeLead:"Ruim", motivoQualidadeLead:"" },
+  { crcEmail:"debora@teste.com", data:"2026-07-11", leadsEntraram:12, leadsTrabalhados:5, leadsAgendados:4, leadsRetornoContato:2, leadsSemInteresse:2, leadsSemRetorno:2, pacientesAgendadosDia:4, compareceram:1, faltaram:3, reagendaram:0, semRetornoConfirmacao:0, resgateTrabalhados:0, resgateAgendados:0, resgateRetornoComunicacao:0, resgateSemInteresse:0, resgateSemRetorno:0, principalObjecao:"Sem resposta", qualidadeLead:"Péssimo", motivoQualidadeLead:"Leads muito frios, sem retorno" }
 ];
 
-// Histórico de exemplo (últimos meses), só para o modo de teste local — alimenta os gráficos de linha mês a mês do Dashboard Executivo.
+// Histórico de exemplo (últimos meses), só para o modo de teste local — alimenta os gráficos de linha mês a mês e a comparação com o período anterior.
+// Junho: Larissa já vinha bem (evolução positiva); Suzani vinha melhor que agora (queda relevante — dispara o alerta "Queda de desempenho").
 const RELATORIOS_HISTORICO_EXEMPLO = [
   ...RELATORIOS_MES_EXEMPLO,
-  { crcEmail:"larissa@teste.com", data:"2026-06-10", leadsAgendados:5, compareceram:3 },
-  { crcEmail:"larissa@teste.com", data:"2026-06-20", leadsAgendados:4, compareceram:4 },
-  { crcEmail:"larissa@teste.com", data:"2026-05-15", leadsAgendados:6, compareceram:3 },
-  { crcEmail:"larissa@teste.com", data:"2026-04-15", leadsAgendados:3, compareceram:2 },
-  { crcEmail:"suzani@teste.com", data:"2026-06-08", leadsAgendados:3, compareceram:2 },
-  { crcEmail:"suzani@teste.com", data:"2026-06-22", leadsAgendados:3, compareceram:3 },
-  { crcEmail:"suzani@teste.com", data:"2026-05-12", leadsAgendados:2, compareceram:1 },
-  { crcEmail:"suzani@teste.com", data:"2026-04-18", leadsAgendados:4, compareceram:2 }
+  { crcEmail:"larissa@teste.com", data:"2026-06-10", leadsAgendados:6, pacientesAgendadosDia:6, compareceram:5, faltaram:1 },
+  { crcEmail:"larissa@teste.com", data:"2026-06-20", leadsAgendados:6, pacientesAgendadosDia:6, compareceram:5, faltaram:1 },
+  { crcEmail:"larissa@teste.com", data:"2026-05-15", leadsAgendados:5, pacientesAgendadosDia:5, compareceram:4, faltaram:1 },
+  { crcEmail:"larissa@teste.com", data:"2026-04-15", leadsAgendados:4, pacientesAgendadosDia:4, compareceram:3, faltaram:1 },
+  { crcEmail:"suzani@teste.com", data:"2026-06-08", leadsAgendados:6, pacientesAgendadosDia:10, compareceram:8, faltaram:2 },
+  { crcEmail:"suzani@teste.com", data:"2026-06-22", leadsAgendados:6, pacientesAgendadosDia:10, compareceram:7, faltaram:3 },
+  { crcEmail:"suzani@teste.com", data:"2026-05-12", leadsAgendados:5, pacientesAgendadosDia:8, compareceram:6, faltaram:2 },
+  { crcEmail:"suzani@teste.com", data:"2026-04-18", leadsAgendados:5, pacientesAgendadosDia:8, compareceram:6, faltaram:2 }
 ];
 
 // Oportunidades de exemplo do mês, só para o modo de teste local — alimenta o Dashboard Executivo (temperatura, procedimentos, oportunidades quentes sem ação).
@@ -358,19 +394,33 @@ const OPORTUNIDADES_MES_EXEMPLO = [
   { crcEmail:"suzani@teste.com", crcNome:"Suzani", paciente:"Igor Nunes", telefone:"81997774444", procedimento:"Implante Unitário", temperatura:"Morno", proximaAcao:"WhatsApp" }
 ];
 
-// Metas de exemplo (3 níveis), só para o modo de teste local.
+// Metas de exemplo (3 níveis de agendamento + meta de comparecimentos), só para o modo de teste local.
 const METAS_EXEMPLO = [
-  { crcEmail:"larissa@teste.com", anoMes:"2026-07", metaAgendamentos:15, metaMegaAgendamentos:20, metaSuperAgendamentos:25 }
+  { crcEmail:"larissa@teste.com", anoMes:"2026-07", metaAgendamentos:20, metaMegaAgendamentos:28, metaSuperAgendamentos:35, metaComparecimentos:28 },
+  { crcEmail:"suzani@teste.com", anoMes:"2026-07", metaAgendamentos:20, metaMegaAgendamentos:28, metaSuperAgendamentos:35, metaComparecimentos:25 },
+  { crcEmail:"camila@teste.com", anoMes:"2026-07", metaAgendamentos:20, metaMegaAgendamentos:28, metaSuperAgendamentos:35, metaComparecimentos:8 },
+  { crcEmail:"debora@teste.com", anoMes:"2026-07", metaAgendamentos:20, metaMegaAgendamentos:28, metaSuperAgendamentos:35, metaComparecimentos:10 }
 ];
 
 // Usuários de exemplo, só para o modo de teste local — sem isso as telas de Ranking/Metas/Dashboard Executivo do admin ficam vazias na demonstração.
 const USUARIOS_EXEMPLO = [
   { id:"usr-larissa", nomeCompleto:"Larissa", nomeCurto:"Larissa", email:"larissa@teste.com", perfil:"CRC", ativo:true },
   { id:"usr-suzani", nomeCompleto:"Suzani", nomeCurto:"Suzani", email:"suzani@teste.com", perfil:"CRC", ativo:true },
+  { id:"usr-camila", nomeCompleto:"Camila", nomeCurto:"Camila", email:"camila@teste.com", perfil:"CRC", ativo:true },
+  { id:"usr-debora", nomeCompleto:"Débora", nomeCurto:"Débora", email:"debora@teste.com", perfil:"CRC", ativo:true },
   { id:"usr-raphael", nomeCompleto:"Raphael", nomeCurto:"Raphael", email:"raphael@teste.com", perfil:"Administrador", ativo:true }
 ];
 
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+/** Data de hoje no fuso local, formato 'yyyy-MM-dd' — nunca usar toISOString() pra isso (é UTC e vira o dia seguinte à noite no fuso do Brasil). */
+function dataLocalISO(d){
+  d = d || new Date();
+  const ano = d.getFullYear();
+  const mes = String(d.getMonth()+1).padStart(2,"0");
+  const dia = String(d.getDate()).padStart(2,"0");
+  return `${ano}-${mes}-${dia}`;
+}
 
 function toast(msg){
   const el = document.createElement("div");
@@ -434,7 +484,7 @@ const Api = {
   },
   async salvarMeta(idToken, crcEmail, metas){
     if (!CONFIG.API_URL){
-      const meta = { crcEmail, anoMes: new Date().toISOString().slice(0,7), metaAgendamentos: Number(metas.meta)||0, metaMegaAgendamentos: Number(metas.mega)||0, metaSuperAgendamentos: Number(metas.super)||0 };
+      const meta = { crcEmail, anoMes: dataLocalISO().slice(0,7), metaAgendamentos: Number(metas.meta)||0, metaMegaAgendamentos: Number(metas.mega)||0, metaSuperAgendamentos: Number(metas.super)||0, metaComparecimentos: Number(metas.comparecimentos)||0 };
       return { ok:true, meta };
     }
     const resp = await fetch(CONFIG.API_URL, {
@@ -643,40 +693,398 @@ function mostrarView(nome){
   if (nome==="dashboard") renderDashboard();
   if (nome==="relatorio") renderFormularioRelatorio();
   if (nome==="reativacao") renderReativacao();
-  if (nome==="admin"){ renderDashboardExecutivo(); renderUsuariosLista(); renderResumoFaltantesPorCRC(); renderRankingAdmin(); renderMetasAdmin(); }
+  if (nome==="admin"){ renderDashboardExecutivo(); renderUsuariosLista(); renderResumoFaltantesPorCRC(); renderRankingAdmin(); renderAlertasEquipe(); renderMetasAdmin(); }
 }
 
-/** Ranking das CRCs pelo IE-CRC do mês atual — maior pontuação primeiro; quem ainda não tem relatório no mês fica por último. */
-function calcularRankingCRCs(){
-  const crcs = USUARIOS_CACHE.filter(u => u.perfil === "CRC" && u.ativo !== false);
-  const ranking = crcs.map(u => {
-    const relatorios = RELATORIOS_MES_CACHE.filter(r => r.crcEmail === u.email);
-    const ie = calcularIECRC(relatorios);
-    return { email: u.email, nome: u.nomeCurto || u.nomeCompleto, total: ie.semDados ? -1 : ie.total, semDados: ie.semDados };
+/* =========================================================================
+   IEC — ÍNDICE DE EFETIVIDADE DA CRC
+   "O trabalho da CRC não termina quando o paciente agenda. O trabalho
+   termina quando o paciente comparece à clínica." Substitui o ranking por
+   IE-CRC (produtividade) como critério principal de ranking — o IE-CRC
+   continua existindo (calcularIECRC, acima) só como detalhamento secundário
+   dentro da tela da própria CRC.
+   ========================================================================= */
+
+// Limites do IEC — valores iniciais, ficam editáveis pelo gestor numa
+// próxima rodada (arquitetura já isolada aqui, sem refatorar depois).
+const IEC_LIMITES = {
+  comparecimentoSaudavel: 75,        // % — piso do alerta verde
+  comparecimentoAmareloMin: 65,      // %
+  comparecimentoAmareloMax: 74.99,   // %
+  minAgendamentosRanking: 30,        // só vale pro recorte Mensal
+  minAtingimentoMetaRanking: 70,     // % da meta de agendamentos
+  quedaIECRelevante: 10,             // pontos, vs período anterior
+  quedaComparecimentosRelevante: 20, // %, vs período anterior
+  aumentoFaltasRelevante: 20,        // %, vs período anterior
+  limiteFaltasAltoVolume: 10,        // nº de faltas no período
+  desvioAmareloEquipe: 5,            // p.p. abaixo da média da equipe
+  desvioVermelhoEquipe: 10           // p.p. abaixo da média da equipe
+};
+
+function classificarIEC(iec){
+  if (iec>=90) return { label:"Excelente", cor:"var(--green)" };
+  if (iec>=80) return { label:"Alta performance", cor:"var(--blue)" };
+  if (iec>=70) return { label:"Bom desempenho", cor:"var(--gold-dark)" };
+  if (iec>=60) return { label:"Atenção", cor:"var(--orange)" };
+  return { label:"Desempenho crítico", cor:"var(--red)" };
+}
+
+/** IEC = 70% taxa de comparecimento + 30% atingimento da meta de comparecimentos (capado em 100%). */
+function calcularIEC(relatorios, metaComparecimentos){
+  if (!relatorios || !relatorios.length) return { semDados:true, iec:null };
+  const s = { pacientesAgendadosDia:0, compareceram:0, faltaram:0, reagendaram:0, leadsAgendados:0 };
+  relatorios.forEach(r => { Object.keys(s).forEach(k => { s[k] += Number(r[k])||0; }); });
+  const taxaComparecimento = s.pacientesAgendadosDia>0 ? s.compareceram/s.pacientesAgendadosDia : null;
+  const meta = Number(metaComparecimentos)||0;
+  const semMetaComparecimento = meta<=0;
+  const atingimentoMetaComparecimento = semMetaComparecimento ? 0 : Math.min(1, s.compareceram/meta);
+  const iec = Math.round(((taxaComparecimento||0)*70) + (atingimentoMetaComparecimento*30));
+  const agendamentosDesperdicados = Math.max(0, s.pacientesAgendadosDia - s.compareceram);
+  const taxaDesperdicio = s.pacientesAgendadosDia>0 ? agendamentosDesperdicados/s.pacientesAgendadosDia : null;
+  const taxaFaltas = s.pacientesAgendadosDia>0 ? s.faltaram/s.pacientesAgendadosDia : null;
+  return {
+    semDados:false, iec, semMetaComparecimento, metaComparecimentos:meta,
+    taxaComparecimento, atingimentoMetaComparecimento,
+    agendados: s.pacientesAgendadosDia, compareceram: s.compareceram, faltaram: s.faltaram, reagendaram: s.reagendaram,
+    leadsAgendados: s.leadsAgendados, agendamentosDesperdicados, taxaDesperdicio, taxaFaltas,
+    classificacao: classificarIEC(iec)
+  };
+}
+
+/** Início/fim do período escolhido e do período imediatamente anterior (pra comparação). */
+function limitesPeriodo(periodo){
+  const iso = d => dataLocalISO(d);
+  const hoje = new Date();
+  let inicioAtual, inicioAnterior, fimAnterior;
+  if (periodo==="dia"){
+    inicioAtual = new Date(hoje);
+    fimAnterior = new Date(hoje); fimAnterior.setDate(fimAnterior.getDate()-1);
+    inicioAnterior = new Date(fimAnterior);
+  } else if (periodo==="semana"){
+    inicioAtual = new Date(hoje); inicioAtual.setDate(inicioAtual.getDate()-6);
+    fimAnterior = new Date(inicioAtual); fimAnterior.setDate(fimAnterior.getDate()-1);
+    inicioAnterior = new Date(fimAnterior); inicioAnterior.setDate(inicioAnterior.getDate()-6);
+  } else {
+    inicioAtual = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    fimAnterior = new Date(inicioAtual); fimAnterior.setDate(fimAnterior.getDate()-1);
+    inicioAnterior = new Date(fimAnterior.getFullYear(), fimAnterior.getMonth(), 1);
+  }
+  return { inicioAtual: iso(inicioAtual), fimAtual: iso(hoje), inicioAnterior: iso(inicioAnterior), fimAnterior: iso(fimAnterior) };
+}
+
+function somarPeriodo(lista, crcEmail, inicio, fim){
+  return lista.filter(r => r.crcEmail===crcEmail && r.data>=inicio && r.data<=fim);
+}
+
+/** Só vale mínimo de 30 agendamentos + 70% da meta pro recorte Mensal — diário/semanal nunca bateriam esse volume. */
+function elegivelRanking(leadsAgendados, atingimentoMetaAgendamentos, periodo){
+  if (periodo!=="mes") return true;
+  return leadsAgendados>=IEC_LIMITES.minAgendamentosRanking && atingimentoMetaAgendamentos*100>=IEC_LIMITES.minAtingimentoMetaRanking;
+}
+
+/** Ranking pelo IEC (comparecimento real), não pelo IE-CRC de produtividade. Devolve elegíveis (ordenados, disputam o pódio) e não-elegíveis (mostram números, fora da disputa). */
+function calcularRankingIEC(crcsAtivas, periodo){
+  const { inicioAtual, fimAtual, inicioAnterior, fimAnterior } = limitesPeriodo(periodo);
+  const linhas = crcsAtivas.map(u => {
+    const relatoriosAtual = somarPeriodo(RELATORIOS_HISTORICO_CACHE, u.email, inicioAtual, fimAtual);
+    const relatoriosAnterior = somarPeriodo(RELATORIOS_HISTORICO_CACHE, u.email, inicioAnterior, fimAnterior);
+    const registro = METAS_CACHE.find(m => m.crcEmail===u.email);
+    const metaComparecimentos = registro ? registro.metaComparecimentos : 0;
+    const metaAgendamentos = registro ? registro.metaAgendamentos : 0;
+    const iecInfo = calcularIEC(relatoriosAtual, metaComparecimentos);
+    const iecAnterior = calcularIEC(relatoriosAnterior, metaComparecimentos);
+    const leadsAgendados = relatoriosAtual.reduce((s,r) => s+(Number(r.leadsAgendados)||0), 0);
+    const atingimentoMetaAgendamentos = metaAgendamentos>0 ? leadsAgendados/metaAgendamentos : 0;
+    const elegivel = elegivelRanking(leadsAgendados, atingimentoMetaAgendamentos, periodo);
+    return { email:u.email, nome:u.nomeCurto||u.nomeCompleto, iecInfo, iecAnterior, leadsAgendados, atingimentoMetaAgendamentos, elegivel };
   });
-  ranking.sort((a,b) => b.total - a.total);
-  return ranking;
+  const desempate = (a,b) => {
+    if ((b.iecInfo.iec||0) !== (a.iecInfo.iec||0)) return (b.iecInfo.iec||0)-(a.iecInfo.iec||0);
+    if (b.iecInfo.compareceram !== a.iecInfo.compareceram) return b.iecInfo.compareceram-a.iecInfo.compareceram;
+    if ((b.iecInfo.taxaComparecimento||0) !== (a.iecInfo.taxaComparecimento||0)) return (b.iecInfo.taxaComparecimento||0)-(a.iecInfo.taxaComparecimento||0);
+    if ((a.iecInfo.taxaFaltas||0) !== (b.iecInfo.taxaFaltas||0)) return (a.iecInfo.taxaFaltas||0)-(b.iecInfo.taxaFaltas||0);
+    if (b.iecInfo.atingimentoMetaComparecimento !== a.iecInfo.atingimentoMetaComparecimento) return b.iecInfo.atingimentoMetaComparecimento-a.iecInfo.atingimentoMetaComparecimento;
+    return a.iecInfo.agendamentosDesperdicados-b.iecInfo.agendamentosDesperdicados;
+  };
+  const elegiveis = linhas.filter(l => l.elegivel && !l.iecInfo.semDados).sort(desempate);
+  const naoElegiveis = linhas.filter(l => !l.elegivel || l.iecInfo.semDados).sort(desempate);
+  return { elegiveis, naoElegiveis };
+}
+
+/** Média da equipe (taxa de comparecimento/agendamentos/faltas) — base pros alertas de desvio. */
+function calcularContextoEquipe(linhas){
+  const validos = linhas.filter(l => !l.iecInfo.semDados);
+  const media = fn => validos.length ? validos.reduce((s,l) => s+fn(l), 0)/validos.length : null;
+  return {
+    mediaTaxaComparecimento: media(l => l.iecInfo.taxaComparecimento||0),
+    mediaAgendamentos: media(l => l.iecInfo.agendados||0),
+    mediaTaxaFaltas: media(l => l.iecInfo.taxaFaltas||0)
+  };
+}
+
+const NIVEL_TEXTOS_IEC = {
+  verde: { titulo:"Desempenho saudável", mensagem:"Desempenho saudável: bom equilíbrio entre volume de agendamentos e comparecimentos." },
+  amarelo: { titulo:"Atenção", mensagem:"Atenção: a taxa de comparecimento está abaixo do ideal. Revisar confirmação, abordagem e vínculo com o paciente." },
+  vermelho: { titulo:"Crítico", mensagem:"Crítico: existe alto volume de agendamentos, mas baixo comparecimento. A agenda está sendo ocupada sem gerar presença real." }
+};
+
+/** Alertas de uma CRC no período — nível base (verde/amarelo/vermelho) + alertas situacionais que podem empilhar em cima. */
+function calcularAlertasCRC(linha, contexto){
+  const info = linha.iecInfo, anterior = linha.iecAnterior;
+  if (info.semDados) return [];
+  const alertas = [];
+  const taxa = (info.taxaComparecimento||0)*100;
+  const atingimentoAgendamentos = linha.atingimentoMetaAgendamentos*100;
+  const atingimentoComparecimento = info.atingimentoMetaComparecimento*100;
+  const mediaTaxaPct = contexto.mediaTaxaComparecimento!==null ? contexto.mediaTaxaComparecimento*100 : null;
+  const desvioEquipe = mediaTaxaPct!==null ? taxa-mediaTaxaPct : null;
+  const faltasAnterior = anterior.semDados ? 0 : anterior.faltaram;
+  const aumentoFaltasPct = faltasAnterior>0 ? ((info.faltaram-faltasAnterior)/faltasAnterior)*100 : (info.faltaram>0 ? 100 : 0);
+
+  const critVermelho = (taxa<IEC_LIMITES.comparecimentoAmareloMin && linha.leadsAgendados>=IEC_LIMITES.minAgendamentosRanking)
+    || (desvioEquipe!==null && desvioEquipe<-IEC_LIMITES.desvioVermelhoEquipe);
+  const critVerde = taxa>=IEC_LIMITES.comparecimentoSaudavel && atingimentoComparecimento>=80 && aumentoFaltasPct<IEC_LIMITES.aumentoFaltasRelevante;
+  const nivel = critVermelho ? "vermelho" : (critVerde ? "verde" : "amarelo");
+  alertas.push(Object.assign({ nivel }, NIVEL_TEXTOS_IEC[nivel]));
+
+  if (atingimentoAgendamentos>=80 && taxa<65 && linha.leadsAgendados>=IEC_LIMITES.minAgendamentosRanking){
+    alertas.push({ nivel:"vermelho", titulo:"Agenda cheia, baixa presença", mensagem:"Esta CRC está agendando em bom volume, mas os pacientes não estão comparecendo na proporção esperada. É necessário revisar a qualidade da abordagem, a criação de compromisso, a confirmação da consulta e o acompanhamento pré-consulta." });
+  }
+  if (atingimentoAgendamentos<70 && atingimentoComparecimento<70){
+    alertas.push({ nivel:"amarelo", titulo:"Baixa produção", mensagem:"A CRC está abaixo da meta tanto em agendamentos quanto em comparecimentos. É necessário revisar velocidade de resposta, volume de contatos, abordagem, follow-up e recuperação de leads." });
+  }
+  if (taxa>=80 && atingimentoAgendamentos<70){
+    alertas.push({ nivel:"amarelo", titulo:"Boa qualidade, baixo volume", mensagem:"A CRC apresenta boa taxa de comparecimento, mas ainda precisa aumentar o volume de agendamentos para gerar impacto real na clínica." });
+  }
+  if (contexto.mediaAgendamentos!==null && contexto.mediaTaxaFaltas!==null &&
+      info.agendados>contexto.mediaAgendamentos && (info.taxaFaltas||0)>contexto.mediaTaxaFaltas && info.faltaram>IEC_LIMITES.limiteFaltasAltoVolume){
+    alertas.push({ nivel:"vermelho", titulo:"Alto volume com alto desperdício", mensagem:"A CRC está gerando muitos agendamentos, porém também está causando elevado desperdício de agenda. É necessário avaliar se os pacientes estão sendo agendados sem intenção real, sem confirmação adequada ou sem criação de compromisso." });
+  }
+  if (!anterior.semDados){
+    const quedaTaxaPp = ((anterior.taxaComparecimento||0)-(info.taxaComparecimento||0))*100;
+    const quedaComparecimentosPct = anterior.compareceram>0 ? ((anterior.compareceram-info.compareceram)/anterior.compareceram)*100 : 0;
+    const quedaIEC = (anterior.iec||0)-(info.iec||0);
+    if (quedaTaxaPp>=10 || quedaComparecimentosPct>=IEC_LIMITES.quedaComparecimentosRelevante || aumentoFaltasPct>=IEC_LIMITES.aumentoFaltasRelevante || quedaIEC>=IEC_LIMITES.quedaIECRelevante){
+      alertas.push({ nivel:"amarelo", titulo:"Queda de desempenho", mensagem:"A CRC apresentou queda relevante em relação ao período anterior. Verificar alterações na abordagem, velocidade de resposta, confirmação, follow-up e perfil dos leads recebidos." });
+    }
+  }
+  return alertas;
+}
+
+function diagnosticoCRC(linha){
+  const info = linha.iecInfo;
+  if (info.semDados) return "Ainda não há relatórios neste período para gerar um diagnóstico.";
+  const taxa = (info.taxaComparecimento||0)*100;
+  const bomVolume = linha.atingimentoMetaAgendamentos>=0.8;
+  const baixoVolume = linha.atingimentoMetaAgendamentos<0.7;
+  if (bomVolume && taxa<IEC_LIMITES.comparecimentoSaudavel){
+    return "A CRC possui bom volume de agendamentos, mas taxa de comparecimento abaixo da média. O principal ponto de melhoria é a criação de compromisso e o processo de confirmação.";
+  }
+  if (taxa>=80 && baixoVolume){
+    return "A CRC possui boa taxa de comparecimento, mas baixo volume. O principal ponto de melhoria é aumentar a quantidade de contatos, follow-ups e agendamentos.";
+  }
+  if (baixoVolume && taxa<65){
+    return "A CRC possui baixo volume e baixa taxa de comparecimento. É necessário revisar todo o processo, desde a velocidade de resposta até a abordagem e confirmação.";
+  }
+  if (taxa>=IEC_LIMITES.comparecimentoSaudavel && bomVolume){
+    return "A CRC apresenta excelente equilíbrio entre volume e qualidade, com boa taxa de comparecimento e atingimento da meta.";
+  }
+  return "Desempenho dentro da média da equipe — sem um padrão claro de melhoria prioritária neste período.";
+}
+
+const SUGESTOES_BAIXA_TAXA = ["Revisar o roteiro de confirmação","Confirmar a consulta com antecedência","Reforçar horário, endereço e profissional responsável","Explicar a importância da consulta","Criar compromisso verbal com o paciente","Realizar lembrete no dia anterior","Realizar lembrete no dia da consulta","Verificar objeções antes de concluir o agendamento"];
+const SUGESTOES_BAIXO_VOLUME = ["Aumentar o número de contatos","Reduzir o tempo de primeira resposta","Intensificar follow-up","Trabalhar leads antigos","Reativar pacientes não agendados","Revisar abordagem inicial"];
+const SUGESTOES_MUITAS_FALTAS = ["Verificar se os pacientes estão sendo agendados apenas para bater meta","Identificar agendamentos sem confirmação","Analisar horários e dias com maior índice de faltas","Reforçar o vínculo com o paciente","Revisar a qualidade dos leads"];
+
+function sugestoesCRC(linha, contexto){
+  const info = linha.iecInfo;
+  if (info.semDados) return [];
+  const blocos = [];
+  const taxa = (info.taxaComparecimento||0)*100;
+  if (taxa<IEC_LIMITES.comparecimentoSaudavel) blocos.push({ titulo:"Taxa de comparecimento", itens:SUGESTOES_BAIXA_TAXA });
+  if (linha.atingimentoMetaAgendamentos<0.7) blocos.push({ titulo:"Volume de agendamentos", itens:SUGESTOES_BAIXO_VOLUME });
+  const faltasAltas = contexto.mediaTaxaFaltas!==null ? (info.taxaFaltas||0)>contexto.mediaTaxaFaltas : (info.taxaFaltas||0)>0.2;
+  if (faltasAltas) blocos.push({ titulo:"Faltas", itens:SUGESTOES_MUITAS_FALTAS });
+  return blocos;
+}
+
+/** Taxa de comparecimento mês a mês (últimos 6 meses) de uma CRC — usada no gráfico de evolução do painel de detalhe. */
+function calcularEvolucaoTaxaComparecimento(crcEmail){
+  const meses = Array.from(new Set(RELATORIOS_HISTORICO_CACHE.map(r => String(r.data||"").slice(0,7)))).sort().slice(-6);
+  const valores = meses.map(m => {
+    const doMes = RELATORIOS_HISTORICO_CACHE.filter(r => r.crcEmail===crcEmail && String(r.data).slice(0,7)===m);
+    const agendados = doMes.reduce((s,r) => s+(Number(r.pacientesAgendadosDia)||0), 0);
+    const compareceram = doMes.reduce((s,r) => s+(Number(r.compareceram)||0), 0);
+    return agendados>0 ? Math.round((compareceram/agendados)*100) : 0;
+  });
+  return { meses, valores };
+}
+
+function renderDetalheCRC(linha, contexto, alertas){
+  const info = linha.iecInfo;
+  if (info.semDados) return `<div class="ie-detalhe"><p class="usuarios-vazio">Sem relatórios neste período.</p></div>`;
+  const diagnostico = diagnosticoCRC(linha);
+  const sugestoes = sugestoesCRC(linha, contexto);
+  const historico = calcularEvolucaoTaxaComparecimento(linha.email);
+  return `
+    <div class="ie-detalhe">
+      <div class="section-title" style="margin-top:0;">IEC de ${esc(linha.nome)}</div>
+      <p style="font-size:13px;margin-bottom:4px;">Taxa de comparecimento: <strong>${Math.round((info.taxaComparecimento||0)*100)}%</strong> · Meta de comparecimentos: <strong>${info.metaComparecimentos||"não definida"}</strong> (${Math.round(info.atingimentoMetaComparecimento*100)}% atingido)</p>
+      <p style="font-size:13px;margin-bottom:4px;">Agendamentos desperdiçados: <strong>${info.agendamentosDesperdicados}</strong>${info.taxaDesperdicio!==null ? ` (${Math.round(info.taxaDesperdicio*100)}%)` : ""}</p>
+      ${info.semMetaComparecimento ? `<p style="font-size:12px;color:var(--orange);">⚠️ Meta de Comparecimentos não definida — o IEC desta CRC está incompleto.</p>` : ""}
+      <div class="section-title" style="margin:14px 0 8px;font-size:11px;">Alertas ativos</div>
+      ${alertas.map(a => `<div class="alerta-chip nivel-${a.nivel}"><strong>${esc(a.titulo)}</strong><p>${esc(a.mensagem)}</p></div>`).join("")}
+      <div class="section-title" style="margin:14px 0 8px;font-size:11px;">Diagnóstico automático</div>
+      <p style="font-size:13px;">${esc(diagnostico)}</p>
+      ${sugestoes.length ? `
+        <div class="section-title" style="margin:14px 0 8px;font-size:11px;">Sugestões de melhoria</div>
+        ${sugestoes.map(b => `<p style="font-size:12.5px;font-weight:700;margin:8px 0 2px;">${esc(b.titulo)}</p><ul style="margin:0 0 8px 18px;font-size:12.5px;">${b.itens.map(i=>`<li>${esc(i)}</li>`).join("")}</ul>`).join("")}
+      ` : ""}
+      ${historico.meses.length ? `
+        <div class="section-title" style="margin:14px 0 4px;font-size:11px;">Evolução da taxa de comparecimento</div>
+        ${graficoLinhaSvg(historico.meses, [{ cor:"var(--gold)", valores:historico.valores }], "valores")}
+      ` : ""}
+    </div>
+  `;
+}
+
+function renderGraficosIEC(linhas){
+  if (!linhas.length) return "";
+  const maiorAgendados = Math.max(1, ...linhas.map(l => l.iecInfo.agendados));
+  const maiorFaltas = Math.max(1, ...linhas.map(l => l.iecInfo.faltaram));
+  return `
+    <div class="exec-grid" style="margin-top:16px;">
+      <div class="exec-card">
+        <h4>Agendamentos × Comparecimentos por CRC</h4>
+        ${linhas.map(l => `
+          <div style="margin-bottom:10px;">
+            <div style="font-size:12px;font-weight:700;margin-bottom:4px;">${esc(l.nome)}</div>
+            ${funilStepHtml("Agendados", l.iecInfo.agendados, maiorAgendados)}
+            ${funilStepHtml("Compareceram", l.iecInfo.compareceram, maiorAgendados)}
+          </div>
+        `).join("")}
+      </div>
+      <div class="exec-card">
+        <h4>Faltas por CRC</h4>
+        ${linhas.map(l => barraHHtml(l.nome, l.iecInfo.faltaram, maiorFaltas)).join("")}
+      </div>
+    </div>
+  `;
+}
+
+let PERIODO_RANKING_IEC = "mes";
+let CRC_DETALHE_IEC_ABERTA = "";
+function alternarPeriodoRankingIEC(periodo){
+  PERIODO_RANKING_IEC = periodo;
+  renderRankingAdmin();
+  renderAlertasEquipe();
+}
+function alternarDetalheCRC(email){
+  CRC_DETALHE_IEC_ABERTA = CRC_DETALHE_IEC_ABERTA===email ? "" : email;
+  renderRankingAdmin();
 }
 
 function renderRankingAdmin(){
   const el = document.getElementById("ranking-admin");
   if (!el) return;
-  const ranking = calcularRankingCRCs();
-  if (!ranking.length){
+  const crcsAtivas = USUARIOS_CACHE.filter(u => u.perfil === "CRC" && u.ativo !== false);
+  if (!crcsAtivas.length){
     el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
     return;
   }
+  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_RANKING_IEC);
+  const todasLinhas = [...elegiveis, ...naoElegiveis];
+  const contexto = calcularContextoEquipe(todasLinhas);
   const medalhas = ["🥇","🥈","🥉"];
+
+  const linhaHtml = (l, posicao) => {
+    const info = l.iecInfo;
+    const setaIec = !l.iecAnterior.semDados && !info.semDados
+      ? (info.iec>=l.iecAnterior.iec ? `<span style="color:var(--green);">▲</span>` : `<span style="color:var(--red);">▼</span>`)
+      : "";
+    const alertas = calcularAlertasCRC(l, contexto);
+    const nivelPrincipal = alertas[0] ? alertas[0].nivel : "amarelo";
+    const corNivel = nivelPrincipal==="verde" ? "var(--green)" : nivelPrincipal==="vermelho" ? "var(--red)" : "var(--orange)";
+    return `
+      <tr style="cursor:pointer;" onclick="App.alternarDetalheCRC('${esc(l.email)}')">
+        <td>${posicao!==null ? (medalhas[posicao] || (posicao+1)+"º") : "—"}</td>
+        <td>${esc(l.nome)} ${!l.elegivel ? '<span style="font-size:10px;color:var(--text-light);">(fora da disputa)</span>' : ""}</td>
+        <td>${info.semDados ? "—" : info.iec} ${setaIec}</td>
+        <td>${info.semDados ? "—" : `<span class="badge-perfil" style="background:${corNivel}22;color:${corNivel};">${info.classificacao.label}</span>`}</td>
+      </tr>
+      ${CRC_DETALHE_IEC_ABERTA===l.email ? `<tr><td colspan="4">${renderDetalheCRC(l, contexto, alertas)}</td></tr>` : ""}
+    `;
+  };
+
   el.innerHTML = `
+    <div class="pill-group" style="margin-bottom:14px;">
+      ${[["dia","Diário"],["semana","Semanal"],["mes","Mensal"]].map(([v,l]) => `
+        <button class="pill ${PERIODO_RANKING_IEC===v?'ativo':''}" onclick="App.alternarPeriodoRankingIEC('${v}')">${l}</button>
+      `).join("")}
+    </div>
     <table class="tabela-usuarios">
-      <tr><th>#</th><th>CRC</th><th>IE-CRC (mês)</th></tr>
-      ${ranking.map((r,i) => `
-        <tr>
-          <td>${medalhas[i] || (i+1)+"º"}</td>
-          <td>${esc(r.nome)}</td>
-          <td>${r.semDados ? "—" : r.total}</td>
-        </tr>`).join("")}
+      <tr><th>#</th><th>CRC</th><th>IEC</th><th>Classificação</th></tr>
+      ${elegiveis.map((l,i) => linhaHtml(l,i)).join("")}
+      ${naoElegiveis.map(l => linhaHtml(l,null)).join("")}
     </table>
+    ${PERIODO_RANKING_IEC==="mes" ? `
+      <p style="font-size:11px;color:var(--text-light);margin-top:10px;">Para concorrer ao título de melhor CRC do mês: mínimo de ${IEC_LIMITES.minAgendamentosRanking} agendamentos e ${IEC_LIMITES.minAtingimentoMetaRanking}% da meta de agendamentos batida — além disso, a gestão verifica manualmente se os status estão atualizados e se não há agendamentos duplicados, artificiais, reagendamentos contados como novos pacientes ou remarcações contadas como comparecimento.</p>
+    ` : ""}
+    ${renderGraficosIEC(todasLinhas.filter(l => !l.iecInfo.semDados))}
+  `;
+}
+
+/** "Alertas da Equipe" — os 10 destaques pedidos, varrendo todas as CRCs ativas no mesmo recorte do ranking. */
+function renderAlertasEquipe(){
+  const el = document.getElementById("alertas-equipe");
+  if (!el) return;
+  const crcsAtivas = USUARIOS_CACHE.filter(u => u.perfil === "CRC" && u.ativo !== false);
+  if (!crcsAtivas.length){
+    el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
+    return;
+  }
+  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_RANKING_IEC);
+  const linhas = [...elegiveis, ...naoElegiveis].filter(l => !l.iecInfo.semDados);
+  if (!linhas.length){
+    el.innerHTML = `<p class="usuarios-vazio">Sem relatórios neste recorte ainda.</p>`;
+    return;
+  }
+
+  const maisFaltas = [...linhas].sort((a,b) => b.iecInfo.faltaram-a.iecInfo.faltaram)[0];
+  const menorTaxa = [...linhas].sort((a,b) => (a.iecInfo.taxaComparecimento||0)-(b.iecInfo.taxaComparecimento||0))[0];
+  const maiorVolumeBaixaPresenca = [...linhas].filter(l => l.atingimentoMetaAgendamentos>=0.8 && (l.iecInfo.taxaComparecimento||0)<0.65)
+    .sort((a,b) => b.iecInfo.agendados-a.iecInfo.agendados)[0];
+  const maisDesperdicio = [...linhas].sort((a,b) => b.iecInfo.agendamentosDesperdicados-a.iecInfo.agendamentosDesperdicados)[0];
+  const boaTaxaBaixoVolume = [...linhas].filter(l => (l.iecInfo.taxaComparecimento||0)>=0.8 && l.atingimentoMetaAgendamentos<0.7)
+    .sort((a,b) => (b.iecInfo.taxaComparecimento||0)-(a.iecInfo.taxaComparecimento||0))[0];
+  const menorAtingimentoMeta = [...linhas].sort((a,b) => a.atingimentoMetaAgendamentos-b.atingimentoMetaAgendamentos)[0];
+  const comEvolucao = linhas.filter(l => !l.iecAnterior.semDados);
+  const maiorEvolucao = comEvolucao.length ? [...comEvolucao].sort((a,b) => (b.iecInfo.iec-b.iecAnterior.iec)-(a.iecInfo.iec-a.iecAnterior.iec))[0] : null;
+  const maiorQueda = comEvolucao.length ? [...comEvolucao].sort((a,b) => (a.iecInfo.iec-a.iecAnterior.iec)-(b.iecInfo.iec-b.iecAnterior.iec))[0] : null;
+  const melhorEquilibrio = [...linhas].sort((a,b) => {
+    const scoreA = Math.min(a.atingimentoMetaAgendamentos,1) + (a.iecInfo.taxaComparecimento||0);
+    const scoreB = Math.min(b.atingimentoMetaAgendamentos,1) + (b.iecInfo.taxaComparecimento||0);
+    return scoreB-scoreA;
+  })[0];
+  const melhorIEC = [...linhas].sort((a,b) => b.iecInfo.iec-a.iecInfo.iec)[0];
+
+  const item = (label, l, valor) => l ? `
+    <div class="alerta-equipe-item"><span class="lbl-item">${esc(label)}</span><strong>${esc(l.nome)}</strong>${valor!==undefined ? `<span class="v">${esc(String(valor))}</span>` : ""}</div>
+  ` : "";
+
+  el.innerHTML = `
+    <div class="alerta-equipe-grid">
+      ${item("Maior índice de faltas", maisFaltas, maisFaltas.iecInfo.faltaram)}
+      ${item("Menor taxa de comparecimento", menorTaxa, Math.round((menorTaxa.iecInfo.taxaComparecimento||0)*100)+"%")}
+      ${item("Maior volume e baixa presença", maiorVolumeBaixaPresenca)}
+      ${item("Mais agendamentos desperdiçados", maisDesperdicio, maisDesperdicio.iecInfo.agendamentosDesperdicados)}
+      ${item("Boa taxa, mas baixo volume", boaTaxaBaixoVolume)}
+      ${item("Menor atingimento da meta", menorAtingimentoMeta, Math.round(menorAtingimentoMeta.atingimentoMetaAgendamentos*100)+"%")}
+      ${item("Maior evolução no período", maiorEvolucao)}
+      ${item("Maior queda no período", maiorQueda)}
+      ${item("Melhor equilíbrio volume/comparecimento", melhorEquilibrio)}
+      ${item("Melhor IEC", melhorIEC, melhorIEC.iecInfo.iec)}
+    </div>
   `;
 }
 
@@ -801,15 +1209,27 @@ function renderDetalheMeta(metaInfo){
   `;
 }
 
+let DETALHE_IEC_ABERTO = false;
+function alternarDetalheIEC(){
+  DETALHE_IEC_ABERTO = !DETALHE_IEC_ABERTO;
+  renderDashboard();
+}
+
 function renderDashboard(){
   const el = document.getElementById("view-crc-dashboard");
   const totalNaoReagendados = minhaFilaReativacao().length;
   const meusRelatoriosMes = RELATORIOS_MES_CACHE.filter(r => r.crcEmail === PERFIL_ATUAL.email);
-  const ie = calcularIECRC(meusRelatoriosMes);
-  const ranking = calcularRankingCRCs();
-  const minhaPosicao = ranking.findIndex(r => r.email === PERFIL_ATUAL.email);
-  const rankingTexto = minhaPosicao === -1 ? "—" : `${minhaPosicao+1}º de ${ranking.length}`;
+  const ie = calcularIECRC(meusRelatoriosMes); // produtividade — detalhamento secundário do IEC
   const metaInfo = calcularMeta(PERFIL_ATUAL.email);
+
+  const crcsAtivas = USUARIOS_CACHE.filter(u => u.perfil === "CRC" && u.ativo !== false);
+  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, "mes");
+  const todasLinhasIEC = [...elegiveis, ...naoElegiveis];
+  const minhaLinha = todasLinhasIEC.find(l => l.email === PERFIL_ATUAL.email);
+  const minhaPosicaoIEC = elegiveis.findIndex(l => l.email === PERFIL_ATUAL.email);
+  const posicaoTexto = !minhaLinha ? "—" : (!minhaLinha.elegivel ? "Fora da disputa" : (minhaPosicaoIEC===-1 ? "—" : `${minhaPosicaoIEC+1}º de ${elegiveis.length}`));
+  const contextoEquipe = calcularContextoEquipe(todasLinhasIEC);
+
   el.innerHTML = `
     <div class="saudacao">Olá, ${esc(PERFIL_ATUAL.nomeCurto||PERFIL_ATUAL.nomeCompleto)} 👋</div>
     <div class="saudacao-sub">Aqui está o resumo do seu dia.</div>
@@ -822,19 +1242,21 @@ function renderDashboard(){
         <div class="lbl">Pacientes não reagendados</div>
         <div class="val">${totalNaoReagendados}</div>
       </div>
-      <div class="dash-card" style="cursor:pointer;" onclick="App.alternarDetalheIECRC()">
-        <div class="lbl">IE-CRC atual (mês)</div>
-        <div class="val">${ie.semDados ? "—" : ie.total}</div>
+      <div class="dash-card" style="cursor:pointer;" onclick="App.alternarDetalheIEC()">
+        <div class="lbl">IEC — Efetividade (mês)</div>
+        <div class="val">${minhaLinha && !minhaLinha.iecInfo.semDados ? minhaLinha.iecInfo.iec : "—"}</div>
       </div>
       <div class="dash-card" style="cursor:pointer;" onclick="App.alternarDetalheMeta()">
         <div class="lbl">Meta do mês</div>
         <div class="val">${metaInfo ? metaInfo.atual+" / "+metaInfo.super : "—"} ${metaInfo && metaInfo.nivelAtingido>0 ? NIVEIS_META.find(n=>n.label===metaInfo.nivelLabel).emoji : ""}</div>
       </div>
       <div class="dash-card">
-        <div class="lbl">Ranking atual</div>
-        <div class="val">${rankingTexto}</div>
+        <div class="lbl">Posição no ranking (IEC)</div>
+        <div class="val">${posicaoTexto}</div>
       </div>
     </div>
+    ${DETALHE_IEC_ABERTO && minhaLinha ? renderDetalheCRC(minhaLinha, contextoEquipe, calcularAlertasCRC(minhaLinha, contextoEquipe)) : ""}
+    ${DETALHE_IEC_ABERTO ? `<p style="font-size:12px;margin:-10px 0 18px;"><a href="#" onclick="App.alternarDetalheIECRC();return false;" style="color:var(--blue);">Ver detalhamento de produtividade (IE-CRC) ${DETALHE_IECRC_ABERTO ? "▲" : "▼"}</a></p>` : ""}
     ${DETALHE_IECRC_ABERTO ? renderDetalheIECRC(ie) : ""}
     ${DETALHE_META_ABERTO ? renderDetalheMeta(metaInfo) : ""}
     <button class="btn primary" onclick="App.abrirFormularioRelatorio()">📝 ${RELATORIO_ENVIADO_HOJE ? "Preencher outro relatório" : "Preencher relatório de hoje"}</button>
@@ -847,7 +1269,7 @@ function renderDashboard(){
 function diasDesde(dataISO){
   if (!dataISO) return 9999;
   const d = new Date(dataISO.slice(0,10)+"T00:00:00");
-  const hoje = new Date(new Date().toISOString().slice(0,10)+"T00:00:00");
+  const hoje = new Date(dataLocalISO()+"T00:00:00");
   return Math.floor((hoje-d)/(1000*60*60*24));
 }
 
@@ -889,7 +1311,7 @@ function renderReativacao(){
   const el = document.getElementById("view-crc-reativacao");
   const todas = minhaFilaReativacao();
   const fila = filtrarEOrdenarFila();
-  const hoje = new Date().toISOString().slice(0,10);
+  const hoje = dataLocalISO();
   const contatadosHoje = todas.filter(f => f.ultimoContato === hoje).length;
 
   el.innerHTML = `
@@ -1225,12 +1647,12 @@ const CORES_TEMPERATURA = { "Muito Quente":"var(--red)", "Quente":"var(--orange)
 /** Filtra relatórios (já recortados no mês atual pelo backend) para o recorte Diário/Semanal/Mensal escolhido no Dashboard Executivo. */
 function filtrarRelatoriosPorPeriodo(lista, periodo){
   if (periodo === "mes") return lista;
-  const hoje = new Date().toISOString().slice(0,10);
+  const hoje = dataLocalISO();
   if (periodo === "dia") return lista.filter(r => r.data === hoje);
   if (periodo === "semana"){
     const limite = new Date();
     limite.setDate(limite.getDate()-6);
-    const limiteISO = limite.toISOString().slice(0,10);
+    const limiteISO = dataLocalISO(limite);
     return lista.filter(r => r.data >= limiteISO && r.data <= hoje);
   }
   return lista;
@@ -1497,10 +1919,11 @@ function renderMetasAdmin(){
             <div class="field"><label>🥉 Meta</label><input type="number" min="0" id="f-meta-${esc(u.email)}" value="${registro ? registro.metaAgendamentos : ""}"></div>
             <div class="field"><label>🥈 Mega Meta</label><input type="number" min="0" id="f-mega-${esc(u.email)}" value="${registro ? registro.metaMegaAgendamentos : ""}"></div>
             <div class="field"><label>🥇 Super Meta</label><input type="number" min="0" id="f-super-${esc(u.email)}" value="${registro ? registro.metaSuperAgendamentos : ""}"></div>
+            <div class="field"><label>🎯 Meta de Comparecimentos</label><input type="number" min="0" id="f-comp-${esc(u.email)}" value="${registro ? registro.metaComparecimentos : ""}"></div>
             <button class="btn small primary" onclick="App.salvarMetaCRC('${esc(u.email)}')">Salvar</button>
           </div>
         ` : `
-          <p style="font-size:13px;margin:2px 0 10px;">🥉 Meta: <strong>${registro.metaAgendamentos}</strong> · 🥈 Mega Meta: <strong>${registro.metaMegaAgendamentos}</strong> · 🥇 Super Meta: <strong>${registro.metaSuperAgendamentos}</strong></p>
+          <p style="font-size:13px;margin:2px 0 10px;">🥉 Meta: <strong>${registro.metaAgendamentos}</strong> · 🥈 Mega Meta: <strong>${registro.metaMegaAgendamentos}</strong> · 🥇 Super Meta: <strong>${registro.metaSuperAgendamentos}</strong> · 🎯 Meta de Comparecimentos: <strong>${registro.metaComparecimentos || 0}</strong></p>
           <button class="btn small outline" onclick="App.alternarEdicaoMeta('${esc(u.email)}')">Alterar</button>
         `}
         ${metaInfo ? `
@@ -1526,16 +1949,20 @@ async function salvarMetaCRC(crcEmail){
   const meta = Number(document.getElementById(`f-meta-${crcEmail}`)?.value);
   const mega = Number(document.getElementById(`f-mega-${crcEmail}`)?.value);
   const superMeta = Number(document.getElementById(`f-super-${crcEmail}`)?.value);
+  const comparecimentos = Number(document.getElementById(`f-comp-${crcEmail}`)?.value) || 0;
   if (!meta || meta <= 0 || !mega || mega <= 0 || !superMeta || superMeta <= 0){
-    toast("Informe os 3 níveis, todos maiores que zero.");
+    toast("Informe os 3 níveis de agendamento, todos maiores que zero.");
     return;
   }
   if (mega < meta || superMeta < mega){
     toast("A Mega Meta precisa ser maior ou igual à Meta, e a Super Meta maior ou igual à Mega Meta.");
     return;
   }
+  if (!comparecimentos){
+    toast("Sem Meta de Comparecimentos definida, o IEC dessa CRC fica incompleto — mas a meta de agendamentos foi salva.");
+  }
   try {
-    const data = await Api.salvarMeta(TOKEN_ATUAL, crcEmail, { meta, mega, super: superMeta });
+    const data = await Api.salvarMeta(TOKEN_ATUAL, crcEmail, { meta, mega, super: superMeta, comparecimentos });
     if (!data.ok){ toast(data.error || "Não foi possível salvar a meta."); return; }
     const idx = METAS_CACHE.findIndex(m => m.crcEmail === crcEmail);
     if (idx !== -1) METAS_CACHE[idx] = data.meta; else METAS_CACHE.push(data.meta);
@@ -1640,7 +2067,7 @@ function renderFormularioRelatorio(){
       <div class="field-grid">
         <div class="field">
           <label>Data do relatório</label>
-          <input type="date" id="f-data-relatorio" max="${new Date().toISOString().slice(0,10)}" value="${new Date().toISOString().slice(0,10)}" onchange="App.atualizarPercentuais()">
+          <input type="date" id="f-data-relatorio" max="${dataLocalISO()}" value="${dataLocalISO()}" onchange="App.atualizarPercentuais()">
         </div>
       </div>
       <div id="aviso-retroativo" class="form-erro hidden" style="background:var(--gold-light); color:var(--gold-dark); border-color:var(--gold-dark);"></div>
@@ -1801,7 +2228,7 @@ function atualizarAvisoRetroativo(){
   const aviso = document.getElementById("aviso-retroativo");
   if (!aviso) return;
   const dataSelecionada = document.getElementById("f-data-relatorio")?.value;
-  const hoje = new Date().toISOString().slice(0,10);
+  const hoje = dataLocalISO();
   if (dataSelecionada && dataSelecionada !== hoje){
     const [ano, mes, dia] = dataSelecionada.split("-");
     aviso.textContent = `Preenchendo relatório retroativo do dia ${dia}/${mes}/${ano}.`;
@@ -1847,7 +2274,7 @@ function coletarRelatorioDoFormulario(){
     ? document.querySelector('input[name="f-gestao"]:checked').value === "sim"
     : false;
   return {
-    data: document.getElementById("f-data-relatorio")?.value || new Date().toISOString().slice(0,10),
+    data: document.getElementById("f-data-relatorio")?.value || dataLocalISO(),
     leadsEntraram: num("f-leadsEntraram"),
     leadsTrabalhados: num("f-leadsTrabalhados"),
     leadsAgendados: num("f-leadsAgendados"),
@@ -1944,7 +2371,8 @@ window.App = {
   cancelarMotivo, confirmarMotivo, registrarTentativa,
   cancelarRemocao, confirmarRemocao, alternarDetalheIECRC,
   alternarDetalheMeta, salvarMetaCRC, alternarAtivoUsuario,
-  alternarEdicaoMeta, alternarPeriodoDashboard, selecionarCrcDashboard
+  alternarEdicaoMeta, alternarPeriodoDashboard, selecionarCrcDashboard,
+  alternarPeriodoRankingIEC, alternarDetalheCRC, alternarDetalheIEC
 };
 
 init();

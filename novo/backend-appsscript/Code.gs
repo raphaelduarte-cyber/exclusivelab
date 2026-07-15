@@ -69,7 +69,9 @@ var HEADERS_LOGS = ['id', 'data', 'hora', 'usuarioEmail', 'usuarioNome', 'acao',
 // Uma linha por CRC/mês — chave é crcEmail + anoMes (upsert, nunca duplica).
 // 3 patamares crescentes do mesmo indicador (agendamentos no mês): Meta é o
 // mínimo esperado, Mega Meta é o ótimo, Super Meta é o excelente.
-var HEADERS_METAS = ['crcEmail', 'anoMes', 'metaAgendamentos', 'metaMegaAgendamentos', 'metaSuperAgendamentos', 'atualizadoEm', 'dadosJSON'];
+// metaComparecimentos é uma métrica separada (valor único, sem níveis) —
+// alimenta o IEC (Índice de Efetividade da CRC), focado em presença real.
+var HEADERS_METAS = ['crcEmail', 'anoMes', 'metaAgendamentos', 'metaMegaAgendamentos', 'metaSuperAgendamentos', 'metaComparecimentos', 'atualizadoEm', 'dadosJSON'];
 
 // Cole aqui o Client ID gerado no Google Cloud Console (Client ID OAuth, tipo
 // "Aplicativo da Web") — usado para validar o token de login com o Google.
@@ -143,7 +145,7 @@ function doGet(e) {
  *   { "action": "salvarRelatorio", "idToken": "...", "relatorio": { ...campos do formulário... } }
  *   { "action": "salvarUsuario", "idToken": "...", "usuario": { nomeCompleto, nomeCurto, email, perfil } }
  *   { "action": "atualizarStatusFaltante", "idToken": "...", "id": "...", "mudancas": { status?, incrementarTentativa?, observacao?, novaData?, novoHorario?, novoLocal? } }
- *   { "action": "salvarMeta", "idToken": "...", "crcEmail": "...", "metas": { "meta": 80, "mega": 100, "super": 120 } }
+ *   { "action": "salvarMeta", "idToken": "...", "crcEmail": "...", "metas": { "meta": 80, "mega": 100, "super": 120, "comparecimentos": 70 } }
  */
 function doPost(e) {
   var body;
@@ -347,7 +349,8 @@ function salvarMeta_(idToken, crcEmail, metas) {
   var meta = Number(metas.meta) || 0;
   var mega = Number(metas.mega) || 0;
   var superMeta = Number(metas.super) || 0;
-  if (meta < 0 || mega < 0 || superMeta < 0) {
+  var comparecimentos = Number(metas.comparecimentos) || 0;
+  if (meta < 0 || mega < 0 || superMeta < 0 || comparecimentos < 0) {
     return jsonResponse_({ ok: false, error: 'As metas não podem ser negativas.' });
   }
   if (mega < meta || superMeta < mega) {
@@ -368,6 +371,7 @@ function salvarMeta_(idToken, crcEmail, metas) {
     metaAgendamentos: meta,
     metaMegaAgendamentos: mega,
     metaSuperAgendamentos: superMeta,
+    metaComparecimentos: comparecimentos,
     atualizadoEm: new Date().toISOString()
   };
   var row = HEADERS_METAS.map(function (h) {
@@ -380,7 +384,7 @@ function salvarMeta_(idToken, crcEmail, metas) {
   } else {
     sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
   }
-  registrarLog_(solicitante.email, solicitante.nomeCurto || solicitante.nomeCompleto, 'salvarMeta', 'Metas de ' + email + ' em ' + anoMes + ': ' + meta + ' / ' + mega + ' / ' + superMeta);
+  registrarLog_(solicitante.email, solicitante.nomeCurto || solicitante.nomeCompleto, 'salvarMeta', 'Metas de ' + email + ' em ' + anoMes + ': ' + meta + ' / ' + mega + ' / ' + superMeta + ' (comparecimentos: ' + comparecimentos + ')');
   return jsonResponse_({ ok: true, meta: registro });
 }
 
