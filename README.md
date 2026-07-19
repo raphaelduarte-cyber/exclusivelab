@@ -389,6 +389,23 @@ Datas de envio/recebimento no nível do caso (`dataUltimoEnvio`/
 `dataUltimoRecebimento`) são derivadas do lote/evento mais recente — não
 existe um campo separado pra isso, evita dessincronia.
 
+### 2.4-B Financeiro de casos externos
+
+Ações **"Definir/Editar financeiro"** e **"Sinalizar pagamento"** na ficha,
+só para `tipoCaso==="externo"`. Status financeiro é sempre um de três
+valores (`FINANCEIRO_STATUS`: "Não pago" / "Pagamento parcial" / "Pago") —
+nunca aparece "cortesia"/"bonificação"/"grátis" em lugar nenhum; se o
+valor total for zero, o status vira simplesmente "Pago" (nada a cobrar).
+
+- **Cálculo**: subtotal = valor por placa × quantidade; total = subtotal +
+  branding + entrega + adicional − desconto; pago = soma de
+  `financeiro.pagamentos[].valor`; restante = total − pago.
+- **Card**: "Não pago"/"Pagamento parcial" ganham uma faixa vermelha/
+  laranja bem visível no topo do card (`.fin-alerta-box`); "Pago" vira só
+  um selo discreto (`.badge.pago`) — sem faixa nenhuma.
+- Formas de pagamento fixas: Pix, Cartão, Dinheiro, Transferência, Boleto,
+  Outro (`FORMAS_PAGAMENTO`).
+
 ### 2.5 Nomes dos botões de cada lote
 
 Dentro de cada lote (na ficha), os botões contextuais mudam conforme o
@@ -475,6 +492,18 @@ Caso {
     formaEnvio: string
     codigoRastreio: string
     obsComerciais: string
+  } | null
+
+  // financeiro — só relevante quando tipoCaso==="externo". Subtotal, total,
+  // pago, restante e status são sempre CALCULADOS (financeiroSubtotal/
+  // financeiroTotal/financeiroPago/financeiroRestante/financeiroStatus),
+  // nunca guardados soltos — evita dessincronia. null até alguém definir.
+  financeiro: {
+    valorPlaca: number, qtdPlacasFin: number,
+    valorBranding: number,   // case, caixas, nécessaire, embalagens, materiais personalizados
+    valorEntrega: number, valorAdicional: number, desconto: number,
+    observacao: string,
+    pagamentos: [{ id, valor: number, data: date, formaPagamento: string, observacao: string, responsavel: string, criadoEm: datetime }]
   } | null
 
   finalizadoPor: string | null     // quem estava "Operando como" quando completoTotal() ficou verdadeiro

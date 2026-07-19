@@ -167,6 +167,10 @@ h1,h2,h3,h4{margin:0;}
 .info-box{background:var(--blue-light); border:1px solid var(--blue); border-radius:10px; padding:9px 11px; font-size:12px; color:#1e3a8a; margin:8px 0;}
 .obs-producao-box{background:var(--gold-light); border:2px solid var(--gold-dark); border-radius:10px; padding:9px 11px; font-size:12.5px; color:var(--graphite); margin:8px 0; font-weight:600;}
 .obs-producao-box .tag{display:block; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; color:var(--gold-dark); margin-bottom:3px;}
+.fin-alerta-box{border-radius:8px; padding:8px 11px; margin:8px 0; font-size:12.5px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; text-align:center;}
+.fin-alerta-box.nao-pago{background:var(--red); color:#fff;}
+.fin-alerta-box.parcial{background:var(--orange); color:#fff;}
+.badge.pago{background:var(--green-light); color:var(--green);}
 .impressao-panel{background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:11px 13px; margin:8px 0;}
 .plate-chip{display:inline-flex; align-items:center; justify-content:center; min-width:27px; height:25px; padding:0 6px; border-radius:8px; font-size:11.5px; font-weight:800; border:1px solid var(--border); background:var(--bg); color:var(--text-light);}
 .plate-chip.done{background:var(--green-light); color:var(--green); border-color:var(--green);}
@@ -1394,6 +1398,15 @@ function cardHTML(c){
   const obsProducaoBlock = (obsProducao && STATUS_TO_COL[c.statusAtual]==="producao") ? `
     <div class="obs-producao-box"><span class="tag">⚠ Observação para produção</span>${esc(obsProducao)}</div>
   ` : "";
+  // Selo financeiro: só caso externo com financeiro já definido. Não pago/
+  // parcial ganham faixa vermelha/laranja bem visível; pago é só um selo
+  // discreto — nunca aparece "cortesia"/"bonificação"/"grátis" no card.
+  const finStatus = c.tipoCaso==="externo" ? financeiroStatus(c) : null;
+  const financeiroBlock = finStatus && finStatus!==FINANCEIRO_STATUS.PAGO ? `
+    <div class="fin-alerta-box ${finStatus===FINANCEIRO_STATUS.NAO_PAGO?'nao-pago':'parcial'}">
+      ⚠ ${finStatus.toUpperCase()} — restante R$ ${financeiroRestante(c).toFixed(2)}
+    </div>
+  ` : "";
 
   return `
   <div class="case-card ${colorClass}">
@@ -1406,10 +1419,12 @@ function cardHTML(c){
         ${d.reimpressaoPendente?'<span class="badge reimpressao">reimpressão pendente</span>':""}
         ${d.parcialEntregue?'<span class="badge parcial">parcial</span>':""}
         ${c.refinamento?.isRefinamento?`<span class="badge refinamento">Refinamento nº ${esc(c.refinamento.numero??"?")}</span>`:""}
+        ${finStatus===FINANCEIRO_STATUS.PAGO?'<span class="badge pago">pago</span>':""}
         <div class="card-patient">${esc(c.paciente) || "(sem nome)"}</div>
       </div>
       <div class="deadline">📅 ${fmtDate(c.dataPrevistaEntrega)}</div>
     </div>
+    ${financeiroBlock}
     ${prazoBlock}
     ${obsProducaoBlock}
     <div class="card-status">#${esc(c.numeroCaso)||"—"}${isItens?"":` · Planejador: ${esc(c.dentistaPlanejador)||"—"}`}<br>Status: <b>${c.statusAtual}</b></div>
@@ -1901,6 +1916,105 @@ function __submitPlanejamento(id){
 
 
 /* =========================================================================
+   FINANCEIRO DE CASOS EXTERNOS — só existe pra tipoCaso==="externo". Tudo
+   calculado a partir de caso.financeiro, nunca guardado solto (mesmo
+   espírito de situacaoPrazo/placaStatus) — evita subtotal/total/restante
+   dessincronizarem do que foi realmente lançado. Sem termos como
+   "cortesia"/"bonificação": status financeiro é sempre um dos três valores
+   de FINANCEIRO_STATUS, nunca aparece "grátis"/"liberado sem pagamento".
+   ========================================================================= */
+const FORMAS_PAGAMENTO = ["Pix","Cartão","Dinheiro","Transferência","Boleto","Outro"];
+const FINANCEIRO_STATUS = { NAO_PAGO:"Não pago", PARCIAL:"Pagamento parcial", PAGO:"Pago" };
+function financeiroSubtotal(caso){
+  const f = caso.financeiro; if (!f) return 0;
+  return (Number(f.valorPlaca)||0) * (Number(f.qtdPlacasFin)||0);
+}
+function financeiroTotal(caso){
+  const f = caso.financeiro; if (!f) return 0;
+  return financeiroSubtotal(caso) + (Number(f.valorBranding)||0) + (Number(f.valorEntrega)||0)
+    + (Number(f.valorAdicional)||0) - (Number(f.desconto)||0);
+}
+function financeiroPago(caso){
+  const pagamentos = caso.financeiro?.pagamentos || [];
+  return pagamentos.reduce((soma,p)=>soma+(Number(p.valor)||0), 0);
+}
+function financeiroRestante(caso){ return financeiroTotal(caso) - financeiroPago(caso); }
+function financeiroStatus(caso){
+  if (!caso.financeiro) return null; // financeiro ainda não definido — sem selo no card
+  const total = financeiroTotal(caso), pago = financeiroPago(caso);
+  if (total<=0 || pago>=total) return FINANCEIRO_STATUS.PAGO;
+  if (pago>0) return FINANCEIRO_STATUS.PARCIAL;
+  return FINANCEIRO_STATUS.NAO_PAGO;
+}
+function promptFinanceiro(id){
+  const caso = findCaso(id);
+  const f = caso.financeiro || {};
+  openModal("Financeiro do caso", `
+    <div class="form-grid">
+      <div class="field"><label>Valor por placa (R$)</label><input type="number" min="0" step="0.01" id="fin-valor-placa" value="${f.valorPlaca??""}"></div>
+      <div class="field"><label>Quantidade de placas (financeiro)</label><input type="number" min="0" id="fin-qtd-placas" value="${f.qtdPlacasFin??""}"></div>
+      <div class="field"><label>Valor do branding (R$)</label><input type="number" min="0" step="0.01" id="fin-branding" value="${f.valorBranding??0}"></div>
+      <div class="field"><label>Valor da entrega (R$)</label><input type="number" min="0" step="0.01" id="fin-entrega" value="${f.valorEntrega??0}"></div>
+      <div class="field"><label>Valor adicional (R$)</label><input type="number" min="0" step="0.01" id="fin-adicional" value="${f.valorAdicional??0}"></div>
+      <div class="field"><label>Desconto (R$)</label><input type="number" min="0" step="0.01" id="fin-desconto" value="${f.desconto??0}"></div>
+      <div class="field full"><label>Observação financeira</label><textarea id="fin-obs">${esc(f.observacao||"")}</textarea></div>
+    </div>
+    <p style="font-size:11.5px;color:var(--text-light);margin-top:8px;">Branding = case, caixas, nécessaire, embalagens, materiais personalizados. Total = (valor × qtd) + branding + entrega + adicional − desconto.</p>
+  `, `<button class="btn outline" onclick="App.abrirFicha('${id}')">Cancelar</button>
+      <button class="btn primary" onclick="App.__submitFinanceiro('${id}')">Salvar financeiro</button>`);
+}
+function __submitFinanceiro(id){
+  const caso = findCaso(id);
+  const valorPlaca = parseFloat(document.getElementById("fin-valor-placa").value);
+  const qtdPlacasFin = parseInt(document.getElementById("fin-qtd-placas").value);
+  if (isNaN(valorPlaca) || isNaN(qtdPlacasFin)){ toast("Informe o valor por placa e a quantidade."); return; }
+  caso.financeiro = {
+    ...(caso.financeiro||{}),
+    valorPlaca, qtdPlacasFin,
+    valorBranding: parseFloat(document.getElementById("fin-branding").value)||0,
+    valorEntrega: parseFloat(document.getElementById("fin-entrega").value)||0,
+    valorAdicional: parseFloat(document.getElementById("fin-adicional").value)||0,
+    desconto: parseFloat(document.getElementById("fin-desconto").value)||0,
+    observacao: document.getElementById("fin-obs").value.trim(),
+    pagamentos: caso.financeiro?.pagamentos || []
+  };
+  logHistorico(caso, caso.statusAtual, caso.statusAtual, `Financeiro definido/atualizado — total R$ ${financeiroTotal(caso).toFixed(2)}`);
+  persist(caso).then(()=>{ abrirFicha(id); toast("Financeiro salvo."); });
+}
+function promptSinalizarPagamento(id){
+  const caso = findCaso(id);
+  openModal("Sinalizar pagamento", `
+    <div class="form-grid">
+      <div class="field"><label>Valor pago (R$)</label><input type="number" min="0" step="0.01" id="pg-valor"></div>
+      <div class="field"><label>Data do pagamento</label><input type="date" id="pg-data" value="${todayISO()}"></div>
+      <div class="field"><label>Forma de pagamento</label>
+        <select id="pg-forma">${FORMAS_PAGAMENTO.map(f=>`<option>${f}</option>`).join("")}</select>
+      </div>
+      <div class="field full"><label>Observação</label><textarea id="pg-obs"></textarea></div>
+    </div>
+    <p style="font-size:11.5px;color:var(--text-light);margin-top:8px;">Valor restante atual: R$ ${financeiroRestante(caso).toFixed(2)}. Responsável: ${esc(OPERADOR)}.</p>
+  `, `<button class="btn outline" onclick="App.abrirFicha('${id}')">Cancelar</button>
+      <button class="btn primary" onclick="App.__submitSinalizarPagamento('${id}')">Registrar pagamento</button>`);
+}
+function __submitSinalizarPagamento(id){
+  if (!requireOperador()) return;
+  const caso = findCaso(id);
+  const valor = parseFloat(document.getElementById("pg-valor").value);
+  if (isNaN(valor) || valor<=0){ toast("Informe um valor pago válido."); return; }
+  caso.financeiro = caso.financeiro || { valorPlaca:0, qtdPlacasFin:0, valorBranding:0, valorEntrega:0, valorAdicional:0, desconto:0, observacao:"", pagamentos:[] };
+  caso.financeiro.pagamentos = caso.financeiro.pagamentos || [];
+  caso.financeiro.pagamentos.push({
+    id: uuid(), valor, data: document.getElementById("pg-data").value,
+    formaPagamento: document.getElementById("pg-forma").value,
+    observacao: document.getElementById("pg-obs").value.trim(),
+    responsavel: OPERADOR, criadoEm: new Date().toISOString()
+  });
+  const statusNovo = financeiroStatus(caso);
+  logHistorico(caso, caso.statusAtual, caso.statusAtual, `Pagamento registrado — R$ ${valor.toFixed(2)} via ${document.getElementById("pg-forma").value} — status financeiro: ${statusNovo}`);
+  persist(caso).then(()=>{ abrirFicha(id); toast("Pagamento registrado."); });
+}
+
+/* =========================================================================
    FICHA COMPLETA (visão + painéis de produção + ações + histórico)
    ========================================================================= */
 function getActionsForCaso(caso){
@@ -1927,6 +2041,12 @@ function getActionsForCaso(caso){
   // "Planejamento aprovado" agora é só transitório (aprovarPlanejamento já
   // avança direto para produção na mesma ação) — não existe mais um momento
   // em que o caso fica parado nesse status esperando outra ação aqui.
+  // Financeiro só existe pra caso externo, disponível em qualquer etapa
+  // (o valor pode ser combinado antes mesmo de produzir).
+  if (ext){
+    actions.push({label: caso.financeiro ? "Editar financeiro" : "Definir financeiro", fn:()=>promptFinanceiro(caso.id)});
+    if (caso.financeiro) actions.push({label:"Sinalizar pagamento", fn:()=>promptSinalizarPagamento(caso.id)});
+  }
   return actions;
 }
 
@@ -2126,7 +2246,26 @@ function fichaCompletaHTML(caso){
       <div><span class="k">Data aprovação</span><span class="v">${fmtDateTime(caso.externo?.dataAprovacaoPlanejamento)}</span></div>
       <div><span class="k">Forma de envio</span><span class="v">${esc(caso.externo?.formaEnvio)||"—"}</span></div>
       <div><span class="k">Rastreio</span><span class="v">${esc(caso.externo?.codigoRastreio)||"—"}</span></div>
-    </div>` : ""}
+    </div>
+
+    <div class="section-title">Financeiro</div>
+    ${caso.financeiro ? `
+    <div class="readonly-grid">
+      <div><span class="k">Valor por placa × qtd</span><span class="v">R$ ${(caso.financeiro.valorPlaca||0).toFixed(2)} × ${caso.financeiro.qtdPlacasFin||0} = R$ ${financeiroSubtotal(caso).toFixed(2)}</span></div>
+      <div><span class="k">Branding / Entrega / Adicional / Desconto</span><span class="v">R$ ${(caso.financeiro.valorBranding||0).toFixed(2)} / R$ ${(caso.financeiro.valorEntrega||0).toFixed(2)} / R$ ${(caso.financeiro.valorAdicional||0).toFixed(2)} / R$ ${(caso.financeiro.desconto||0).toFixed(2)}</span></div>
+      <div><span class="k">Valor total</span><span class="v">R$ ${financeiroTotal(caso).toFixed(2)}</span></div>
+      <div><span class="k">Valor pago / restante</span><span class="v">R$ ${financeiroPago(caso).toFixed(2)} / R$ ${financeiroRestante(caso).toFixed(2)}</span></div>
+      <div><span class="k">Status financeiro</span><span class="v">${financeiroStatus(caso)}</span></div>
+      ${caso.financeiro.observacao ? `<div class="full"><span class="k">Observação financeira</span><span class="v">${esc(caso.financeiro.observacao)}</span></div>` : ""}
+    </div>
+    <table class="hist" style="margin-top:8px;">
+      <tr><th>Data</th><th>Valor</th><th>Forma</th><th>Responsável</th><th>Observação</th></tr>
+      ${(caso.financeiro.pagamentos||[]).length ? caso.financeiro.pagamentos.map(p=>`<tr>
+        <td>${fmtDate(p.data)}</td><td>R$ ${(p.valor||0).toFixed(2)}</td><td>${esc(p.formaPagamento)}</td><td>${esc(p.responsavel)}</td><td>${esc(p.observacao)||""}</td>
+      </tr>`).join("") : `<tr><td colspan="5">Nenhum pagamento registrado ainda.</td></tr>`}
+    </table>
+    ` : `<div class="alert-empty">Financeiro ainda não definido.</div>`}
+    ` : ""}
 
     <div class="section-title">Observações</div>
     <div class="readonly-grid">
@@ -2911,7 +3050,7 @@ function historicoEnviadosCasos(){
     const recebido = !!dataUltimoRecebimento(c);
     if (HIST_FILTERS.recebido==="sim" && !recebido) return false;
     if (HIST_FILTERS.recebido==="nao" && recebido) return false;
-    if (HIST_FILTERS.financeiro!=="todos" && (c.financeiro?.status||"") !== HIST_FILTERS.financeiro) return false;
+    if (HIST_FILTERS.financeiro!=="todos" && financeiroStatus(c) !== HIST_FILTERS.financeiro) return false;
     return true;
   }).sort((a,b)=>(dataUltimoEnvio(b)||"").localeCompare(dataUltimoEnvio(a)||"")) };
 }
@@ -2959,7 +3098,7 @@ function abrirHistoricoEnviados(){
         <td>${fmtDate(dataUltimoRecebimento(c))}</td>
         <td>${esc(responsavelUltimoEnvio(c))||"—"}</td>
         <td>${dataUltimoRecebimento(c) ? `✅ ${esc(responsavelUltimoRecebimento(c))||""}` : "⏳ Aguardando"}</td>
-        <td>${c.tipoCaso==="externo" ? esc(c.financeiro?.status||"—") : "—"}</td>
+        <td>${c.tipoCaso==="externo" ? (financeiroStatus(c) ? `${esc(financeiroStatus(c))} (R$ ${financeiroPago(c).toFixed(2)}/${financeiroTotal(c).toFixed(2)})` : "não definido") : "—"}</td>
         <td><button class="btn small outline" onclick="App.abrirFicha('${c.id}')">Ver ficha</button></td>
       </tr>`).join("") : `<tr><td colspan="10">Nenhum caso enviado/entregue encontrado com esses filtros.</td></tr>`}
     </table>
@@ -2998,6 +3137,7 @@ window.App = {
   __runAction, __submitPlanejamento, promptPlanejamento,
   aprovarPlanejamento, solicitarAjuste, promptAprovacao, promptAjuste, prontoParaImpressao,
   promptCriarLote, __submitCriarLote,
+  promptFinanceiro, __submitFinanceiro, promptSinalizarPagamento, __submitSinalizarPagamento,
   promptConferenciaImpressaoLote, __submitConferenciaImpressaoLote,
   promptFinalizacaoLote, __submitFinalizacaoLote,
   promptEnvioLote, __submitEnvioLote,
