@@ -374,6 +374,21 @@ reimpressão, confecção, entrega, recebimento, responsáveis, datas e
 observações continuam completos e consultáveis) — ele é só a leitura rápida
 "bater o olho" do andamento de cada placa do caso.
 
+### 2.4-A Arquivamento visual (30 dias) e histórico de enviados à clínica
+
+Caso finalizado some das colunas do Kanban `CONFIG_ARQUIVAMENTO_DIAS` (30)
+dias depois de `dataConclusaoReal` — `estaArquivado(caso)`, nunca um campo
+salvo, sempre recalculado, igual a `situacaoPrazo`/`placaStatus`.
+`casoPassaFiltro` filtra esses casos do Kanban principal, mas **nada é
+apagado**: o caso continua completo (dados, histórico, planilha) e
+aparece no botão **"📜 Histórico de enviados à clínica"** (topbar), que
+lista todo caso com pelo menos um envio/recebimento registrado (função
+`jaFoiEnviadoOuEntregue`), com filtros por paciente, dentista, tipo de
+produção, interno/externo, recebido/não recebido e status financeiro.
+Datas de envio/recebimento no nível do caso (`dataUltimoEnvio`/
+`dataUltimoRecebimento`) são derivadas do lote/evento mais recente — não
+existe um campo separado pra isso, evita dessincronia.
+
 ### 2.5 Nomes dos botões de cada lote
 
 Dentro de cada lote (na ficha), os botões contextuais mudam conforme o

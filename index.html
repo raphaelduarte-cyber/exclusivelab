@@ -275,6 +275,7 @@ table.hist th{color:var(--text-light); font-weight:700; font-size:10.5px; text-t
     <div class="search-box"><input id="busca" type="text" placeholder="Buscar por paciente ou nº do caso..." oninput="App.setBusca(this.value)"></div>
     <div class="topbar-actions">
       <button class="btn outline small" onclick="App.__clickAtualizarDados()">🔄 Atualizar dados</button>
+      <button class="btn outline small" onclick="App.abrirHistoricoEnviados()">📜 Histórico de enviados à clínica</button>
       <button class="btn outline small" onclick="App.exportar('csv')">Exportar CSV</button>
       <button class="btn outline small" onclick="App.exportar('json')">Exportar / Backup JSON</button>
     </div>
@@ -337,6 +338,10 @@ const CONFIG_PRAZOS = {
   normal:  { prazoDias: 20, atencaoDias: 10, criticoDias: 15 }, // dias corridos contados da data de entrada
   urgente: { prazoDias: 5 }                                     // urgente já nasce crítico (vermelho); só vira atrasado depois do prazo
 };
+// Dias que um caso Finalizado continua visível nas colunas do Kanban antes
+// de "arquivar visualmente" (some do Kanban, mas continua 100% consultável
+// em "Histórico de enviados à clínica" — nunca apaga nada).
+const CONFIG_ARQUIVAMENTO_DIAS = 30;
 
 /* =========================================================================
    FLUXOS
@@ -566,6 +571,7 @@ let PROFISSIONAIS_VAZIO_PRELOGIN = null;
 let ALERTS_OPEN = true;
 let FILTERS = { texto:"", tipo:"todos", status:"todos", prioridade:"todos", planejador:"todos", setor:"todos",
   atrasados:false, parcial:false, pendentePlacas:false };
+let HIST_FILTERS = { texto:"", planejador:"todos", tipoProducao:"todos", tipoCaso:"todos", recebido:"todos", financeiro:"todos" };
 
 function uuid(){ return "c-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8); }
 function esc(str){
@@ -990,6 +996,54 @@ function diasEntre(dataInicioISO, dataFimISO){
   if (!dataInicioISO) return 0;
   return Math.floor((new Date(dataFimISO) - new Date(dataInicioISO)) / 86400000);
 }
+// Nunca é um campo salvo — sempre recalculado a partir de dataConclusaoReal,
+// igual a situacaoPrazo/placaStatus. Some do Kanban (ver casoPassaFiltro),
+// mas o caso continua existindo por completo e aparece em "Histórico de
+// enviados à clínica".
+function estaArquivado(caso){
+  return caso.statusAtual==="Finalizado" && !!caso.dataConclusaoReal
+    && diasEntre(caso.dataConclusaoReal, todayISO()) > CONFIG_ARQUIVAMENTO_DIAS;
+}
+// Data/responsável de envio e recebimento no nível do CASO — derivados do
+// último lote (alinhadores) ou último evento (itens), nunca guardados soltos.
+// Usado só pela tela "Histórico de enviados à clínica" (visão resumida).
+function dataUltimoEnvio(caso){
+  if (ehTipoItens(caso)){
+    const evs = caso.eventosEntregaItens||[];
+    return evs.length ? evs[evs.length-1].data : null;
+  }
+  const enviados = (caso.lotes||[]).filter(l=>l.envio?.enviado).map(l=>l.envio.data).filter(Boolean);
+  return enviados.length ? enviados.sort().slice(-1)[0] : null;
+}
+function dataUltimoRecebimento(caso){
+  if (ehTipoItens(caso)){
+    const evs = caso.eventosRecebimentoItens||[];
+    return evs.length ? evs[evs.length-1].data : null;
+  }
+  const recebidos = (caso.lotes||[]).filter(l=>l.recebimento?.recebido).map(l=>l.recebimento.data).filter(Boolean);
+  return recebidos.length ? recebidos.sort().slice(-1)[0] : null;
+}
+function responsavelUltimoEnvio(caso){
+  if (ehTipoItens(caso)){
+    const evs = caso.eventosEntregaItens||[];
+    return evs.length ? (evs[evs.length-1].responsavel||"") : "";
+  }
+  const enviados = (caso.lotes||[]).filter(l=>l.envio?.enviado).sort((a,b)=>(a.envio.data||"").localeCompare(b.envio.data||""));
+  return enviados.length ? (enviados[enviados.length-1].envio.responsavel||"") : "";
+}
+function responsavelUltimoRecebimento(caso){
+  if (ehTipoItens(caso)){
+    const evs = caso.eventosRecebimentoItens||[];
+    return evs.length ? (evs[evs.length-1].responsavel||"") : "";
+  }
+  const recebidos = (caso.lotes||[]).filter(l=>l.recebimento?.recebido).sort((a,b)=>(a.recebimento.data||"").localeCompare(b.recebimento.data||""));
+  return recebidos.length ? (recebidos[recebidos.length-1].recebimento.responsavel||"") : "";
+}
+// Um caso "já foi enviado ou entregue à clínica" quando existe pelo menos
+// um envio ou recebimento registrado, em qualquer lote/item.
+function jaFoiEnviadoOuEntregue(caso){
+  return !!(dataUltimoEnvio(caso) || dataUltimoRecebimento(caso));
+}
 // Prazo final sugerido automaticamente a partir da prioridade — só pré-
 // preenche o campo "Prazo desejado" no cadastro; a pessoa sempre pode
 // editar a data manualmente depois (ver toggleRecalcularPrazo no formulário).
@@ -1232,6 +1286,7 @@ function renderFilters(){
 }
 
 function casoPassaFiltro(c){
+  if (estaArquivado(c)) return false;
   const d = computeDerived(c);
   if (FILTERS.texto){
     const t = FILTERS.texto.toLowerCase();
@@ -2835,6 +2890,85 @@ function exportar(formato){
 }
 
 /* =========================================================================
+   HISTÓRICO DE ENVIADOS À CLÍNICA — visão de todo caso que já teve algum
+   envio/recebimento registrado (inclusive os "arquivados visualmente" que
+   sumiram do Kanban principal, ver estaArquivado). Nunca busca dado novo —
+   é só um filtro sobre CASOS, que já tem tudo (ver decisão de arquitetura
+   no README, seção "Financeiro de casos externos").
+   ========================================================================= */
+function setHistFilter(key, value){ HIST_FILTERS[key] = value; abrirHistoricoEnviados(); }
+function historicoEnviadosCasos(){
+  const planejadores = [...new Set(CASOS.map(c=>c.dentistaPlanejador).filter(Boolean))];
+  return { planejadores, lista: CASOS.filter(c=>{
+    if (!jaFoiEnviadoOuEntregue(c)) return false;
+    if (HIST_FILTERS.texto){
+      const t = HIST_FILTERS.texto.toLowerCase();
+      if (!(c.paciente||"").toLowerCase().includes(t) && !(c.numeroCaso||"").toLowerCase().includes(t)) return false;
+    }
+    if (HIST_FILTERS.planejador!=="todos" && c.dentistaPlanejador!==HIST_FILTERS.planejador) return false;
+    if (HIST_FILTERS.tipoProducao!=="todos" && (c.tipoProducao||"alinhadores")!==HIST_FILTERS.tipoProducao) return false;
+    if (HIST_FILTERS.tipoCaso!=="todos" && c.tipoCaso!==HIST_FILTERS.tipoCaso) return false;
+    const recebido = !!dataUltimoRecebimento(c);
+    if (HIST_FILTERS.recebido==="sim" && !recebido) return false;
+    if (HIST_FILTERS.recebido==="nao" && recebido) return false;
+    if (HIST_FILTERS.financeiro!=="todos" && (c.financeiro?.status||"") !== HIST_FILTERS.financeiro) return false;
+    return true;
+  }).sort((a,b)=>(dataUltimoEnvio(b)||"").localeCompare(dataUltimoEnvio(a)||"")) };
+}
+function abrirHistoricoEnviados(){
+  const { planejadores, lista } = historicoEnviadosCasos();
+  openModal("Histórico de enviados à clínica", `
+    <div class="filters" style="padding:0 0 10px;border:none;">
+      <input placeholder="Buscar paciente ou nº" value="${esc(HIST_FILTERS.texto)}" oninput="App.setHistFilter('texto', this.value)" style="padding:6px 10px;border-radius:20px;border:1px solid var(--border);">
+      <select onchange="App.setHistFilter('planejador', this.value)">
+        <option value="todos">Todo dentista</option>
+        ${planejadores.map(p=>`<option value="${esc(p)}" ${HIST_FILTERS.planejador===p?"selected":""}>${esc(p)}</option>`).join("")}
+      </select>
+      <select onchange="App.setHistFilter('tipoProducao', this.value)">
+        <option value="todos">Todo tipo de produção</option>
+        <option value="alinhadores" ${HIST_FILTERS.tipoProducao==="alinhadores"?"selected":""}>Alinhadores</option>
+        <option value="contencao" ${HIST_FILTERS.tipoProducao==="contencao"?"selected":""}>Contenção</option>
+        <option value="modeloEstudo" ${HIST_FILTERS.tipoProducao==="modeloEstudo"?"selected":""}>Modelo de estudo</option>
+      </select>
+      <select onchange="App.setHistFilter('tipoCaso', this.value)">
+        <option value="todos">Interno e externo</option>
+        <option value="interno" ${HIST_FILTERS.tipoCaso==="interno"?"selected":""}>Interno</option>
+        <option value="externo" ${HIST_FILTERS.tipoCaso==="externo"?"selected":""}>Externo</option>
+      </select>
+      <select onchange="App.setHistFilter('recebido', this.value)">
+        <option value="todos">Recebido e não recebido</option>
+        <option value="sim" ${HIST_FILTERS.recebido==="sim"?"selected":""}>Recebido</option>
+        <option value="nao" ${HIST_FILTERS.recebido==="nao"?"selected":""}>Não recebido</option>
+      </select>
+      <select onchange="App.setHistFilter('financeiro', this.value)">
+        <option value="todos">Todo status financeiro</option>
+        <option value="Não pago" ${HIST_FILTERS.financeiro==="Não pago"?"selected":""}>Não pago</option>
+        <option value="Pagamento parcial" ${HIST_FILTERS.financeiro==="Pagamento parcial"?"selected":""}>Pagamento parcial</option>
+        <option value="Pago" ${HIST_FILTERS.financeiro==="Pago"?"selected":""}>Pago</option>
+      </select>
+    </div>
+    <div style="overflow-x:auto;">
+    <table class="hist">
+      <tr><th>Paciente</th><th>Produção</th><th>Tipo</th><th>Dentista</th><th>Data envio</th><th>Data entrega</th><th>Resp. envio</th><th>Recebimento</th><th>Financeiro</th><th></th></tr>
+      ${lista.length ? lista.map(c=>`<tr>
+        <td>${esc(c.paciente)||"—"}</td>
+        <td>${TIPO_PRODUCAO_LABEL[c.tipoProducao]||"Alinhadores"}</td>
+        <td>${c.tipoCaso}</td>
+        <td>${esc(c.dentistaPlanejador)||"—"}</td>
+        <td>${fmtDate(dataUltimoEnvio(c))}</td>
+        <td>${fmtDate(dataUltimoRecebimento(c))}</td>
+        <td>${esc(responsavelUltimoEnvio(c))||"—"}</td>
+        <td>${dataUltimoRecebimento(c) ? `✅ ${esc(responsavelUltimoRecebimento(c))||""}` : "⏳ Aguardando"}</td>
+        <td>${c.tipoCaso==="externo" ? esc(c.financeiro?.status||"—") : "—"}</td>
+        <td><button class="btn small outline" onclick="App.abrirFicha('${c.id}')">Ver ficha</button></td>
+      </tr>`).join("") : `<tr><td colspan="10">Nenhum caso enviado/entregue encontrado com esses filtros.</td></tr>`}
+    </table>
+    </div>
+    <p style="font-size:11px;color:var(--text-light);margin-top:8px;">Casos finalizados somem do Kanban principal ${CONFIG_ARQUIVAMENTO_DIAS} dias após a finalização, mas continuam aqui — nada é apagado.</p>
+  `, `<button class="btn outline" onclick="App.closeModal()">Fechar</button>`);
+}
+
+/* =========================================================================
    INIT
    ========================================================================= */
 async function atualizarDados(){
@@ -2856,7 +2990,7 @@ async function init(){
 window.App = {
   logout, loginLocalTeste, gerenciarProfissionais, promptEditarProfissional,
   __submitNovoProfissional, __submitEditarProfissional, toggleProfissionalAtivo, excluirProfissional,
-  setBusca, novoCaso, exportar, __clickAtualizarDados,
+  setBusca, novoCaso, exportar, __clickAtualizarDados, abrirHistoricoEnviados, setHistFilter,
   setFilter, limparFiltros, toggleAlerts, abrirFicha, avancar, voltar,
   editarCaso, salvarCaso, toggleExterno, toggleRefinamentoNumero, toggleTipoProducao, toggleQtdItem,
   recalcularPrazoAutomatico,
