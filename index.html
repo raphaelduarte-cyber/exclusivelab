@@ -2162,8 +2162,13 @@ function lotesProducaoSectionHTML(caso){
    botões relevantes ao estágio de cada item, conforme o tipo de produção.
    ========================================================================= */
 function itensProducaoSectionHTML(caso){
+  // Antes de "Pronto para impressão" o item ainda nem começou a ser
+  // produzido (ver prontoParaImpressao) — mostrar impressão/confecção/
+  // entrega nessa etapa ("Caso recebido") seria enganoso, mesma lógica do
+  // guard em lotesProducaoSectionHTML para o fluxo de lotes.
+  if (currentIndex(caso) < getFlow(caso).indexOf(STATUS_PRODUCAO_ITENS)) return "";
   const itens = itensDoCaso(caso);
-  if (!itens.length) return `<div class="alert-empty">Nenhum item de produção cadastrado.</div>`;
+  if (!itens.length) return `<div class="section-title">Produção dos itens</div><div class="alert-empty">Nenhum item de produção cadastrado.</div>`;
   const st = computeItensImpressaoState(caso);
   const naoImpressos = itens.filter(it=>!st.impressos.has(it.id) && !st.pendReimp.has(it.id));
   const reimpPendentes = itens.filter(it=>st.pendReimp.has(it.id));
@@ -2176,6 +2181,7 @@ function itensProducaoSectionHTML(caso){
   const prontosRecebimento = itens.filter(it=>itemStatus(caso,it.id)==="amarelo");
 
   return `
+  <div class="section-title">Produção dos itens</div>
   <div class="impressao-panel">
     <div class="readonly-grid">
       <div><span class="k">Pendentes de impressão</span><span class="v">${naoImpressos.length ? naoImpressos.map(it=>esc(it.label)).join(", ") : "nenhum"}</span></div>
@@ -2257,10 +2263,7 @@ function fichaCompletaHTML(caso){
     exatamente o que ainda falta produzir e entregar. O card só fica verde quando tudo for recebido.</div>
     ` : ""}
 
-    ${ehTipoAlinhadores(caso) ? lotesProducaoSectionHTML(caso) : `
-    <div class="section-title">Produção dos itens</div>
-    ${itensProducaoSectionHTML(caso)}
-    `}
+    ${ehTipoAlinhadores(caso) ? lotesProducaoSectionHTML(caso) : itensProducaoSectionHTML(caso)}
 
     ${caso.tipoCaso==="externo" ? `
     <div class="section-title">Dados do caso externo</div>
