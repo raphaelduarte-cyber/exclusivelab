@@ -143,14 +143,20 @@ configurado no navegador.
 Toda a produção (impressão, reimpressão, plastificação, corte, acabamento,
 conferência, envio, recebimento) agora acontece **dentro de lotes** (ver
 seção 2.1) — não são mais status separados do caso. Isso simplificou o
-Kanban para **5 colunas macro**:
+Kanban para **6 colunas macro**:
 
 1. Recebido
 2. Planejamento
 3. Aprovação (só externo)
 4. Em produção (lotes) — onde o caso passa a maior parte da vida; o detalhe
    fino de cada lote fica na ficha e no resumo do card, não em mais colunas
-5. Finalizado — só quando 100% das placas planejadas (todos os lotes) foram recebidas
+5. **Entrega / Financeiro** — só casos externos passam por aqui: produção
+   concluída, aguardando o fechamento comercial (entrega, pagamento) antes
+   de poder ser finalizado (ver seção 2.4-C). Casos internos nunca entram
+   nessa coluna — vão direto de "Em produção" para "Finalizado".
+6. Finalizado — interno: automático assim que `completoTotal()` fica
+   verdadeiro. Externo: exige finalização manual por um administrador a
+   partir da coluna "Entrega / Financeiro" (seção 2.4-C).
 
 ### Cadastro em duas fases (v2)
 
@@ -167,7 +173,7 @@ enquanto ela não estiver preenchida.
 
 ---
 
-## 2. Fluxo interno (6 etapas macro) e fluxo externo (10 etapas macro)
+## 2. Fluxo interno (6 etapas macro) e fluxo externo (11 etapas macro)
 
 ```
 Interno:  Caso recebido → Planejamento pendente → Planejamento em execução
@@ -177,8 +183,15 @@ Externo:  Caso externo recebido → Dados conferidos → Planejamento pendente
           → Planejamento em execução → Planejamento enviado para aprovação
           → Aguardando aprovação do cliente/dentista externo
           → Planejamento aprovado → (Ajustes solicitados no planejamento ↩)
-          → Em produção (lotes) → Finalizado
+          → Em produção (lotes) → Entrega / Financeiro → Finalizado
 ```
+
+Contenção e modelo de estudo (sem lotes, sem planejamento) seguem uma
+versão simplificada do mesmo fluxo: `Caso recebido → Em produção →
+Finalizado` (interno) ou `Caso recebido → Em produção → Entrega /
+Financeiro → Finalizado` (externo) — mesma regra de "Entrega / Financeiro
+só existe para externo" e mesma exigência de finalização manual por
+administrador nesse caso.
 
 Regras aplicadas no código:
 - **Salvar o planejamento de placas já conclui essa etapa e avança o caso automaticamente** (`__submitPlanejamento`) — não existe mais um clique manual extra em "Avançar" depois de definir as placas. Interno vai direto para "Em produção (lotes)"; externo vai para "Aguardando aprovação do cliente/dentista externo". Ao aprovar (`aprovarPlanejamento`), o externo também avança automaticamente direto para "Em produção (lotes)" na mesma ação — "Planejamento aprovado" é só um passo transitório registrado no histórico, o caso nunca fica parado nele esperando outro clique.
@@ -405,6 +418,41 @@ valor total for zero, o status vira simplesmente "Pago" (nada a cobrar).
   um selo discreto (`.badge.pago`) — sem faixa nenhuma.
 - Formas de pagamento fixas: Pix, Cartão, Dinheiro, Transferência, Boleto,
   Outro (`FORMAS_PAGAMENTO`).
+
+### 2.4-C Coluna "Entrega / Financeiro" e finalização administrativa (só externo)
+
+Quando `completoTotal(caso)` fica verdadeiro (todos os lotes/itens
+concluídos), o comportamento agora depende do tipo de caso
+(`concluirProducao`, chamado tanto pelo fluxo de lotes quanto pelo de
+itens de contenção/modelo):
+
+- **Interno** — finaliza automaticamente, exatamente como antes: vai direto
+  para "Finalizado", com `dataConclusaoReal`/`finalizadoPor` preenchidos.
+- **Externo** — em vez de finalizar sozinho, vai para a nova coluna
+  **"Entrega / Financeiro"** e **fica parado lá** até alguém finalizar
+  manualmente. O "Avançar" genérico fica bloqueado nessa etapa
+  (`canAdvanceGeneric`) — só a ação nomeada resolve.
+
+Na ficha, com o caso em "Entrega / Financeiro", aparece o botão
+**"Finalizar caso externo"** (`finalizarCasoExterno`) — **restrito a
+administradores**:
+
+- Quem não é administrador (`podeExcluir()` falso) recebe o aviso: *"A
+  finalização de casos externos é permitida apenas para
+  administradores."* e nada muda — a pessoa continua podendo registrar
+  envio, entrega e sinalizar pagamento normalmente, só não pode finalizar.
+- Administrador recebe a confirmação: *"Atenção: este caso externo será
+  finalizado administrativamente. Confirme para continuar."* — só ao
+  confirmar o caso vira "Finalizado", com `dataConclusaoReal`/
+  `finalizadoPor` preenchidos e o histórico registrando a observação
+  **"Finalização administrativa"** (diferente do interno, que nunca tem
+  essa observação — assim dá pra distinguir os dois tipos de finalização
+  olhando só o histórico).
+
+Essa trava existe de propósito para casos externos: produção pronta não
+significa "resolvido" — falta confirmar entrega e fechamento financeiro
+com o cliente/clínica externa antes de arquivar o caso como concluído, e
+isso deve ser uma decisão de quem tem visão administrativa, não automática.
 
 ### 2.5 Nomes dos botões de cada lote
 

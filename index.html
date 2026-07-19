@@ -358,6 +358,10 @@ const CONFIG_ARQUIVAMENTO_DIAS = 30;
    recebidos.
    ========================================================================= */
 const STATUS_PRODUCAO = "Em produção (lotes)";
+// Só caso externo passa por aqui — depois de produzido, fica aguardando
+// envio/entrega/pagamento até um administrador finalizar explicitamente
+// (ver finalizarCasoExterno). Interno finaliza sozinho, sem passar por essa etapa.
+const STATUS_ENTREGA_FINANCEIRO = "Entrega / Financeiro";
 
 const FLOW_INTERNO = [
   "Caso recebido","Planejamento pendente","Planejamento em execução","Planejamento concluído",
@@ -370,20 +374,24 @@ const FLOW_EXTERNO = [
   "Planejamento enviado para aprovação","Aguardando aprovação do cliente/dentista externo",
   "Planejamento aprovado","Ajustes solicitados no planejamento",
   STATUS_PRODUCAO,
+  STATUS_ENTREGA_FINANCEIRO,
   "Finalizado"
 ];
 
 // Contenção e Modelo de estudo não têm etapa de planejamento ortodôntico nem
 // aprovação — são ordens de produção diretas. Os itens já saem prontos do
-// cadastro (ver "PRODUÇÃO POR ITENS"), então o fluxo é só 3 macro-etapas.
+// cadastro (ver "PRODUÇÃO POR ITENS"), então o fluxo é só 3 macro-etapas
+// (4 quando externo, pela mesma etapa de entrega/financeiro dos alinhadores).
 const STATUS_PRODUCAO_ITENS = "Em produção";
 const FLOW_ITENS = ["Caso recebido", STATUS_PRODUCAO_ITENS, "Finalizado"];
+const FLOW_ITENS_EXTERNO = ["Caso recebido", STATUS_PRODUCAO_ITENS, STATUS_ENTREGA_FINANCEIRO, "Finalizado"];
 
 const COLS = [
   {key:"recebido", label:"Recebido"},
   {key:"planejamento", label:"Planejamento"},
   {key:"aprovacao", label:"Aprovação (externo)"},
   {key:"producao", label:"Em produção"},
+  {key:"entrega_financeiro", label:"Entrega / Financeiro"},
   {key:"finalizado", label:"Finalizado"}
 ];
 
@@ -394,6 +402,7 @@ const STATUS_TO_COL = {
   "Planejamento aprovado":"aprovacao","Ajustes solicitados no planejamento":"aprovacao",
   [STATUS_PRODUCAO]:"producao",
   [STATUS_PRODUCAO_ITENS]:"producao",
+  [STATUS_ENTREGA_FINANCEIRO]:"entrega_financeiro",
   "Finalizado":"finalizado"
 };
 
@@ -405,14 +414,14 @@ const ADVANCE_OVERRIDE = {
 // só pode acontecer por uma ação específica (evita avanço indevido).
 const BLOCK_GENERIC_ADVANCE = {
   interno: new Set([STATUS_PRODUCAO, STATUS_PRODUCAO_ITENS]),
-  externo: new Set([STATUS_PRODUCAO, STATUS_PRODUCAO_ITENS, "Aguardando aprovação do cliente/dentista externo"])
+  externo: new Set([STATUS_PRODUCAO, STATUS_PRODUCAO_ITENS, "Aguardando aprovação do cliente/dentista externo", STATUS_ENTREGA_FINANCEIRO])
 };
 
 const SETORES = ["Recepção","Laboratório - Planejamento","Laboratório - Produção (lotes)","ASB / Clínica","Comercial / Externo"];
 
 const COL_TO_SETOR = {
   recebido:"Recepção", planejamento:"Laboratório - Planejamento", aprovacao:"Comercial / Externo",
-  producao:"Laboratório - Produção (lotes)", finalizado:"ASB / Clínica"
+  producao:"Laboratório - Produção (lotes)", entrega_financeiro:"Comercial / Externo", finalizado:"ASB / Clínica"
 };
 
 /* =========================================================================
@@ -592,7 +601,7 @@ function findCaso(id){ return CASOS.find(c=>c.id===id); }
 function ehTipoItens(caso){ return caso.tipoProducao==="contencao" || caso.tipoProducao==="modeloEstudo"; }
 function ehTipoAlinhadores(caso){ return !ehTipoItens(caso); }
 function getFlow(caso){
-  if (ehTipoItens(caso)) return FLOW_ITENS;
+  if (ehTipoItens(caso)) return caso.tipoCaso==="externo" ? FLOW_ITENS_EXTERNO : FLOW_ITENS;
   return caso.tipoCaso==="externo" ? FLOW_EXTERNO : FLOW_INTERNO;
 }
 function currentIndex(caso){ return getFlow(caso).indexOf(caso.statusAtual); }
@@ -1256,7 +1265,7 @@ function renderIndicators(){
 function renderFilters(){
   const el = document.getElementById("filters");
   const planejadores = [...new Set(CASOS.map(c=>c.dentistaPlanejador).filter(Boolean))];
-  const statusesAll = [...new Set([...FLOW_INTERNO, ...FLOW_EXTERNO, ...FLOW_ITENS])];
+  const statusesAll = [...new Set([...FLOW_INTERNO, ...FLOW_EXTERNO, ...FLOW_ITENS, ...FLOW_ITENS_EXTERNO])];
   el.innerHTML = `
     <select onchange="App.setFilter('tipo', this.value)">
       <option value="todos" ${FILTERS.tipo==="todos"?"selected":""}>Todos os casos</option>
@@ -1549,6 +1558,20 @@ async function prontoParaImpressao(id){
   changeStatus(caso, STATUS_PRODUCAO_ITENS, "Pronto para impressão");
   await persist(caso);
   abrirFicha(id); toast("Caso pronto para impressão — avançou para produção.");
+}
+// Só administrador finaliza caso externo (reaproveita podeExcluir, mesmo
+// flag de administrador — sem criar uma permissão nova só pra isso).
+// Usuário comum pode registrar envio/entrega/pagamento normalmente
+// enquanto o caso estiver em "Entrega / Financeiro", só não finaliza.
+async function finalizarCasoExterno(id){
+  if (!podeExcluir()){ toast("A finalização de casos externos é permitida apenas para administradores."); return; }
+  if (!confirm("Atenção: este caso externo será finalizado administrativamente. Confirme para continuar.")) return;
+  const caso = findCaso(id);
+  caso.dataConclusaoReal = todayISO();
+  caso.finalizadoPor = OPERADOR;
+  changeStatus(caso, "Finalizado", "Finalização administrativa");
+  await persist(caso);
+  abrirFicha(id); toast("Caso externo finalizado.");
 }
 async function excluirCaso(id){
   if (!podeExcluir()){ toast("Apenas administradores podem excluir."); return; }
@@ -2047,6 +2070,11 @@ function getActionsForCaso(caso){
     actions.push({label: caso.financeiro ? "Editar financeiro" : "Definir financeiro", fn:()=>promptFinanceiro(caso.id)});
     if (caso.financeiro) actions.push({label:"Sinalizar pagamento", fn:()=>promptSinalizarPagamento(caso.id)});
   }
+  // Só nessa etapa existe a ação de finalizar — e só administrador consegue
+  // de fato (finalizarCasoExterno recusa e avisa quem não for).
+  if (ext && s===STATUS_ENTREGA_FINANCEIRO){
+    actions.push({label:"Finalizar caso externo", fn:()=>finalizarCasoExterno(caso.id)});
+  }
   return actions;
 }
 
@@ -2482,16 +2510,31 @@ function promptRecebimentoLote(casoId, loteId){
   `, `<button class="btn outline" onclick="App.abrirFicha('${casoId}')">Cancelar</button>
       <button class="btn ready" onclick="App.__submitRecebimentoLote('${casoId}','${loteId}')">Registrar recebimento</button>`);
 }
+// Chamado quando completoTotal(caso) vira true. Interno finaliza sozinho,
+// como sempre; externo só vai pra "Entrega / Financeiro" — aguarda um
+// administrador finalizar explicitamente (ver finalizarCasoExterno), já
+// que ainda pode faltar entrega física e/ou pagamento.
+function concluirProducao(caso, motivoFinalizacao){
+  if (caso.tipoCaso==="externo"){
+    changeStatus(caso, STATUS_ENTREGA_FINANCEIRO, "Produção concluída — aguardando entrega/financeiro");
+    return;
+  }
+  caso.dataConclusaoReal = todayISO();
+  caso.finalizadoPor = OPERADOR;
+  changeStatus(caso, "Finalizado", motivoFinalizacao);
+}
 function __submitRecebimentoLote(casoId, loteId){
   const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);
   lote.recebimento = { recebido:true, data:document.getElementById("p-data").value, responsavel:document.getElementById("p-resp").value, observacao:document.getElementById("p-obs").value };
   logHistorico(caso, caso.statusAtual, caso.statusAtual, `Lote ${lote.numero} — recebido`);
   if (completoTotal(caso)){
-    caso.dataConclusaoReal = todayISO();
-    caso.finalizadoPor = OPERADOR;
-    changeStatus(caso, "Finalizado", "Todos os lotes produzidos, enviados e recebidos — caso finalizado");
+    concluirProducao(caso, "Todos os lotes produzidos, enviados e recebidos — caso finalizado");
   }
-  persist(caso).then(()=>{ abrirFicha(casoId); toast(caso.statusAtual==="Finalizado" ? "Caso finalizado!" : "Recebimento do lote registrado — caso continua ativo."); });
+  persist(caso).then(()=>{ abrirFicha(casoId); toast(
+    caso.statusAtual==="Finalizado" ? "Caso finalizado!" :
+    caso.statusAtual===STATUS_ENTREGA_FINANCEIRO ? "Produção concluída — aguardando entrega/financeiro." :
+    "Recebimento do lote registrado — caso continua ativo."
+  ); });
 }
 
 /* =========================================================================
@@ -2672,11 +2715,13 @@ function __submitRecebimentoItens(id){
   caso.eventosRecebimentoItens.push({ id:uuid(), criadoEm:new Date().toISOString(), itens:marcados, responsavel:document.getElementById("p-resp").value, data:document.getElementById("p-data").value });
   logHistorico(caso, caso.statusAtual, caso.statusAtual, `Recebimento registrado: ${labelsDosItens(caso,marcados)}`);
   if (completoTotal(caso)){
-    caso.dataConclusaoReal = todayISO();
-    caso.finalizadoPor = OPERADOR;
-    changeStatus(caso, "Finalizado", "Todos os itens produzidos e recebidos — caso finalizado");
+    concluirProducao(caso, "Todos os itens produzidos e recebidos — caso finalizado");
   }
-  persist(caso).then(()=>{ abrirFicha(id); toast(caso.statusAtual==="Finalizado" ? "Caso finalizado!" : "Recebimento registrado — caso continua ativo."); });
+  persist(caso).then(()=>{ abrirFicha(id); toast(
+    caso.statusAtual==="Finalizado" ? "Caso finalizado!" :
+    caso.statusAtual===STATUS_ENTREGA_FINANCEIRO ? "Produção concluída — aguardando entrega/financeiro." :
+    "Recebimento registrado — caso continua ativo."
+  ); });
 }
 
 /* ---- planejamento externo (aprovação) ---- */
@@ -3137,7 +3182,7 @@ window.App = {
   __runAction, __submitPlanejamento, promptPlanejamento,
   aprovarPlanejamento, solicitarAjuste, promptAprovacao, promptAjuste, prontoParaImpressao,
   promptCriarLote, __submitCriarLote,
-  promptFinanceiro, __submitFinanceiro, promptSinalizarPagamento, __submitSinalizarPagamento,
+  promptFinanceiro, __submitFinanceiro, promptSinalizarPagamento, __submitSinalizarPagamento, finalizarCasoExterno,
   promptConferenciaImpressaoLote, __submitConferenciaImpressaoLote,
   promptFinalizacaoLote, __submitFinalizacaoLote,
   promptEnvioLote, __submitEnvioLote,
