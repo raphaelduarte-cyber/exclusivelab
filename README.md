@@ -188,6 +188,7 @@ Regras aplicadas no código:
 - Campo opcional **"É refinamento interno?"** — se sim, pede o número do refinamento e exibe selo "Refinamento nº X" no card.
 - **Não existe mais "Erro de impressão" como status separado.** Toda falha é tratada via "Reimpressão necessária", dentro do lote (seção 2.1).
 - **"Em produção (lotes)"** é a única etapa em que o caso realmente fica — todo o detalhe fino (impressão, reimpressão, plastificação, corte, acabamento, conferência, envio, recebimento) acontece dentro dos lotes do caso, não em mais transições de status macro. A saída dessa etapa é sempre automática, via `completoTotal()` — nunca um botão manual de "concluir".
+- **Contenção/modelo de estudo não têm planejamento** (os itens já são gerados no cadastro, `buildItensProducao`) — mas também não avançam sozinhos de "Caso recebido": o "Avançar" genérico fica bloqueado nessa etapa para esses tipos (`canAdvanceGeneric`), e a ação nomeada **"Pronto para impressão"** (`prontoParaImpressao`) é quem move o caso pra produção, com o mesmo registro de responsável/data/hora/histórico de qualquer `changeStatus`.
 
 ### 2.1 Lotes de produção — a peça central desta versão
 

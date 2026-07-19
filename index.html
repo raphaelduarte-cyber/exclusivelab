@@ -1404,6 +1404,10 @@ function render(){
    AÇÕES DE FLUXO GENÉRICAS
    ========================================================================= */
 function canAdvanceGeneric(caso){
+  // Contenção/modelo de estudo saem de "Caso recebido" só pela ação
+  // nomeada "Pronto para impressão" (ver getActionsForCaso), nunca pelo
+  // "Avançar" genérico — evita avanço acidental sem essa confirmação.
+  if (ehTipoItens(caso) && caso.statusAtual==="Caso recebido") return false;
   const blocked = BLOCK_GENERIC_ADVANCE[caso.tipoCaso];
   return !(blocked && blocked.has(caso.statusAtual)) && caso.statusAtual!=="Finalizado";
 }
@@ -1465,6 +1469,16 @@ async function solicitarAjuste(id, obs){
   changeStatus(caso, "Planejamento em execução", "Retorno automático após solicitação de ajuste");
   await persist(caso);
   abrirFicha(id); toast("Ajuste solicitado — caso retornado ao planejamento.");
+}
+// Contenção/modelo de estudo: sai de "Caso recebido" direto pra produção,
+// sem etapa de planejamento — equivalente ao "Definir planejamento" dos
+// alinhadores, só que sem placas pra definir (já vieram prontas do cadastro).
+async function prontoParaImpressao(id){
+  if (!requireOperador()) return;
+  const caso = findCaso(id);
+  changeStatus(caso, STATUS_PRODUCAO_ITENS, "Pronto para impressão");
+  await persist(caso);
+  abrirFicha(id); toast("Caso pronto para impressão — avançou para produção.");
 }
 async function excluirCaso(id){
   if (!podeExcluir()){ toast("Apenas administradores podem excluir."); return; }
@@ -1845,6 +1859,11 @@ function getActionsForCaso(caso){
 
   if (naEtapaPlanejamento){
     actions.push({label: planejamentoValido(caso) ? "Editar placas do planejamento" : "Definir placas do planejamento", fn:()=>promptPlanejamento(caso.id)});
+  }
+  // Contenção/modelo de estudo não têm planejamento — saem de "Caso
+  // recebido" direto pra produção com essa ação nomeada.
+  if (ehTipoItens(caso) && s==="Caso recebido"){
+    actions.push({label:"Pronto para impressão", fn:()=>prontoParaImpressao(caso.id)});
   }
   if (ext && s==="Aguardando aprovação do cliente/dentista externo"){
     actions.push({label:"Aprovar planejamento", fn:()=>promptAprovacao(caso.id)});
@@ -2843,7 +2862,7 @@ window.App = {
   recalcularPrazoAutomatico,
   excluirCaso, closeModal,
   __runAction, __submitPlanejamento, promptPlanejamento,
-  aprovarPlanejamento, solicitarAjuste, promptAprovacao, promptAjuste,
+  aprovarPlanejamento, solicitarAjuste, promptAprovacao, promptAjuste, prontoParaImpressao,
   promptCriarLote, __submitCriarLote,
   promptConferenciaImpressaoLote, __submitConferenciaImpressaoLote,
   promptFinalizacaoLote, __submitFinalizacaoLote,
