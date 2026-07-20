@@ -2211,10 +2211,8 @@ function renderFormularioNanda(){
       <div class="field-grid">
         <div class="field"><label>Data *</label><input type="date" id="f-nanda-data" max="${dataLocalISO()}" value="${editando ? editando.data : dataLocalISO()}"></div>
         <div class="field"><label>Leads recebidos pela Nanda *</label><input type="number" min="0" id="f-nanda-recebidos" value="${v('leadsRecebidos')}"></div>
-        <div class="field"><label>Leads atendidos pela Nanda</label><input type="number" min="0" id="f-nanda-atendidos" value="${v('leadsAtendidos')}"></div>
         <div class="field"><label>Leads que responderam</label><input type="number" min="0" id="f-nanda-responderam" value="${v('leadsResponderam')}"></div>
         <div class="field"><label>Agendados diretamente pela Nanda *</label><input type="number" min="0" id="f-nanda-diretos" value="${v('agendadosDiretos')}"></div>
-        <div class="field"><label>Transferidos para atendimento humano *</label><input type="number" min="0" id="f-nanda-transferidos" value="${v('transferidosHumano')}"></div>
         <div class="field"><label>Transferidos e agendados (pela Larissa) *</label><input type="number" min="0" id="f-nanda-transf-agendados" value="${v('transferidosAgendados')}"></div>
         <div class="field"><label>Transferidos e não agendados *</label><input type="number" min="0" id="f-nanda-transf-nao-agendados" value="${v('transferidosNaoAgendados')}"></div>
         <div class="field"><label>Sem resposta</label><input type="number" min="0" id="f-nanda-sem-resposta" value="${v('semResposta')}"></div>
@@ -2241,22 +2239,22 @@ async function salvarNandaForm(){
   const data = document.getElementById("f-nanda-data")?.value;
   const recebidos = num("f-nanda-recebidos");
   const diretos = num("f-nanda-diretos");
-  const transferidos = num("f-nanda-transferidos");
   const transfAgendados = num("f-nanda-transf-agendados");
   const transfNaoAgendados = num("f-nanda-transf-nao-agendados");
+  // Transferidos para atendimento humano não tem campo próprio — é a soma de quem foi
+  // transferido e agendado com quem foi transferido e não agendado (evita pedir o mesmo número duas vezes).
+  const transferidos = transfAgendados + transfNaoAgendados;
 
   if (!data) return mostrarErro("Informe a data.");
   if (diretos>recebidos) return mostrarErro("Agendados diretos não podem ser mais que leads recebidos.");
-  if (transferidos>recebidos) return mostrarErro("Transferidos não podem ser mais que leads recebidos.");
-  if (transfAgendados>transferidos) return mostrarErro("Transferidos e agendados não podem ser mais que transferidos.");
-  if (transfNaoAgendados>transferidos) return mostrarErro("Transferidos e não agendados não podem ser mais que transferidos.");
+  if (transferidos>recebidos) return mostrarErro("Transferidos e agendados + transferidos e não agendados não podem somar mais que leads recebidos.");
   erroBox.classList.add("hidden");
 
   const registro = {
     id: NANDA_EDITANDO_ID || undefined,
     crcEmail: PERFIL_ATUAL.email,
     crcNome: PERFIL_ATUAL.nomeCurto || PERFIL_ATUAL.nomeCompleto,
-    data, leadsRecebidos:recebidos, leadsAtendidos:num("f-nanda-atendidos"), leadsResponderam:num("f-nanda-responderam"),
+    data, leadsRecebidos:recebidos, leadsResponderam:num("f-nanda-responderam"),
     agendadosDiretos:diretos, transferidosHumano:transferidos, transferidosAgendados:transfAgendados, transferidosNaoAgendados:transfNaoAgendados,
     semResposta:num("f-nanda-sem-resposta"), recusaramAgendamento:num("f-nanda-recusaram"), emFollowUp:num("f-nanda-followup"),
     motivoNaoAgendados: document.getElementById("f-nanda-motivo")?.value || "",
