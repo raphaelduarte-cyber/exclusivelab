@@ -1999,8 +1999,8 @@ function renderDashboardExecutivo(){
       ${funilStepHtml("Entraram", a.funilLeads.entraram, maiorFunil)}
       ${funilStepHtml("Trabalhados", a.funilLeads.trabalhados, maiorFunil)}
       <div class="funil-conv">Taxa de resposta: ${pct(a.funilLeads.taxaResposta)}</div>
-      ${funilStepHtml("Agendados", a.funilLeads.agendados, maiorFunil)}
-      <div class="funil-conv">Taxa de conversão em agendamento: ${pct(a.funilLeads.taxaConversao)}</div>
+      ${funilStepHtml("Convertidos em agendamento", a.funilLeads.agendados, maiorFunil)}
+      <div class="funil-conv">Taxa de conversão em agendamento: ${pct(a.funilLeads.taxaConversao)} · conta só os leads de hoje que viraram agendamento hoje — não é o mesmo número de "Agendados" do card de Comparecimento (que é a agenda do dia inteira, incluindo leads antigos).</div>
     </div>
   `;
 
