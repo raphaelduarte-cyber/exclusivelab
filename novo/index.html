@@ -260,6 +260,7 @@ h1,h2,h3,h4{margin:0;}
     <div id="view-crc-dashboard"></div>
     <div id="view-crc-relatorio" class="hidden"></div>
     <div id="view-crc-reativacao" class="hidden"></div>
+    <div id="view-crc-nanda" class="hidden"></div>
     <div id="view-admin-placeholder" class="hidden">
       <div class="saudacao" style="font-size:20px;">Dashboard Executivo</div>
       <div class="saudacao-sub">Use os filtros abaixo para ver o total ou uma CRC específica, no período que quiser.</div>
@@ -279,6 +280,12 @@ h1,h2,h3,h4{margin:0;}
       <div class="form-card" style="margin-top:20px;">
         <div class="section-title">Metas do mês — Agendamentos por CRC</div>
         <div id="metas-admin"></div>
+      </div>
+
+      <div class="form-card" style="margin-top:20px;">
+        <div class="section-title">🤖 Gestão da Nanda — Assistente Virtual</div>
+        <p style="font-size:12px;color:var(--text-light);margin:-6px 0 14px;">Operação separada do desempenho pessoal das CRCs — não entra no Ranking/IEC.</p>
+        <div id="nanda-admin"></div>
       </div>
 
       <div class="form-card" style="margin-top:20px;">
@@ -413,12 +420,31 @@ const OPORTUNIDADES_MES_EXEMPLO = [
   { crcEmail:"suzani@teste.com", crcNome:"Suzani", paciente:"Igor Nunes", telefone:"81997774444", procedimento:"Implante Unitário", temperatura:"Morno", proximaAcao:"WhatsApp" }
 ];
 
-// Metas de exemplo (3 níveis de agendamento + meta de comparecimentos), só para o modo de teste local.
+// Metas de exemplo (3 níveis de agendamento + meta de comparecimentos + meta da Nanda), só para o modo de teste local.
 const METAS_EXEMPLO = [
-  { crcEmail:"larissa@teste.com", anoMes:"2026-07", metaAgendamentos:20, metaMegaAgendamentos:28, metaSuperAgendamentos:35, metaComparecimentos:28 },
+  { crcEmail:"larissa@teste.com", anoMes:"2026-07", metaAgendamentos:20, metaMegaAgendamentos:28, metaSuperAgendamentos:35, metaComparecimentos:28, metaNanda:25 },
   { crcEmail:"suzani@teste.com", anoMes:"2026-07", metaAgendamentos:20, metaMegaAgendamentos:28, metaSuperAgendamentos:35, metaComparecimentos:25 },
   { crcEmail:"camila@teste.com", anoMes:"2026-07", metaAgendamentos:20, metaMegaAgendamentos:28, metaSuperAgendamentos:35, metaComparecimentos:8 },
   { crcEmail:"debora@teste.com", anoMes:"2026-07", metaAgendamentos:20, metaMegaAgendamentos:28, metaSuperAgendamentos:35, metaComparecimentos:10 }
+];
+
+// Lançamentos diários da Gestão da Nanda (assistente virtual), só para o modo de teste local — Larissa cuida do preenchimento, mas o resultado é operação separada.
+// Calibrado pra disparar "Alta dependência de atendimento humano", "Baixa recuperação após transferência" e "Baixa conversão da Nanda" (Diagnóstico 4).
+const NANDA_MES_EXEMPLO = [
+  { id:"nanda-1", crcEmail:"larissa@teste.com", crcNome:"Larissa", data:"2026-07-05", leadsRecebidos:30, leadsAtendidos:30, leadsResponderam:25, agendadosDiretos:3, transferidosHumano:20, transferidosAgendados:3, transferidosNaoAgendados:16, semResposta:5, recusaramAgendamento:1, emFollowUp:1, observacoes:"", motivoNaoAgendados:"Preço" },
+  { id:"nanda-2", crcEmail:"larissa@teste.com", crcNome:"Larissa", data:"2026-07-08", leadsRecebidos:32, leadsAtendidos:32, leadsResponderam:26, agendadosDiretos:2, transferidosHumano:22, transferidosAgendados:3, transferidosNaoAgendados:18, semResposta:4, recusaramAgendamento:1, emFollowUp:1, observacoes:"", motivoNaoAgendados:"Sem interesse" },
+  { id:"nanda-3", crcEmail:"larissa@teste.com", crcNome:"Larissa", data:"2026-07-10", leadsRecebidos:28, leadsAtendidos:27, leadsResponderam:22, agendadosDiretos:2, transferidosHumano:18, transferidosAgendados:3, transferidosNaoAgendados:14, semResposta:4, recusaramAgendamento:1, emFollowUp:1, observacoes:"", motivoNaoAgendados:"Preço" },
+  { id:"nanda-4", crcEmail:"larissa@teste.com", crcNome:"Larissa", data:"2026-07-12", leadsRecebidos:30, leadsAtendidos:29, leadsResponderam:24, agendadosDiretos:3, transferidosHumano:20, transferidosAgendados:3, transferidosNaoAgendados:16, semResposta:4, recusaramAgendamento:1, emFollowUp:1, observacoes:"", motivoNaoAgendados:"Sem tempo" },
+  { id:"nanda-5", crcEmail:"larissa@teste.com", crcNome:"Larissa", data:"2026-07-14", leadsRecebidos:30, leadsAtendidos:30, leadsResponderam:25, agendadosDiretos:2, transferidosHumano:20, transferidosAgendados:3, transferidosNaoAgendados:16, semResposta:4, recusaramAgendamento:1, emFollowUp:1, observacoes:"", motivoNaoAgendados:"Preço" }
+];
+
+// Histórico da Nanda (últimos meses) — Junho tinha conversão total melhor, mostrando queda na evolução mensal.
+const NANDA_HISTORICO_EXEMPLO = [
+  ...NANDA_MES_EXEMPLO,
+  { crcEmail:"larissa@teste.com", data:"2026-06-10", leadsRecebidos:30, agendadosDiretos:5, transferidosHumano:15, transferidosAgendados:4 },
+  { crcEmail:"larissa@teste.com", data:"2026-06-22", leadsRecebidos:30, agendadosDiretos:5, transferidosHumano:14, transferidosAgendados:4 },
+  { crcEmail:"larissa@teste.com", data:"2026-05-15", leadsRecebidos:28, agendadosDiretos:4, transferidosHumano:14, transferidosAgendados:3 },
+  { crcEmail:"larissa@teste.com", data:"2026-04-15", leadsRecebidos:25, agendadosDiretos:4, transferidosHumano:12, transferidosAgendados:3 }
 ];
 
 // Usuários de exemplo, só para o modo de teste local — sem isso as telas de Ranking/Metas/Dashboard Executivo do admin ficam vazias na demonstração.
@@ -474,7 +500,7 @@ const Api = {
     return resp.json();
   },
   async statusHoje(){
-    if (!CONFIG.API_URL) return { ok:true, usuarios: USUARIOS_EXEMPLO, relatoriosHoje:[], relatoriosMes: RELATORIOS_MES_EXEMPLO, relatoriosHistorico: RELATORIOS_HISTORICO_EXEMPLO, oportunidadesMes: OPORTUNIDADES_MES_EXEMPLO, pacientesFaltantes: PACIENTES_FALTANTES_EXEMPLO, pacientesReagendadosMes: PACIENTES_REAGENDADOS_MES_EXEMPLO, metas: METAS_EXEMPLO };
+    if (!CONFIG.API_URL) return { ok:true, usuarios: USUARIOS_EXEMPLO, relatoriosHoje:[], relatoriosMes: RELATORIOS_MES_EXEMPLO, relatoriosHistorico: RELATORIOS_HISTORICO_EXEMPLO, oportunidadesMes: OPORTUNIDADES_MES_EXEMPLO, pacientesFaltantes: PACIENTES_FALTANTES_EXEMPLO, pacientesReagendadosMes: PACIENTES_REAGENDADOS_MES_EXEMPLO, metas: METAS_EXEMPLO, nandaMes: NANDA_MES_EXEMPLO, nandaHistorico: NANDA_HISTORICO_EXEMPLO };
     const resp = await fetch(CONFIG.API_URL);
     return resp.json();
   },
@@ -503,13 +529,26 @@ const Api = {
   },
   async salvarMeta(idToken, crcEmail, metas){
     if (!CONFIG.API_URL){
-      const meta = { crcEmail, anoMes: dataLocalISO().slice(0,7), metaAgendamentos: Number(metas.meta)||0, metaMegaAgendamentos: Number(metas.mega)||0, metaSuperAgendamentos: Number(metas.super)||0, metaComparecimentos: Number(metas.comparecimentos)||0 };
+      const meta = { crcEmail, anoMes: dataLocalISO().slice(0,7), metaAgendamentos: Number(metas.meta)||0, metaMegaAgendamentos: Number(metas.mega)||0, metaSuperAgendamentos: Number(metas.super)||0, metaComparecimentos: Number(metas.comparecimentos)||0, metaNanda: Number(metas.nanda)||0 };
       return { ok:true, meta };
     }
     const resp = await fetch(CONFIG.API_URL, {
       method:"POST",
       headers:{"Content-Type":"text/plain;charset=utf-8"},
       body: JSON.stringify({ action:"salvarMeta", idToken, crcEmail, metas })
+    });
+    return resp.json();
+  },
+  async salvarNanda(idToken, registro){
+    if (!CONFIG.API_URL){
+      const agora = new Date().toISOString();
+      const salvo = { ...registro, id: registro.id || ("nanda-"+Date.now()), criadoEm: registro.criadoEm||agora, atualizadoEm: agora };
+      return { ok:true, registro: salvo };
+    }
+    const resp = await fetch(CONFIG.API_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({ action:"salvarNanda", idToken, registro })
     });
     return resp.json();
   }
@@ -532,6 +571,10 @@ let METAS_CACHE = [];
 let METAS_EDITANDO = new Set();
 let PERIODO_DASHBOARD = "mes";
 let CRC_SELECIONADA_DASHBOARD = "";
+let NANDA_MES_CACHE = [];
+let NANDA_HISTORICO_CACHE = [];
+let PERIODO_NANDA = "mes";
+let NANDA_EDITANDO_ID = "";
 let FILTRO_REATIVACAO = { status:"", busca:"", ordenacao:"padrao" };
 let ESTADO_MOTIVO = {};
 let ESTADO_CONFIRMAR_REMOCAO = {};
@@ -699,6 +742,8 @@ async function carregarStatusHoje(){
       RELATORIOS_HISTORICO_CACHE = data.relatoriosHistorico || [];
       OPORTUNIDADES_MES_CACHE = data.oportunidadesMes || [];
       METAS_CACHE = data.metas || [];
+      NANDA_MES_CACHE = data.nandaMes || [];
+      NANDA_HISTORICO_CACHE = data.nandaHistorico || [];
     }
   } catch(err){ /* sem backend real ainda: mantém padrão (não enviado) */ }
 }
@@ -710,11 +755,13 @@ function mostrarView(nome){
   document.getElementById("view-crc-dashboard").classList.toggle("hidden", nome!=="dashboard");
   document.getElementById("view-crc-relatorio").classList.toggle("hidden", nome!=="relatorio");
   document.getElementById("view-crc-reativacao").classList.toggle("hidden", nome!=="reativacao");
+  document.getElementById("view-crc-nanda").classList.toggle("hidden", nome!=="nanda");
   document.getElementById("view-admin-placeholder").classList.toggle("hidden", nome!=="admin");
   if (nome==="dashboard") renderDashboard();
   if (nome==="relatorio") renderFormularioRelatorio();
   if (nome==="reativacao") renderReativacao();
-  if (nome==="admin"){ renderDashboardExecutivo(); renderUsuariosLista(); renderCentralReativacaoAdmin(); renderRankingAdmin(); renderAlertasEquipe(); renderMetasAdmin(); }
+  if (nome==="nanda") renderGestaoNanda();
+  if (nome==="admin"){ renderDashboardExecutivo(); renderUsuariosLista(); renderCentralReativacaoAdmin(); renderRankingAdmin(); renderAlertasEquipe(); renderMetasAdmin(); renderNandaAdmin(); }
 }
 
 /* =========================================================================
@@ -1112,6 +1159,7 @@ function renderAlertasEquipe(){
 
 function abrirFormularioRelatorio(){ mostrarView("relatorio"); }
 function abrirReativacao(){ mostrarView("reativacao"); }
+function abrirGestaoNanda(){ mostrarView("nanda"); }
 function voltarDashboard(){ mostrarView("dashboard"); }
 
 // Fórmula do IE-CRC: pesos redistribuídos do prompt original (o critério de
@@ -1282,7 +1330,10 @@ function renderDashboard(){
     ${DETALHE_IEC_ABERTO ? `<p style="font-size:12px;margin:-10px 0 18px;"><a href="#" onclick="App.alternarDetalheIECRC();return false;" style="color:var(--blue);">Ver detalhamento de produtividade (IE-CRC) ${DETALHE_IECRC_ABERTO ? "▲" : "▼"}</a></p>` : ""}
     ${DETALHE_IECRC_ABERTO ? renderDetalheIECRC(ie) : ""}
     ${DETALHE_META_ABERTO ? renderDetalheMeta(metaInfo) : ""}
-    <button class="btn primary" onclick="App.abrirFormularioRelatorio()">📝 ${RELATORIO_ENVIADO_HOJE ? "Preencher outro relatório" : "Preencher relatório de hoje"}</button>
+    <div class="form-actions">
+      <button class="btn primary" onclick="App.abrirFormularioRelatorio()">📝 ${RELATORIO_ENVIADO_HOJE ? "Preencher outro relatório" : "Preencher relatório de hoje"}</button>
+      <button class="btn outline" onclick="App.abrirGestaoNanda()">🤖 Gestão da Nanda</button>
+    </div>
   `;
 }
 
@@ -2016,6 +2067,349 @@ function renderDashboardExecutivo(){
   el.innerHTML = controlesHtml + `<div class="exec-grid">${funilHtml}${comparecimentoHtml}${resgateHtml}${qualidadeHtml}${objecoesHtml}${oportunidadesHtml}</div>` + extrasHtml;
 }
 
+/* =========================================================================
+   GESTÃO DA NANDA — assistente virtual, operação separada do desempenho
+   pessoal da CRC. A CRC preenche e cuida dos dados, mas o resultado
+   pertence à Nanda — nunca soma automaticamente no IEC/Ranking/Metas
+   pessoais dela.
+   ========================================================================= */
+
+// Limites da Nanda — valores iniciais, ficam editáveis pelo gestor numa
+// próxima rodada (mesmo espírito do IEC_LIMITES/PRAZO_LIMITES).
+const NANDA_LIMITES = {
+  conversaoTotalMinima: 25,          // % — abaixo disso, alerta de baixa conversão
+  transferenciaMaxima: 60,           // % — acima disso, alta dependência de humano
+  sucessoPosTransferenciaMinima: 30, // % — abaixo disso, baixa recuperação
+  naoRespostaMaxima: 30              // %
+};
+
+/** Soma os campos do período e calcula as 6 taxas da Nanda (conversão direta/assistida/total, transferência, sucesso pós-transferência, não resposta). */
+function calcularNanda(registros, metaNanda){
+  if (!registros || !registros.length) return { semDados:true };
+  const s = { leadsRecebidos:0, leadsAtendidos:0, leadsResponderam:0, agendadosDiretos:0, transferidosHumano:0, transferidosAgendados:0, transferidosNaoAgendados:0, semResposta:0, recusaramAgendamento:0, emFollowUp:0 };
+  registros.forEach(r => { Object.keys(s).forEach(k => { s[k] += Number(r[k])||0; }); });
+  const div = (a,b) => b>0 ? a/b : null;
+  const agendamentosTotais = s.agendadosDiretos + s.transferidosAgendados;
+  const meta = Number(metaNanda)||0;
+  return Object.assign({ semDados:false, agendamentosTotais }, s, {
+    taxaConversaoDireta: div(s.agendadosDiretos, s.leadsRecebidos),
+    taxaConversaoAssistida: div(s.transferidosAgendados, s.leadsRecebidos),
+    taxaConversaoTotal: div(agendamentosTotais, s.leadsRecebidos),
+    taxaTransferencia: div(s.transferidosHumano, s.leadsRecebidos),
+    taxaSucessoPosTransferencia: div(s.transferidosAgendados, s.transferidosHumano),
+    taxaNaoResposta: div(s.semResposta, s.leadsRecebidos),
+    metaNanda: meta, semMetaNanda: meta<=0,
+    atingimentoMetaNanda: meta>0 ? Math.min(1, agendamentosTotais/meta) : 0
+  });
+}
+
+const NANDA_NIVEL_TEXTOS = {
+  baixaConversao: { titulo:"Baixa conversão da Nanda", mensagem:"A Nanda recebeu leads em volume normal ou alto, mas gerou poucos agendamentos. Revisar abordagem, respostas, objeções, perguntas e momento de transferência para atendimento humano." },
+  altaTransferencia: { titulo:"Alta dependência de atendimento humano", mensagem:"A Nanda está transferindo uma parcela elevada dos leads para a Larissa. Verificar se existem objeções não previstas, respostas incompletas ou transferência antecipada." },
+  baixaRecuperacao: { titulo:"Baixa recuperação após transferência", mensagem:"Os leads transferidos pela Nanda estão apresentando baixa conversão após o atendimento humano. Revisar qualidade dos leads, momento da transferência, histórico da conversa e abordagem de recuperação." },
+  baixaResposta: { titulo:"Baixa resposta dos leads", mensagem:"Muitos leads recebidos pela Nanda não responderam. Verificar qualidade do tráfego, primeira mensagem, tempo de resposta, funcionamento do número e possíveis falhas técnicas." },
+  boaPerformance: { titulo:"Boa performance da Nanda", mensagem:"A Nanda apresenta bom equilíbrio entre volume de leads, agendamentos diretos e conversões após transferência." }
+};
+
+/** Alertas ativos da Nanda no período — pode ter mais de um simultaneamente. */
+function calcularAlertasNanda(dados){
+  if (dados.semDados) return [];
+  const alertas = [];
+  const conversaoTotalPct = (dados.taxaConversaoTotal||0)*100;
+  const transferenciaPct = (dados.taxaTransferencia||0)*100;
+  const sucessoPct = (dados.taxaSucessoPosTransferencia||0)*100;
+  const naoRespostaPct = (dados.taxaNaoResposta||0)*100;
+
+  if (conversaoTotalPct < NANDA_LIMITES.conversaoTotalMinima) alertas.push(Object.assign({ nivel:"vermelho" }, NANDA_NIVEL_TEXTOS.baixaConversao));
+  if (transferenciaPct > NANDA_LIMITES.transferenciaMaxima) alertas.push(Object.assign({ nivel:"amarelo" }, NANDA_NIVEL_TEXTOS.altaTransferencia));
+  if (dados.transferidosHumano>0 && sucessoPct < NANDA_LIMITES.sucessoPosTransferenciaMinima) alertas.push(Object.assign({ nivel:"vermelho" }, NANDA_NIVEL_TEXTOS.baixaRecuperacao));
+  if (naoRespostaPct > NANDA_LIMITES.naoRespostaMaxima) alertas.push(Object.assign({ nivel:"amarelo" }, NANDA_NIVEL_TEXTOS.baixaResposta));
+  if (conversaoTotalPct >= NANDA_LIMITES.conversaoTotalMinima && transferenciaPct <= NANDA_LIMITES.transferenciaMaxima) alertas.push(Object.assign({ nivel:"verde" }, NANDA_NIVEL_TEXTOS.boaPerformance));
+  return alertas;
+}
+
+/** Diagnóstico automático — 5 textos fixos, escolhidos pela combinação de conversão direta/transferência/recuperação/não resposta. */
+function diagnosticoNanda(dados){
+  if (dados.semDados) return "Ainda não há lançamentos da Nanda neste período para gerar um diagnóstico.";
+  const diretaPct = (dados.taxaConversaoDireta||0)*100;
+  const transferenciaPct = (dados.taxaTransferencia||0)*100;
+  const sucessoPct = (dados.taxaSucessoPosTransferencia||0)*100;
+  const naoRespostaPct = (dados.taxaNaoResposta||0)*100;
+
+  if (naoRespostaPct > NANDA_LIMITES.naoRespostaMaxima){
+    return "A taxa de não resposta está elevada. O problema pode estar relacionado à qualidade do lead, primeira mensagem ou falha técnica.";
+  }
+  if (transferenciaPct > NANDA_LIMITES.transferenciaMaxima && sucessoPct < NANDA_LIMITES.sucessoPosTransferenciaMinima){
+    return "A Nanda transfere muitos leads e poucos são convertidos após a transferência. É necessário revisar a qualidade do tráfego, o momento da transferência e o histórico das conversas.";
+  }
+  if (transferenciaPct > NANDA_LIMITES.transferenciaMaxima && sucessoPct >= NANDA_LIMITES.sucessoPosTransferenciaMinima){
+    return "A Nanda transfere muitos leads, mas a Larissa consegue recuperar boa parte deles. O principal ponto de melhoria é fortalecer o bot para concluir mais agendamentos sem intervenção humana.";
+  }
+  if (diretaPct < 15 && transferenciaPct <= NANDA_LIMITES.transferenciaMaxima){
+    return "A Nanda recebe um bom volume de leads, mas conclui poucos agendamentos diretamente. O principal ponto de atenção está na capacidade de conduzir o paciente até a escolha do horário.";
+  }
+  if (diretaPct >= 15 && transferenciaPct <= NANDA_LIMITES.transferenciaMaxima){
+    return "A Nanda possui boa taxa de conversão direta e baixa dependência da Larissa. O fluxo está funcionando de forma eficiente.";
+  }
+  return "Desempenho dentro do esperado — sem um padrão claro de melhoria prioritária neste período.";
+}
+
+/** Confere se "ontem" tem lançamento — base do alerta de preenchimento pendente. */
+function verificarPreenchimentoPendente(registros){
+  const hoje = dataLocalISO();
+  const ontem = new Date(hoje+"T00:00:00"); ontem.setDate(ontem.getDate()-1);
+  const ontemISO = dataLocalISO(ontem);
+  if (!registros.length) return { pendente:true, ultimoDia:null, diasPendentes:null };
+  const datas = registros.map(r => r.data).sort();
+  const ultimoDia = datas[datas.length-1];
+  if (datas.includes(ontemISO)) return { pendente:false, ultimoDia };
+  return { pendente:true, ultimoDia, diasPendentes: diasDesde(ultimoDia) };
+}
+
+function contarMotivosNaoConvertidosNanda(registros){
+  const mapa = {};
+  registros.forEach(r => { if (r.motivoNaoAgendados) mapa[r.motivoNaoAgendados] = (mapa[r.motivoNaoAgendados]||0)+1; });
+  return Object.entries(mapa).map(([motivo,qtd]) => ({ motivo, qtd })).sort((a,b) => b.qtd-a.qtd);
+}
+
+/** Evolução da taxa de conversão total da Nanda, mês a mês (últimos 6 meses). */
+function calcularEvolucaoNanda(crcEmail){
+  const historico = NANDA_HISTORICO_CACHE.filter(r => r.crcEmail===crcEmail);
+  const meses = Array.from(new Set(historico.map(r => String(r.data||"").slice(0,7)))).sort().slice(-6);
+  const valores = meses.map(m => {
+    const d = calcularNanda(historico.filter(r => String(r.data).slice(0,7)===m), 0);
+    return d.semDados ? 0 : Math.round((d.taxaConversaoTotal||0)*100);
+  });
+  return { meses, valores };
+}
+
+const CORES_TRANSFERENCIA_NANDA = { "Agendados":"var(--green)", "Não agendados":"var(--red)", "Em follow-up":"var(--gold)" };
+
+let NANDA_FORM_ABERTO = false;
+function alternarPeriodoNanda(periodo){
+  PERIODO_NANDA = periodo;
+  renderGestaoNanda();
+}
+function abrirFormularioNanda(id){
+  NANDA_EDITANDO_ID = id || "";
+  NANDA_FORM_ABERTO = true;
+  renderGestaoNanda();
+}
+function fecharFormularioNanda(){
+  NANDA_FORM_ABERTO = false;
+  NANDA_EDITANDO_ID = "";
+  renderGestaoNanda();
+}
+
+function renderFormularioNanda(){
+  const editando = NANDA_EDITANDO_ID ? NANDA_HISTORICO_CACHE.find(r => r.id===NANDA_EDITANDO_ID) : null;
+  const v = campo => editando && editando[campo]!==undefined ? editando[campo] : "";
+  return `
+    <div class="saudacao" style="font-size:20px;">${editando ? "Editar lançamento da Nanda" : "Preencher dados da Nanda"}</div>
+    <div class="saudacao-sub">Campos com * são obrigatórios.</div>
+    <div class="form-card">
+      <div class="field-grid">
+        <div class="field"><label>Data *</label><input type="date" id="f-nanda-data" max="${dataLocalISO()}" value="${editando ? editando.data : dataLocalISO()}"></div>
+        <div class="field"><label>Leads recebidos pela Nanda *</label><input type="number" min="0" id="f-nanda-recebidos" value="${v('leadsRecebidos')}"></div>
+        <div class="field"><label>Leads atendidos pela Nanda</label><input type="number" min="0" id="f-nanda-atendidos" value="${v('leadsAtendidos')}"></div>
+        <div class="field"><label>Leads que responderam</label><input type="number" min="0" id="f-nanda-responderam" value="${v('leadsResponderam')}"></div>
+        <div class="field"><label>Agendados diretamente pela Nanda *</label><input type="number" min="0" id="f-nanda-diretos" value="${v('agendadosDiretos')}"></div>
+        <div class="field"><label>Transferidos para atendimento humano *</label><input type="number" min="0" id="f-nanda-transferidos" value="${v('transferidosHumano')}"></div>
+        <div class="field"><label>Transferidos e agendados (pela Larissa) *</label><input type="number" min="0" id="f-nanda-transf-agendados" value="${v('transferidosAgendados')}"></div>
+        <div class="field"><label>Transferidos e não agendados *</label><input type="number" min="0" id="f-nanda-transf-nao-agendados" value="${v('transferidosNaoAgendados')}"></div>
+        <div class="field"><label>Sem resposta</label><input type="number" min="0" id="f-nanda-sem-resposta" value="${v('semResposta')}"></div>
+        <div class="field"><label>Recusaram agendamento</label><input type="number" min="0" id="f-nanda-recusaram" value="${v('recusaramAgendamento')}"></div>
+        <div class="field"><label>Ainda em follow-up</label><input type="number" min="0" id="f-nanda-followup" value="${v('emFollowUp')}"></div>
+        <div class="field"><label>Principal motivo dos não agendados</label>
+          <select id="f-nanda-motivo"><option value="">—</option>${OBJECOES.map(o => `<option value="${esc(o)}" ${v('motivoNaoAgendados')===o?'selected':''}>${esc(o)}</option>`).join("")}</select>
+        </div>
+      </div>
+      <div class="field" style="margin-top:14px;"><label>Observações do dia</label><textarea id="f-nanda-observacoes" rows="3">${esc(v('observacoes'))}</textarea></div>
+      <div id="nanda-form-erro" class="form-erro hidden"></div>
+      <div class="form-actions" style="margin-top:16px;">
+        <button class="btn primary" onclick="App.salvarNandaForm()">Salvar</button>
+        <button class="btn outline" onclick="App.fecharFormularioNanda()">Cancelar</button>
+      </div>
+    </div>
+  `;
+}
+
+async function salvarNandaForm(){
+  const erroBox = document.getElementById("nanda-form-erro");
+  const mostrarErro = msg => { erroBox.textContent = msg; erroBox.classList.remove("hidden"); };
+  const num = id => Number(document.getElementById(id)?.value) || 0;
+  const data = document.getElementById("f-nanda-data")?.value;
+  const recebidos = num("f-nanda-recebidos");
+  const diretos = num("f-nanda-diretos");
+  const transferidos = num("f-nanda-transferidos");
+  const transfAgendados = num("f-nanda-transf-agendados");
+  const transfNaoAgendados = num("f-nanda-transf-nao-agendados");
+
+  if (!data) return mostrarErro("Informe a data.");
+  if (diretos>recebidos) return mostrarErro("Agendados diretos não podem ser mais que leads recebidos.");
+  if (transferidos>recebidos) return mostrarErro("Transferidos não podem ser mais que leads recebidos.");
+  if (transfAgendados>transferidos) return mostrarErro("Transferidos e agendados não podem ser mais que transferidos.");
+  if (transfNaoAgendados>transferidos) return mostrarErro("Transferidos e não agendados não podem ser mais que transferidos.");
+  erroBox.classList.add("hidden");
+
+  const registro = {
+    id: NANDA_EDITANDO_ID || undefined,
+    crcEmail: PERFIL_ATUAL.email,
+    crcNome: PERFIL_ATUAL.nomeCurto || PERFIL_ATUAL.nomeCompleto,
+    data, leadsRecebidos:recebidos, leadsAtendidos:num("f-nanda-atendidos"), leadsResponderam:num("f-nanda-responderam"),
+    agendadosDiretos:diretos, transferidosHumano:transferidos, transferidosAgendados:transfAgendados, transferidosNaoAgendados:transfNaoAgendados,
+    semResposta:num("f-nanda-sem-resposta"), recusaramAgendamento:num("f-nanda-recusaram"), emFollowUp:num("f-nanda-followup"),
+    motivoNaoAgendados: document.getElementById("f-nanda-motivo")?.value || "",
+    observacoes: document.getElementById("f-nanda-observacoes")?.value || ""
+  };
+  try {
+    const resp = await Api.salvarNanda(TOKEN_ATUAL, registro);
+    if (!resp.ok) return mostrarErro(resp.error || "Não foi possível salvar.");
+    const salvo = resp.registro;
+    const idxMes = NANDA_MES_CACHE.findIndex(r => r.id===salvo.id);
+    if (idxMes!==-1) NANDA_MES_CACHE[idxMes] = salvo;
+    else if (salvo.data.slice(0,7)===dataLocalISO().slice(0,7)) NANDA_MES_CACHE.push(salvo);
+    const idxHist = NANDA_HISTORICO_CACHE.findIndex(r => r.id===salvo.id);
+    if (idxHist!==-1) NANDA_HISTORICO_CACHE[idxHist] = salvo; else NANDA_HISTORICO_CACHE.push(salvo);
+    toast(NANDA_EDITANDO_ID ? "Lançamento atualizado." : "Dados da Nanda salvos.");
+    NANDA_FORM_ABERTO = false;
+    NANDA_EDITANDO_ID = "";
+    renderGestaoNanda();
+  } catch(err){
+    console.error(err);
+    mostrarErro("Falha ao salvar — verifique sua conexão.");
+  }
+}
+
+function renderHistoricoNandaHtml(historico){
+  if (!historico.length) return `<p class="usuarios-vazio">Nenhum lançamento ainda.</p>`;
+  const ordenado = [...historico].sort((a,b) => b.data.localeCompare(a.data));
+  return `
+    <table class="tabela-usuarios">
+      <tr><th>Data</th><th>Recebidos</th><th>Diretos</th><th>Transferidos</th><th>Transf. agendados</th><th>Conversão total</th><th></th></tr>
+      ${ordenado.slice(0,15).map(r => {
+        const d = calcularNanda([r], 0);
+        return `<tr>
+          <td>${formatarData(r.data)}</td>
+          <td>${r.leadsRecebidos||0}</td>
+          <td>${r.agendadosDiretos||0}</td>
+          <td>${r.transferidosHumano||0}</td>
+          <td>${r.transferidosAgendados||0}</td>
+          <td>${d.semDados ? "—" : Math.round((d.taxaConversaoTotal||0)*100)+"%"}</td>
+          <td><button class="btn small outline" onclick="App.abrirFormularioNanda('${esc(r.id)}')">Editar</button></td>
+        </tr>`;
+      }).join("")}
+    </table>
+  `;
+}
+
+function renderGestaoNanda(){
+  const el = document.getElementById("view-crc-nanda");
+  if (!el) return;
+  if (NANDA_FORM_ABERTO){
+    el.innerHTML = renderFormularioNanda();
+    return;
+  }
+
+  const meuHistorico = NANDA_HISTORICO_CACHE.filter(r => r.crcEmail===PERFIL_ATUAL.email);
+  const meuMes = NANDA_MES_CACHE.filter(r => r.crcEmail===PERFIL_ATUAL.email);
+  const registrosPeriodo = filtrarRelatoriosPorPeriodo(meuMes, PERIODO_NANDA);
+  const metaRegistro = METAS_CACHE.find(m => m.crcEmail===PERFIL_ATUAL.email);
+  const metaNanda = metaRegistro ? metaRegistro.metaNanda : 0;
+  const dados = calcularNanda(registrosPeriodo, metaNanda);
+  const alertas = calcularAlertasNanda(dados);
+  const diagnostico = diagnosticoNanda(dados);
+  const pendencia = verificarPreenchimentoPendente(meuHistorico);
+  const pct = v => v===null ? "—" : Math.round(v*100)+"%";
+  const periodoLabel = { dia:"hoje", semana:"últimos 7 dias", mes:"mês" }[PERIODO_NANDA];
+
+  const bannerPendencia = pendencia.pendente ? `
+    <div class="warn-box" style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div>
+        <strong>Pendência de atualização da Nanda</strong>
+        <p style="margin:4px 0 0;font-weight:400;">Os dados da Nanda referentes ao dia anterior ainda não foram preenchidos. Atualize as informações para manter os indicadores corretos.</p>
+        <p style="margin:4px 0 0;font-weight:400;">${pendencia.ultimoDia ? `Último dia preenchido: <strong>${formatarData(pendencia.ultimoDia)}</strong> (${pendencia.diasPendentes} dia(s) atrás)` : "Nenhum lançamento feito ainda."}</p>
+      </div>
+      <button class="btn small primary" onclick="App.abrirFormularioNanda()">Preencher agora</button>
+    </div>
+  ` : "";
+
+  const maiorRecebidosAgendados = Math.max(1, dados.leadsRecebidos||0, dados.agendamentosTotais||0);
+  const maiorDiretaAssistida = Math.max(1, dados.agendadosDiretos||0, dados.transferidosAgendados||0);
+  const motivos = contarMotivosNaoConvertidosNanda(registrosPeriodo);
+  const evolucao = calcularEvolucaoNanda(PERFIL_ATUAL.email);
+
+  const contagemTransferencias = { "Agendados":dados.transferidosAgendados||0, "Não agendados":dados.transferidosNaoAgendados||0, "Em follow-up":dados.emFollowUp||0 };
+
+  const cardsHtml = dados.semDados ? `<div class="exec-card"><p class="exec-vazio">Nenhum lançamento da Nanda neste recorte ainda.</p></div>` : `
+    <div class="dash-cards">
+      <div class="dash-card"><div class="lbl">Leads recebidos</div><div class="val">${dados.leadsRecebidos}</div></div>
+      <div class="dash-card"><div class="lbl">Agendados diretos</div><div class="val">${dados.agendadosDiretos}</div></div>
+      <div class="dash-card"><div class="lbl">Agendados após transferência</div><div class="val">${dados.transferidosAgendados}</div></div>
+      <div class="dash-card"><div class="lbl">Conversão total</div><div class="val">${pct(dados.taxaConversaoTotal)}</div></div>
+      <div class="dash-card"><div class="lbl">Taxa de transferência</div><div class="val">${pct(dados.taxaTransferencia)}</div></div>
+      <div class="dash-card"><div class="lbl">Taxa de não resposta</div><div class="val">${pct(dados.taxaNaoResposta)}</div></div>
+    </div>
+    ${metaNanda>0 ? `
+      <div class="meta-preview-bar" style="margin:8px 0 8px;">
+        <div class="meta-preview-fill nivel-2" style="width:${Math.min(100,Math.round(dados.atingimentoMetaNanda*100))}%;"></div>
+      </div>
+      <p class="meta-msg" style="margin-bottom:20px;">Meta da Nanda (mês): <strong>${dados.agendamentosTotais}</strong> / <strong>${metaNanda}</strong> agendamentos (${Math.round(dados.atingimentoMetaNanda*100)}%)</p>
+    ` : `<p class="meta-msg" style="margin-bottom:20px;">Meta da Nanda ainda não definida pelo administrador.</p>`}
+    <div class="exec-grid">
+      <div class="exec-card">
+        <h4>Leads × Agendamentos (${periodoLabel})</h4>
+        ${funilStepHtml("Recebidos", dados.leadsRecebidos, maiorRecebidosAgendados)}
+        ${funilStepHtml("Agendados (total)", dados.agendamentosTotais, maiorRecebidosAgendados)}
+      </div>
+      <div class="exec-card">
+        <h4>Conversão direta × assistida</h4>
+        ${barraHHtml("Direta (sem transferir)", dados.agendadosDiretos, maiorDiretaAssistida)}
+        ${barraHHtml("Assistida (após transferência)", dados.transferidosAgendados, maiorDiretaAssistida)}
+      </div>
+      <div class="exec-card">
+        <h4>Transferências (${periodoLabel})</h4>
+        <div class="donut-wrap">
+          <div class="donut" style="${donutEstiloHtml(contagemTransferencias, CORES_TRANSFERENCIA_NANDA)}"></div>
+          <div class="donut-legenda">${donutLegendaHtml(contagemTransferencias, CORES_TRANSFERENCIA_NANDA)}</div>
+        </div>
+        <p style="font-size:12px;color:var(--text-light);margin-top:10px;">Sucesso pós-transferência: <strong>${pct(dados.taxaSucessoPosTransferencia)}</strong></p>
+      </div>
+      <div class="exec-card">
+        <h4>Motivos de não conversão</h4>
+        ${motivos.length ? motivos.map(m => barraHHtml(m.motivo, m.qtd, motivos[0].qtd)).join("") : `<p class="exec-vazio">Nenhum motivo registrado neste recorte.</p>`}
+      </div>
+      ${evolucao.meses.length ? `
+        <div class="exec-card">
+          <h4>Evolução da conversão total (últimos meses)</h4>
+          ${graficoLinhaSvg(evolucao.meses, [{ cor:"var(--gold)", valores:evolucao.valores }], "valores")}
+        </div>
+      ` : ""}
+    </div>
+  `;
+
+  const alertasHtml = alertas.map(a => `<div class="alerta-chip nivel-${a.nivel}"><strong>${esc(a.titulo)}</strong><p>${esc(a.mensagem)}</p></div>`).join("");
+
+  el.innerHTML = `
+    <div class="saudacao" style="font-size:20px;">🤖 Gestão da Nanda — Assistente Virtual</div>
+    <div class="saudacao-sub">Você preenche e acompanha, mas o resultado é da operação da Nanda — não soma no seu desempenho pessoal.</div>
+    ${bannerPendencia}
+    <div class="pill-group" style="margin-bottom:16px;">
+      ${[["dia","Diário"],["semana","Semanal"],["mes","Mensal"]].map(([v,l]) => `<button class="pill ${PERIODO_NANDA===v?'ativo':''}" onclick="App.alternarPeriodoNanda('${v}')">${l}</button>`).join("")}
+    </div>
+    ${cardsHtml}
+    ${alertasHtml ? `<div class="section-title" style="margin:20px 0 8px;">Alertas ativos</div>${alertasHtml}` : ""}
+    <div class="section-title" style="margin:20px 0 8px;">Diagnóstico automático</div>
+    <p style="font-size:13px;margin-bottom:20px;">${esc(diagnostico)}</p>
+    <div class="form-actions" style="margin-bottom:24px;">
+      <button class="btn primary" onclick="App.abrirFormularioNanda()">📋 Preencher dados de hoje</button>
+      <button class="btn outline" onclick="App.voltarDashboard()">Voltar</button>
+    </div>
+    <div class="section-title">Histórico de lançamentos</div>
+    ${renderHistoricoNandaHtml(meuHistorico)}
+  `;
+}
+
 function renderMetasAdmin(){
   const el = document.getElementById("metas-admin");
   if (!el) return;
@@ -2040,10 +2434,11 @@ function renderMetasAdmin(){
             <div class="field"><label>🥈 Mega Meta</label><input type="number" min="0" id="f-mega-${esc(u.email)}" value="${registro ? registro.metaMegaAgendamentos : ""}"></div>
             <div class="field"><label>🥇 Super Meta</label><input type="number" min="0" id="f-super-${esc(u.email)}" value="${registro ? registro.metaSuperAgendamentos : ""}"></div>
             <div class="field"><label>🎯 Meta de Comparecimentos</label><input type="number" min="0" id="f-comp-${esc(u.email)}" value="${registro ? registro.metaComparecimentos : ""}"></div>
+            <div class="field"><label>🤖 Meta da Nanda</label><input type="number" min="0" id="f-nanda-meta-${esc(u.email)}" value="${registro ? (registro.metaNanda||"") : ""}"></div>
             <button class="btn small primary" onclick="App.salvarMetaCRC('${esc(u.email)}')">Salvar</button>
           </div>
         ` : `
-          <p style="font-size:13px;margin:2px 0 10px;">🥉 Meta: <strong>${registro.metaAgendamentos}</strong> · 🥈 Mega Meta: <strong>${registro.metaMegaAgendamentos}</strong> · 🥇 Super Meta: <strong>${registro.metaSuperAgendamentos}</strong> · 🎯 Meta de Comparecimentos: <strong>${registro.metaComparecimentos || 0}</strong></p>
+          <p style="font-size:13px;margin:2px 0 10px;">🥉 Meta: <strong>${registro.metaAgendamentos}</strong> · 🥈 Mega Meta: <strong>${registro.metaMegaAgendamentos}</strong> · 🥇 Super Meta: <strong>${registro.metaSuperAgendamentos}</strong> · 🎯 Meta de Comparecimentos: <strong>${registro.metaComparecimentos || 0}</strong> · 🤖 Meta da Nanda: <strong>${registro.metaNanda || 0}</strong></p>
           <button class="btn small outline" onclick="App.alternarEdicaoMeta('${esc(u.email)}')">Alterar</button>
         `}
         ${metaInfo ? `
@@ -2070,6 +2465,7 @@ async function salvarMetaCRC(crcEmail){
   const mega = Number(document.getElementById(`f-mega-${crcEmail}`)?.value);
   const superMeta = Number(document.getElementById(`f-super-${crcEmail}`)?.value);
   const comparecimentos = Number(document.getElementById(`f-comp-${crcEmail}`)?.value) || 0;
+  const metaNanda = Number(document.getElementById(`f-nanda-meta-${crcEmail}`)?.value) || 0;
   if (!meta || meta <= 0 || !mega || mega <= 0 || !superMeta || superMeta <= 0){
     toast("Informe os 3 níveis de agendamento, todos maiores que zero.");
     return;
@@ -2082,7 +2478,7 @@ async function salvarMetaCRC(crcEmail){
     toast("Sem Meta de Comparecimentos definida, o IEC dessa CRC fica incompleto — mas a meta de agendamentos foi salva.");
   }
   try {
-    const data = await Api.salvarMeta(TOKEN_ATUAL, crcEmail, { meta, mega, super: superMeta, comparecimentos });
+    const data = await Api.salvarMeta(TOKEN_ATUAL, crcEmail, { meta, mega, super: superMeta, comparecimentos, nanda: metaNanda });
     if (!data.ok){ toast(data.error || "Não foi possível salvar a meta."); return; }
     const idx = METAS_CACHE.findIndex(m => m.crcEmail === crcEmail);
     if (idx !== -1) METAS_CACHE[idx] = data.meta; else METAS_CACHE.push(data.meta);
@@ -2093,6 +2489,37 @@ async function salvarMetaCRC(crcEmail){
     console.error(err);
     toast("Falha ao salvar — verifique sua conexão.");
   }
+}
+
+/** Leitura agregada da Nanda pro admin — só visualização (edição de lançamentos fica na tela da própria CRC nesta rodada). */
+function renderNandaAdmin(){
+  const el = document.getElementById("nanda-admin");
+  if (!el) return;
+  const crcsComNanda = USUARIOS_CACHE.filter(u => u.perfil === "CRC" && u.ativo !== false && NANDA_MES_CACHE.some(r => r.crcEmail===u.email));
+  if (!crcsComNanda.length){
+    el.innerHTML = `<p class="usuarios-vazio">Nenhum lançamento da Nanda este mês ainda.</p>`;
+    return;
+  }
+  const pct = v => v===null ? "—" : Math.round(v*100)+"%";
+  el.innerHTML = `
+    <table class="tabela-usuarios">
+      <tr><th>CRC responsável</th><th>Recebidos</th><th>Diretos</th><th>Assistidos</th><th>Conversão total</th><th>Transferência</th><th>Meta (mês)</th></tr>
+      ${crcsComNanda.map(u => {
+        const registrosDela = NANDA_MES_CACHE.filter(r => r.crcEmail===u.email);
+        const metaRegistro = METAS_CACHE.find(m => m.crcEmail===u.email);
+        const d = calcularNanda(registrosDela, metaRegistro ? metaRegistro.metaNanda : 0);
+        return `<tr>
+          <td>${esc(u.nomeCurto||u.nomeCompleto)}</td>
+          <td>${d.leadsRecebidos}</td>
+          <td>${d.agendadosDiretos}</td>
+          <td>${d.transferidosAgendados}</td>
+          <td>${pct(d.taxaConversaoTotal)}</td>
+          <td>${pct(d.taxaTransferencia)}</td>
+          <td>${d.metaNanda>0 ? `${d.agendamentosTotais} / ${d.metaNanda} (${Math.round(d.atingimentoMetaNanda*100)}%)` : "não definida"}</td>
+        </tr>`;
+      }).join("")}
+    </table>
+  `;
 }
 
 async function salvarUsuario(){
@@ -2492,7 +2919,8 @@ window.App = {
   cancelarRemocao, confirmarRemocao, alternarDetalheIECRC,
   alternarDetalheMeta, salvarMetaCRC, alternarAtivoUsuario,
   alternarEdicaoMeta, alternarPeriodoDashboard, selecionarCrcDashboard,
-  alternarPeriodoRankingIEC, alternarDetalheCRC, alternarDetalheIEC
+  alternarPeriodoRankingIEC, alternarDetalheCRC, alternarDetalheIEC,
+  abrirGestaoNanda, alternarPeriodoNanda, abrirFormularioNanda, fecharFormularioNanda, salvarNandaForm
 };
 
 init();

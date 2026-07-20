@@ -36,6 +36,7 @@ var SHEET_RELATORIOS = 'Relatórios';
 var SHEET_OPORTUNIDADES = 'Oportunidades';
 var SHEET_PACIENTES_FALTANTES = 'Pacientes Faltantes';
 var SHEET_METAS = 'Metas';
+var SHEET_NANDA = 'Nanda';
 var SHEET_LOGS = 'Logs';
 var OUTRAS_ABAS_RESERVADAS = ['Indicadores', 'Ranking', 'Configurações', 'Dashboard', 'Histórico'];
 
@@ -72,7 +73,22 @@ var HEADERS_LOGS = ['id', 'data', 'hora', 'usuarioEmail', 'usuarioNome', 'acao',
 // mínimo esperado, Mega Meta é o ótimo, Super Meta é o excelente.
 // metaComparecimentos é uma métrica separada (valor único, sem níveis) —
 // alimenta o IEC (Índice de Efetividade da CRC), focado em presença real.
-var HEADERS_METAS = ['crcEmail', 'anoMes', 'metaAgendamentos', 'metaMegaAgendamentos', 'metaSuperAgendamentos', 'metaComparecimentos', 'atualizadoEm', 'dadosJSON'];
+// metaNanda é o volume mensal de agendamentos (diretos + assistidos) esperado da assistente virtual — mesmo padrão de meta de volume das demais.
+var HEADERS_METAS = ['crcEmail', 'anoMes', 'metaAgendamentos', 'metaMegaAgendamentos', 'metaSuperAgendamentos', 'metaComparecimentos', 'metaNanda', 'atualizadoEm', 'dadosJSON'];
+
+// Lançamento diário da "Gestão da Nanda" (assistente virtual) — separado do
+// relatório pessoal da CRC. crcEmail é quem preenche/cuida dos dados, mas o
+// resultado é da operação da Nanda, não soma no desempenho pessoal dela.
+// Campos obrigatórios: data, leadsRecebidos, agendadosDiretos,
+// transferidosHumano, transferidosAgendados, transferidosNaoAgendados.
+var HEADERS_NANDA = [
+  'id', 'data', 'crcEmail', 'crcNome',
+  'leadsRecebidos', 'leadsAtendidos', 'leadsResponderam', 'agendadosDiretos',
+  'transferidosHumano', 'transferidosAgendados', 'transferidosNaoAgendados',
+  'semResposta', 'recusaramAgendamento', 'emFollowUp',
+  'observacoes', 'motivoNaoAgendados',
+  'criadoEm', 'atualizadoEm', 'atualizadoPor', 'dadosJSON'
+];
 
 // Cole aqui o Client ID gerado no Google Cloud Console (Client ID OAuth, tipo
 // "Aplicativo da Web") — usado para validar o token de login com o Google.
@@ -86,6 +102,7 @@ function setup() {
   criarAbaComHeaders_(ss, SHEET_OPORTUNIDADES, HEADERS_OPORTUNIDADES);
   criarAbaComHeaders_(ss, SHEET_PACIENTES_FALTANTES, HEADERS_PACIENTES_FALTANTES);
   criarAbaComHeaders_(ss, SHEET_METAS, HEADERS_METAS);
+  criarAbaComHeaders_(ss, SHEET_NANDA, HEADERS_NANDA);
   criarAbaComHeaders_(ss, SHEET_LOGS, HEADERS_LOGS);
   OUTRAS_ABAS_RESERVADAS.forEach(function (nome) {
     criarAbaComHeaders_(ss, nome, ['Reservado para uma próxima etapa do módulo CRC — sem dados ainda.']);
@@ -134,20 +151,23 @@ function doGet(e) {
     oportunidadesMes: lerOportunidadesPorMes_(mesAtual),
     pacientesFaltantes: lerPacientesFaltantesAtivos_(),
     pacientesReagendadosMes: lerPacientesReagendadosPorMes_(mesAtual),
-    metas: lerMetasDoMes_(mesAtual)
+    metas: lerMetasDoMes_(mesAtual),
+    nandaMes: lerNandaPorMes_(mesAtual),
+    nandaHistorico: lerNandaUltimosMeses_(6)
   });
 }
 
 /**
  * POST => login, salvar relatório diário, cadastrar/atualizar usuário,
- * atualizar o status de um paciente na fila de reativação, ou definir a
- * meta mensal de uma CRC.
+ * atualizar o status de um paciente na fila de reativação, definir a
+ * meta mensal de uma CRC, ou salvar/editar um lançamento da Nanda.
  * Body esperado (texto simples, para evitar preflight de CORS):
  *   { "action": "login", "idToken": "..." }
  *   { "action": "salvarRelatorio", "idToken": "...", "relatorio": { ...campos do formulário... } }
  *   { "action": "salvarUsuario", "idToken": "...", "usuario": { nomeCompleto, nomeCurto, email, perfil } }
  *   { "action": "atualizarStatusFaltante", "idToken": "...", "id": "...", "mudancas": { status?, incrementarTentativa?, observacao?, novaData?, novoHorario?, novoLocal? } }
- *   { "action": "salvarMeta", "idToken": "...", "crcEmail": "...", "metas": { "meta": 80, "mega": 100, "super": 120, "comparecimentos": 70 } }
+ *   { "action": "salvarMeta", "idToken": "...", "crcEmail": "...", "metas": { "meta": 80, "mega": 100, "super": 120, "comparecimentos": 70, "nanda": 40 } }
+ *   { "action": "salvarNanda", "idToken": "...", "registro": { id?, crcEmail, data, leadsRecebidos, ...campos do formulário da Nanda } }
  */
 function doPost(e) {
   var body;
@@ -162,6 +182,7 @@ function doPost(e) {
   if (body.action === 'salvarUsuario') return salvarUsuario_(body.idToken, body.usuario);
   if (body.action === 'atualizarStatusFaltante') return atualizarStatusFaltante_(body.idToken, body.id, body.mudancas);
   if (body.action === 'salvarMeta') return salvarMeta_(body.idToken, body.crcEmail, body.metas);
+  if (body.action === 'salvarNanda') return salvarNanda_(body.idToken, body.registro);
 
   return jsonResponse_({ ok: false, error: 'Ação desconhecida: ' + body.action });
 }
@@ -224,6 +245,29 @@ function lerPacientesReagendadosPorMes_(anoMes) {
 function lerMetas_() { return lerSheetJSON_(SHEET_METAS, HEADERS_METAS); }
 function lerMetasDoMes_(anoMes) {
   return lerMetas_().filter(function (m) { return m.anoMes === anoMes; });
+}
+
+function lerNanda_() { return lerSheetJSON_(SHEET_NANDA, HEADERS_NANDA); }
+/** Lançamentos da Nanda de um mês (formato 'yyyy-MM'). */
+function lerNandaPorMes_(anoMes) {
+  return lerNanda_().filter(function (n) { return String(n.data || '').slice(0, 7) === anoMes; });
+}
+/** Lançamentos da Nanda dos últimos N meses (incluindo o atual) — usado na evolução histórica. */
+function lerNandaUltimosMeses_(n) {
+  var hoje = new Date();
+  var mesesValidos = {};
+  for (var i = 0; i < n; i++) {
+    var d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    mesesValidos[Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM')] = true;
+  }
+  return lerNanda_().filter(function (n) { return mesesValidos[String(n.data || '').slice(0, 7)]; });
+}
+function buscarNandaPorId_(id) {
+  var lista = lerNanda_();
+  for (var i = 0; i < lista.length; i++) {
+    if (lista[i].id === id) return lista[i];
+  }
+  return null;
 }
 
 /** Acha, dentro da carteira de uma CRC, um paciente faltante ainda ativo (não reagendado) com o mesmo telefone (ou nome, se telefone vazio) — evita duplicar quando ele falta de novo antes de ser resgatado. */
@@ -356,7 +400,8 @@ function salvarMeta_(idToken, crcEmail, metas) {
   var mega = Number(metas.mega) || 0;
   var superMeta = Number(metas.super) || 0;
   var comparecimentos = Number(metas.comparecimentos) || 0;
-  if (meta < 0 || mega < 0 || superMeta < 0 || comparecimentos < 0) {
+  var metaNanda = Number(metas.nanda) || 0;
+  if (meta < 0 || mega < 0 || superMeta < 0 || comparecimentos < 0 || metaNanda < 0) {
     return jsonResponse_({ ok: false, error: 'As metas não podem ser negativas.' });
   }
   if (mega < meta || superMeta < mega) {
@@ -378,6 +423,7 @@ function salvarMeta_(idToken, crcEmail, metas) {
     metaMegaAgendamentos: mega,
     metaSuperAgendamentos: superMeta,
     metaComparecimentos: comparecimentos,
+    metaNanda: metaNanda,
     atualizadoEm: new Date().toISOString()
   };
   var row = HEADERS_METAS.map(function (h) {
@@ -390,8 +436,86 @@ function salvarMeta_(idToken, crcEmail, metas) {
   } else {
     sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
   }
-  registrarLog_(solicitante.email, solicitante.nomeCurto || solicitante.nomeCompleto, 'salvarMeta', 'Metas de ' + email + ' em ' + anoMes + ': ' + meta + ' / ' + mega + ' / ' + superMeta + ' (comparecimentos: ' + comparecimentos + ')');
+  registrarLog_(solicitante.email, solicitante.nomeCurto || solicitante.nomeCompleto, 'salvarMeta', 'Metas de ' + email + ' em ' + anoMes + ': ' + meta + ' / ' + mega + ' / ' + superMeta + ' (comparecimentos: ' + comparecimentos + ', Nanda: ' + metaNanda + ')');
   return jsonResponse_({ ok: true, meta: registro });
+}
+
+/** Consistência do lançamento da Nanda — nunca dividir por zero, nunca permitir números que não fazem sentido entre si. */
+function validarRegrasNanda_(r) {
+  var n = function (v) { v = Number(v); return isNaN(v) ? 0 : v; };
+  if (n(r.agendadosDiretos) > n(r.leadsRecebidos)) return 'Agendamentos diretos não podem ser mais que leads recebidos.';
+  if (n(r.transferidosHumano) > n(r.leadsRecebidos)) return 'Leads transferidos não podem ser mais que leads recebidos.';
+  if (n(r.transferidosAgendados) > n(r.transferidosHumano)) return 'Leads transferidos e agendados não podem ser mais que leads transferidos.';
+  if (n(r.transferidosNaoAgendados) > n(r.transferidosHumano)) return 'Leads transferidos e não agendados não podem ser mais que leads transferidos.';
+  if (n(r.semResposta) > n(r.leadsRecebidos)) return 'Leads sem resposta não podem ser mais que leads recebidos.';
+  return null;
+}
+
+/** Salva ou edita (upsert por id) um lançamento diário da Gestão da Nanda.
+ *  Só a própria CRC dona do registro ou um Administrador pode salvar — a
+ *  CRC preenche e cuida dos dados, mas o resultado pertence à operação da
+ *  Nanda, não ao desempenho pessoal dela (isso é garantido no front-end:
+ *  esses números nunca entram no cálculo do IEC/Ranking/Metas pessoais). */
+function salvarNanda_(idToken, registro) {
+  var v = validarTokenGoogle_(idToken);
+  if (!v.ok) return jsonResponse_({ ok: false, error: v.error });
+  var perfil = buscarUsuarioPorEmail_(v.email);
+  if (!perfil) return jsonResponse_({ ok: false, error: 'Usuário não cadastrado.' });
+  if (perfil.ativo === false) return jsonResponse_({ ok: false, error: 'Seu cadastro está inativo.' });
+  if (!registro) return jsonResponse_({ ok: false, error: 'Dados ausentes.' });
+
+  var crcEmailAlvo = String(registro.crcEmail || perfil.email).toLowerCase().trim();
+  if (perfil.perfil !== 'Administrador' && crcEmailAlvo !== perfil.email) {
+    return jsonResponse_({ ok: false, error: 'Você só pode preencher os dados da Nanda na sua própria carteira.' });
+  }
+  if (!registro.data) return jsonResponse_({ ok: false, error: 'Data é obrigatória.' });
+
+  var erro = validarRegrasNanda_(registro);
+  if (erro) return jsonResponse_({ ok: false, error: erro });
+
+  var crcAlvo = buscarUsuarioPorEmail_(crcEmailAlvo);
+  var agora = new Date();
+  var existente = registro.id ? buscarNandaPorId_(registro.id) : null;
+
+  var salvo = {
+    id: (existente && existente.id) || registro.id || ('nanda-' + agora.getTime() + '-' + Math.floor(Math.random() * 1e6)),
+    data: registro.data,
+    crcEmail: crcEmailAlvo,
+    crcNome: (crcAlvo && (crcAlvo.nomeCurto || crcAlvo.nomeCompleto)) || registro.crcNome || '',
+    leadsRecebidos: Number(registro.leadsRecebidos) || 0,
+    leadsAtendidos: Number(registro.leadsAtendidos) || 0,
+    leadsResponderam: Number(registro.leadsResponderam) || 0,
+    agendadosDiretos: Number(registro.agendadosDiretos) || 0,
+    transferidosHumano: Number(registro.transferidosHumano) || 0,
+    transferidosAgendados: Number(registro.transferidosAgendados) || 0,
+    transferidosNaoAgendados: Number(registro.transferidosNaoAgendados) || 0,
+    semResposta: Number(registro.semResposta) || 0,
+    recusaramAgendamento: Number(registro.recusaramAgendamento) || 0,
+    emFollowUp: Number(registro.emFollowUp) || 0,
+    observacoes: registro.observacoes || '',
+    motivoNaoAgendados: registro.motivoNaoAgendados || '',
+    criadoEm: (existente && existente.criadoEm) || agora.toISOString(),
+    atualizadoEm: agora.toISOString(),
+    atualizadoPor: perfil.email
+  };
+
+  var sheet = getSheet_(SHEET_NANDA);
+  var rowIndex = existente ? findRowByColumnValue_(sheet, HEADERS_NANDA, 'id', salvo.id) : -1;
+  var row = HEADERS_NANDA.map(function (h) {
+    if (h === 'dadosJSON') return JSON.stringify(salvo);
+    var val = salvo[h];
+    return (val === undefined || val === null) ? '' : val;
+  });
+  if (rowIndex === -1) {
+    sheet.appendRow(row);
+  } else {
+    sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+  }
+  registrarLog_(
+    perfil.email, perfil.nomeCurto || perfil.nomeCompleto, 'salvarNanda',
+    (existente ? 'Editou' : 'Lançou') + ' dados da Nanda de ' + salvo.crcEmail + ' em ' + salvo.data
+  );
+  return jsonResponse_({ ok: true, registro: salvo });
 }
 
 /** Escreve um objeto como nova linha, usando os nomes dos headers como chaves do objeto + o blob completo em dadosJSON. */
