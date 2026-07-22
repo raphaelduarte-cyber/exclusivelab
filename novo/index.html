@@ -1546,6 +1546,57 @@ async function registrarTentativa(id){
   if (ok){ toast("Tentativa registrada."); renderReativacao(); }
 }
 
+/* Mesmas ações de status (Reagendou/Desistiu), só que disparadas do painel
+   "Top 5 mais antigos por CRC" do admin — reaproveita aplicarMudancaFaltante_
+   e os mesmos estados ESTADO_MOTIVO/ESTADO_CONFIRMAR_REMOCAO (já que o backend
+   já permite o Administrador alterar pacientes de qualquer CRC), só troca o
+   alvo do re-render pra renderCentralReativacaoAdmin. */
+async function selecionarNovoStatusAdmin(id, novoStatus){
+  if (novoStatus === "Reagendado"){
+    ESTADO_CONFIRMAR_REMOCAO[id] = true;
+    renderCentralReativacaoAdmin();
+    return;
+  }
+  if (novoStatus === "Não deseja reagendar"){
+    ESTADO_MOTIVO[id] = true;
+    renderCentralReativacaoAdmin();
+    return;
+  }
+  const ok = await aplicarMudancaFaltante(id, { status: novoStatus });
+  if (ok){ toast("Status atualizado."); renderCentralReativacaoAdmin(); }
+}
+
+function cancelarMotivoAdmin(id){
+  delete ESTADO_MOTIVO[id];
+  renderCentralReativacaoAdmin();
+}
+
+function cancelarRemocaoAdmin(id){
+  delete ESTADO_CONFIRMAR_REMOCAO[id];
+  renderCentralReativacaoAdmin();
+}
+
+async function confirmarRemocaoAdmin(id){
+  const ok = await aplicarMudancaFaltante(id, { status: "Reagendado" });
+  delete ESTADO_CONFIRMAR_REMOCAO[id];
+  if (ok) toast("Paciente reagendado — removido da fila.");
+  renderCentralReativacaoAdmin();
+}
+
+async function confirmarMotivoAdmin(id){
+  const motivo = document.getElementById(`f-motivo-${id}`)?.value.trim();
+  if (!motivo){
+    toast("Preencha o motivo antes de salvar.");
+    return;
+  }
+  const ok = await aplicarMudancaFaltante(id, { status:"Não deseja reagendar", observacao: motivo });
+  if (ok){
+    delete ESTADO_MOTIVO[id];
+    toast("Status atualizado.");
+    renderCentralReativacaoAdmin();
+  }
+}
+
 /* =========================================================================
    GESTÃO DE USUÁRIOS (Administrador)
    ========================================================================= */
@@ -1654,7 +1705,65 @@ function calcularAlertasReativacao(ativos){
     .sort((a,b) => b.dias-a.dias);
 }
 
+/** Os 5 pendentes ("Não agendado") mais antigos de cada CRC — pra cobrança direta, agrupado por CRC. */
+function calcularTop5AntigosPorCRC(ativos, crcsAtivas){
+  return crcsAtivas.map(u => {
+    const pacientes = ativos
+      .filter(f => f.crcEmail===u.email && f.status==="Não agendado")
+      .map(f => ({ ...f, dias: diasDesde(f.criadoEm||f.data) }))
+      .sort((a,b) => b.dias-a.dias)
+      .slice(0,5);
+    return { email:u.email, nome:u.nomeCurto||u.nomeCompleto, pacientes };
+  }).filter(g => g.pacientes.length>0);
+}
+
 const CORES_PRAZO = { "0-3 dias":"var(--green)", "4-7 dias":"var(--gold)", "8-15 dias":"var(--orange)", "15+ dias":"var(--red)" };
+
+/** Painel por CRC com botões de ação direta (Reagendou/Desistiu) — pra cobrar sem sair da tela. */
+function renderTop5AntigosPorCRC(ativos, crcsAtivas){
+  const grupos = calcularTop5AntigosPorCRC(ativos, crcsAtivas);
+  if (!grupos.length) return `<p class="exec-vazio" style="margin-top:12px;">Nenhuma CRC com pendente "Não agendado" no momento. 🎉</p>`;
+  return grupos.map(g => `
+    <div style="margin-bottom:18px;">
+      <div style="font-size:12.5px;font-weight:700;margin-bottom:8px;">${esc(g.nome)} — 5 mais antigos sem reagendar</div>
+      ${g.pacientes.map(f => {
+        const emMotivo = ESTADO_MOTIVO[f.id] === true;
+        const emConfirmarRemocao = ESTADO_CONFIRMAR_REMOCAO[f.id] === true;
+        const nivel = f.dias>=PRAZO_LIMITES.muitoCriticoDias ? "vermelho" : f.dias>=PRAZO_LIMITES.criticoDias ? "amarelo" : "verde";
+        return `
+        <div class="alerta-chip nivel-${nivel}">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div>
+              <strong>${esc(f.nome||"(sem nome)")}</strong>
+              <p>${f.dias} dia(s) parado · ${f.tentativasContato||0} tentativa(s)${f.telefone?` · ${esc(f.telefone)}`:""}</p>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              ${f.telefone ? `<a href="${linkWhatsapp(f.telefone)}" target="_blank" class="btn small outline">WhatsApp</a>` : ""}
+              <button class="btn small primary" onclick="App.selecionarNovoStatusAdmin('${f.id}','Reagendado')">Reagendou</button>
+              <button class="btn small outline" onclick="App.selecionarNovoStatusAdmin('${f.id}','Não deseja reagendar')">Desistiu</button>
+            </div>
+          </div>
+          ${emMotivo ? `
+            <div class="field-grid" style="margin-top:10px;">
+              <div class="field"><label>Motivo</label><input type="text" id="f-motivo-${f.id}" placeholder="Por que não quer reagendar?"></div>
+            </div>
+            <div class="form-actions">
+              <button class="btn outline small" onclick="App.cancelarMotivoAdmin('${f.id}')">Cancelar</button>
+              <button class="btn primary small" onclick="App.confirmarMotivoAdmin('${f.id}')">Salvar</button>
+            </div>
+          ` : emConfirmarRemocao ? `
+            <div class="warn-box" style="margin-top:10px;">Confirma que esse paciente foi reagendado? Ele sai da lista e não fica mais salvo.</div>
+            <div class="form-actions">
+              <button class="btn outline small" onclick="App.cancelarRemocaoAdmin('${f.id}')">Cancelar</button>
+              <button class="btn primary small" onclick="App.confirmarRemocaoAdmin('${f.id}')">Confirmar</button>
+            </div>
+          ` : ""}
+        </div>
+        `;
+      }).join("")}
+    </div>
+  `).join("");
+}
 
 function renderCentralReativacaoAdmin(){
   const el = document.getElementById("central-reativacao-admin");
@@ -1721,6 +1830,8 @@ function renderCentralReativacaoAdmin(){
     ${faixasHtml}
     <div class="section-title" style="margin:20px 0 8px;font-size:11px;">Por CRC</div>
     ${tabelaCrcHtml}
+    <div class="section-title" style="margin:20px 0 8px;font-size:11px;">📋 Top 5 mais antigos sem reagendar, por CRC — pra cobrança</div>
+    ${renderTop5AntigosPorCRC(ativos, crcsAtivas)}
     ${alertasHtml}
   `;
 }
@@ -1925,23 +2036,44 @@ function graficoLinhaSvg(meses, series, campo){
   return `<svg viewBox="0 0 ${largura} ${altura}" style="width:100%;height:auto;display:block;">${linhas}${eixoX}</svg>`;
 }
 
+/** Compara o último mês da série com o anterior — seta + variação, pra dar leitura de tendência mesmo com o gráfico quase vazio (pouco histórico ainda). */
+function indicadorTendencia(valores){
+  if (!valores || valores.length<2) return { seta:"", cor:"var(--text-light)", texto:"sem mês anterior pra comparar ainda" };
+  const atual = valores[valores.length-1];
+  const anterior = valores[valores.length-2];
+  if (anterior===0){
+    if (atual===0) return { seta:"—", cor:"var(--text-light)", texto:"estável (0 nos dois meses)" };
+    return { seta:"▲", cor:"var(--green)", texto:`+${atual} vs mês anterior (sem base de comparação)` };
+  }
+  const variacaoPct = Math.round(((atual-anterior)/anterior)*100);
+  if (variacaoPct>0) return { seta:"▲", cor:"var(--green)", texto:`+${variacaoPct}% vs mês anterior` };
+  if (variacaoPct<0) return { seta:"▼", cor:"var(--red)", texto:`${variacaoPct}% vs mês anterior` };
+  return { seta:"—", cor:"var(--text-light)", texto:"igual ao mês anterior" };
+}
+
+function tendenciaLegendaHtml(series, campo){
+  return series.map(s => {
+    const t = indicadorTendencia(s[campo]);
+    return `<div class="linha-legenda-item"><span class="dot" style="background:${s.cor};"></span>${esc(s.nome)}: <strong style="color:${t.cor};">${t.seta}</strong> ${esc(t.texto)}</div>`;
+  }).join("");
+}
+
 function renderGraficosTendencia(crcsAtivas){
   if (!crcsAtivas.length) return "";
   const historico = RELATORIOS_HISTORICO_CACHE.filter(r => crcsAtivas.some(u => u.email===r.crcEmail));
   const { meses, series } = calcularTendenciaMensal(historico, crcsAtivas);
   if (!meses.length) return "";
-  const legenda = series.map(s => `<span class="linha-legenda-item"><span class="dot" style="background:${s.cor};"></span>${esc(s.nome)}</span>`).join("");
   return `
     <div class="exec-grid" style="margin-top:16px;">
       <div class="exec-card">
         <h4>Quem mais agenda — tendência mensal</h4>
         ${graficoLinhaSvg(meses, series, "agendados")}
-        <div class="linha-legenda">${legenda}</div>
+        <div class="linha-legenda" style="flex-direction:column;align-items:flex-start;gap:4px;">${tendenciaLegendaHtml(series, "agendados")}</div>
       </div>
       <div class="exec-card">
         <h4>Quem mais comparece — tendência mensal</h4>
         ${graficoLinhaSvg(meses, series, "compareceram")}
-        <div class="linha-legenda">${legenda}</div>
+        <div class="linha-legenda" style="flex-direction:column;align-items:flex-start;gap:4px;">${tendenciaLegendaHtml(series, "compareceram")}</div>
       </div>
     </div>
   `;
@@ -2918,7 +3050,8 @@ window.App = {
   alternarDetalheMeta, salvarMetaCRC, alternarAtivoUsuario,
   alternarEdicaoMeta, alternarPeriodoDashboard, selecionarCrcDashboard,
   alternarPeriodoRankingIEC, alternarDetalheCRC, alternarDetalheIEC,
-  abrirGestaoNanda, alternarPeriodoNanda, abrirFormularioNanda, fecharFormularioNanda, salvarNandaForm
+  abrirGestaoNanda, alternarPeriodoNanda, abrirFormularioNanda, fecharFormularioNanda, salvarNandaForm,
+  selecionarNovoStatusAdmin, cancelarMotivoAdmin, cancelarRemocaoAdmin, confirmarRemocaoAdmin, confirmarMotivoAdmin
 };
 
 init();
