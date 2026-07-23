@@ -2043,7 +2043,17 @@ function marcarRelatorioImpresso(id){
   const caso = findCaso(id);
   caso.planejamento.relatorio.impressao = { responsavel: OPERADOR, data: todayISO(), hora: nowTime() };
   logHistorico(caso, caso.statusAtual, caso.statusAtual, "Relatório do planejamento impresso");
-  persist(caso).then(()=>{ abrirFicha(id); toast("Relatório marcado como impresso."); });
+  // Se todos os lotes/itens já tinham sido recebidos antes da impressão (ver
+  // guard em concluirProducao), a impressão é a última etapa que faltava —
+  // conclui a produção agora, na mesma ação.
+  if (completoTotal(caso)){
+    concluirProducao(caso, "Relatório do planejamento impresso — todos os lotes já haviam sido produzidos, enviados e recebidos, caso finalizado");
+  }
+  persist(caso).then(()=>{ abrirFicha(id); toast(
+    caso.statusAtual==="Finalizado" ? "Relatório marcado como impresso — caso finalizado!" :
+    caso.statusAtual===STATUS_ENTREGA_FINANCEIRO ? "Relatório marcado como impresso — produção concluída, aguardando entrega/financeiro." :
+    "Relatório marcado como impresso."
+  ); });
 }
 
 
@@ -2161,17 +2171,23 @@ function getActionsForCaso(caso){
   if (naEtapaPlanejamento){
     actions.push({label: planejamentoValido(caso) ? "Editar placas do planejamento" : "Definir placas do planejamento", fn:()=>promptPlanejamento(caso.id)});
   }
-  // Anexar/substituir o relatório do planejamento fica disponível em
-  // qualquer etapa a partir do momento em que as placas já existem — cobre
-  // quem esqueceu de anexar no momento de salvar o planejamento.
-  if (ehTipoAlinhadores(caso) && planejamentoValido(caso)){
+  // Anexar/substituir o relatório do planejamento fica disponível antes de
+  // Produção — cobre quem esqueceu de anexar no momento de salvar o
+  // planejamento. Uma vez em Produção com um relatório já anexado, a
+  // impressão vira só mais uma etapa da produção (ver concluirProducao) e
+  // a única ação relevante ali é "Imprimir relatório" — mas se ninguém
+  // nunca anexou nenhum, o "Anexar" continua aparecendo mesmo em Produção
+  // (senão o caso ficaria sem nenhuma forma de sair do bloqueio de
+  // finalização).
+  if (ehTipoAlinhadores(caso) && planejamentoValido(caso) && (STATUS_TO_COL[s]!=="producao" || !caso.planejamento?.relatorio)){
     actions.push({label: caso.planejamento?.relatorio ? "Substituir/remover relatório do planejamento" : "Anexar relatório do planejamento", fn:()=>promptAnexarRelatorio(caso.id)});
   }
-  // "Dar baixa" na impressão do relatório: só faz sentido a partir do
-  // momento em que o caso está em produção e já existe um relatório
-  // anexado ainda não marcado como impresso.
+  // "Imprimir relatório": só faz sentido a partir do momento em que o caso
+  // está em produção e já existe um relatório anexado ainda não marcado
+  // como impresso — é o que libera a produção pra concluir (ver
+  // concluirProducao), igual a qualquer outra etapa do fluxo de lotes.
   if (ehTipoAlinhadores(caso) && STATUS_TO_COL[s]==="producao" && caso.planejamento?.relatorio && !caso.planejamento.relatorio.impressao){
-    actions.push({label:"Marcar relatório como impresso", fn:()=>marcarRelatorioImpresso(caso.id)});
+    actions.push({label:"Imprimir relatório", fn:()=>marcarRelatorioImpresso(caso.id)});
   }
   // Contenção/modelo de estudo não têm planejamento — saem de "Caso
   // recebido" direto pra produção com essa ação nomeada.
@@ -2652,6 +2668,15 @@ function promptRecebimentoLote(casoId, loteId){
 // administrador finalizar explicitamente (ver finalizarCasoExterno), já
 // que ainda pode faltar entrega física e/ou pagamento.
 function concluirProducao(caso, motivoFinalizacao){
+  // Pra alinhadores, a impressão do relatório do planejamento é mais uma
+  // etapa da produção — mesmo com todos os lotes/itens já recebidos, o
+  // caso só finaliza (ou vai pra Entrega/Financeiro, se externo) depois
+  // que o relatório for marcado como impresso (ver marcarRelatorioImpresso,
+  // que chama concluirProducao de novo assim que isso acontecer).
+  if (ehTipoAlinhadores(caso) && !caso.planejamento?.relatorio?.impressao){
+    logHistorico(caso, caso.statusAtual, caso.statusAtual, "Todos os lotes recebidos, mas aguardando impressão do relatório do planejamento para concluir a produção");
+    return;
+  }
   if (caso.tipoCaso==="externo"){
     changeStatus(caso, STATUS_ENTREGA_FINANCEIRO, "Produção concluída — aguardando entrega/financeiro");
     return;
@@ -2670,7 +2695,8 @@ function __submitRecebimentoLote(casoId, loteId){
   persist(caso).then(()=>{ abrirFicha(casoId); toast(
     caso.statusAtual==="Finalizado" ? "Caso finalizado!" :
     caso.statusAtual===STATUS_ENTREGA_FINANCEIRO ? "Produção concluída — aguardando entrega/financeiro." :
-    "Recebimento do lote registrado — caso continua ativo."
+    (completoTotal(caso) ? "Todos os lotes foram recebidos, mas falta imprimir o relatório do planejamento para concluir a produção." :
+    "Recebimento do lote registrado — caso continua ativo.")
   ); });
 }
 

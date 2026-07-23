@@ -481,14 +481,16 @@ fora da coluna Planejamento (ver acima), esse botão some sozinho logo depois
 do primeiro salvamento — não precisa de nenhuma lógica extra pra "travar" a
 edição das placas depois que os lotes já existem.
 
-### 2.7 Relatório do planejamento (upload) + "dar baixa" na impressão em Produção
+### 2.7 Relatório do planejamento (upload) + impressão como etapa da produção
 
 Só existe para alinhadores (`ehTipoAlinhadores`) — contenção/modelo de
 estudo não têm planejamento. Dentro do próprio formulário "Definir placas
 do planejamento" (seção 2.6) existe um campo de upload de arquivo (PDF ou
 imagem, até 8MB) para o **relatório do planejamento** — o documento gerado
-pelo software de alinhadores com as instruções de impressão. É **opcional**
-nesse momento: salvar o planejamento não trava esperando o arquivo.
+pelo software de alinhadores com as instruções de impressão. É **opcional
+nesse momento**: salvar o planejamento não trava esperando o arquivo (dá
+pra anexar depois, ver abaixo) — mas ele **se torna obrigatório mais
+adiante**, antes de o caso poder finalizar (ver próximo parágrafo).
 
 **O arquivo em si não é guardado na planilha.** Uma célula do Google
 Sheets tem limite de 50.000 caracteres, e um relatório real em base64
@@ -502,23 +504,27 @@ espírito de "o banco guarda só o essencial" já usado no resto do sistema.
   relatório do planejamento"** (ou "Substituir/remover..." se já houver
   um) fica disponível na ficha em qualquer etapa a partir do momento em
   que as placas já foram definidas — não precisa voltar pra coluna
-  Planejamento pra isso.
-- **"Marcar relatório como impresso"** (dar baixa) só aparece quando o
-  caso já está em **Produção** e existe um relatório anexado ainda não
-  marcado — é assim que a pessoa responsável no laboratório confirma que
-  abriu o arquivo, imprimiu fisicamente e pode seguir com a produção.
-  Fica registrado no histórico com responsável/data/hora
-  (`marcarRelatorioImpresso`).
-- **Não é um bloqueio.** Diferente da aprovação externa ou da conferência
-  de impressão do lote, "dar baixa" no relatório não impede criar lotes
-  nem qualquer outra ação — é só um registro rastreável, mesmo espírito
-  de `observacaoProducao` (que já ganha destaque no card assim que o caso
-  entra em Produção, sem travar nada).
+  Planejamento pra isso. Uma vez em Produção com um relatório já anexado,
+  essa ação some (só sobra "Imprimir relatório") — se nenhum foi anexado
+  ainda, continua disponível mesmo em Produção, senão o caso ficaria sem
+  saída.
+- **"Imprimir relatório" é mais uma etapa da produção**, no mesmo espírito
+  da conferência de impressão do lote ou da confecção das placas: só
+  aparece quando o caso já está em **Produção** e existe um relatório
+  anexado ainda não marcado como impresso. `concluirProducao` (chamada
+  tanto pelo recebimento de lotes quanto pelo de itens) **não finaliza o
+  caso nem avança pra Entrega/Financeiro enquanto o relatório não for
+  marcado como impresso** — mesmo que todos os lotes já tenham sido
+  produzidos, entregues e recebidos, o caso fica retido em Produção com um
+  aviso no histórico até alguém clicar em "Imprimir relatório"
+  (`marcarRelatorioImpresso`), que registra responsável/data/hora e, se os
+  lotes já estavam completos, conclui a produção imediatamente na mesma
+  ação.
 - **Card**: enquanto o caso está em Produção e o relatório ainda não foi
   marcado como impresso, aparece uma caixa de destaque azul "📄 Relatório
   do planejamento — Aguardando impressão" (mesmo padrão visual da caixa
   dourada de `observacaoProducao`, cor separada pra não confundir os
-  dois avisos). Some sozinha assim que alguém dá a baixa.
+  dois avisos). Some sozinha assim que alguém marca como impresso.
 
 ---
 
