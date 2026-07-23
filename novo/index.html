@@ -143,6 +143,15 @@ h1,h2,h3,h4{margin:0;}
 .alerta-equipe-item strong{font-size:13.5px; color:var(--graphite);}
 .alerta-equipe-item .v{margin-left:6px; color:var(--text-light);}
 
+/* Arrastar para reordenar — usado tanto nas seções grandes do admin quanto nos cards do Dashboard Executivo. */
+.arrastavel{position:relative;}
+.arrastavel.arrastando{opacity:.35;}
+.arrastavel.drop-alvo{outline:2px dashed var(--gold); outline-offset:6px; border-radius:var(--radius);}
+.drag-handle{position:absolute; top:10px; right:12px; cursor:grab; user-select:none; font-size:18px; line-height:1; color:var(--text-light); padding:4px 8px; border-radius:8px; background:var(--bg-alt); z-index:2;}
+.drag-handle:hover{color:var(--gold-dark); background:var(--gold-light);}
+.drag-handle:active{cursor:grabbing;}
+.restaurar-ordem-link{background:none; border:none; color:var(--gold-dark); text-decoration:underline; font-size:11.5px; padding:0; cursor:pointer; font-weight:600;}
+
 .destaque-equipe-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px;}
 .destaque-equipe-item{background:var(--green-light); border:1px solid var(--green); border-radius:12px; padding:14px 16px;}
 .destaque-equipe-item .lbl-item{display:block; color:var(--green); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.2px; margin-bottom:6px;}
@@ -268,49 +277,62 @@ h1,h2,h3,h4{margin:0;}
     <div id="view-crc-reativacao" class="hidden"></div>
     <div id="view-crc-nanda" class="hidden"></div>
     <div id="view-admin-placeholder" class="hidden">
-      <div class="saudacao" style="font-size:20px;">Dashboard Executivo</div>
-      <div class="saudacao-sub">Use os filtros abaixo para ver o total ou uma CRC específica, no período que quiser.</div>
-      <div id="dashboard-executivo"></div>
+      <p style="margin:0 0 14px;"><button class="restaurar-ordem-link" onclick="App.resetarOrdemSecoesAdmin()">↺ Restaurar ordem padrão dos painéis</button> — arraste pelo ⠿ no canto de cada painel pra reordenar.</p>
 
-      <div class="form-card" style="margin-top:20px;">
+      <div class="arrastavel" data-arrastavel data-grupo="admin-secoes" data-chave="dashboard-executivo-bloco">
+        <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
+        <div class="saudacao" style="font-size:20px;">Dashboard Executivo</div>
+        <div class="saudacao-sub">Use os filtros abaixo para ver o total ou uma CRC específica, no período que quiser.</div>
+        <div id="dashboard-executivo"></div>
+      </div>
+
+      <div class="form-card arrastavel" data-arrastavel data-grupo="admin-secoes" data-chave="ranking" style="margin-top:20px;">
+        <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
         <div class="section-title">Ranking — IEC (Índice de Efetividade da CRC)</div>
         <p style="font-size:12px;color:var(--text-light);margin:-6px 0 14px;">O trabalho da CRC não termina quando o paciente agenda. O trabalho termina quando o paciente comparece à clínica.</p>
         <div id="ranking-admin"></div>
       </div>
 
-      <div class="form-card" style="margin-top:20px;">
+      <div class="form-card arrastavel" data-arrastavel data-grupo="admin-secoes" data-chave="destaques" style="margin-top:20px;">
+        <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
         <div class="section-title">🌟 Destaques da Equipe</div>
         <div id="destaques-equipe"></div>
       </div>
 
-      <div class="form-card" style="margin-top:20px;">
+      <div class="form-card arrastavel" data-arrastavel data-grupo="admin-secoes" data-chave="alertas" style="margin-top:20px;">
+        <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
         <div class="section-title">Alertas da Equipe</div>
         <div id="alertas-equipe"></div>
       </div>
 
-      <div class="form-card" style="margin-top:20px;">
+      <div class="form-card arrastavel" data-arrastavel data-grupo="admin-secoes" data-chave="faltas10" style="margin-top:20px;">
+        <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
         <div class="section-title">📉 Faltas a Cada 10 Agendamentos</div>
         <p style="font-size:12px;color:var(--text-light);margin:-6px 0 14px;">Apoio ao IEC — quem agenda muito mas perde muita agenda por falta não deve parecer "boa" só pelo volume. Não basta agendar. É necessário fazer o paciente comparecer.</p>
         <div id="faltas10-admin"></div>
       </div>
 
-      <div class="form-card" style="margin-top:20px;">
+      <div class="form-card arrastavel" data-arrastavel data-grupo="admin-secoes" data-chave="metas" style="margin-top:20px;">
+        <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
         <div class="section-title">Metas do mês — Agendamentos por CRC</div>
         <div id="metas-admin"></div>
       </div>
 
-      <div class="form-card" style="margin-top:20px;">
+      <div class="form-card arrastavel" data-arrastavel data-grupo="admin-secoes" data-chave="nanda" style="margin-top:20px;">
+        <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
         <div class="section-title">🤖 Gestão da Nanda — Assistente Virtual</div>
         <p style="font-size:12px;color:var(--text-light);margin:-6px 0 14px;">Operação separada do desempenho pessoal das CRCs — não entra no Ranking/IEC.</p>
         <div id="nanda-admin"></div>
       </div>
 
-      <div class="form-card" style="margin-top:20px;">
+      <div class="form-card arrastavel" data-arrastavel data-grupo="admin-secoes" data-chave="reativacao" style="margin-top:20px;">
+        <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
         <div class="section-title">Central de Reativação — prazos, cobrança e reagendamentos</div>
         <div id="central-reativacao-admin"></div>
       </div>
 
-      <div class="form-card" style="margin-top:20px;">
+      <div class="form-card arrastavel" data-arrastavel data-grupo="admin-secoes" data-chave="usuarios" style="margin-top:20px;">
+        <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
         <div class="section-title">Gestão de usuários</div>
         <div id="usuarios-lista"></div>
 
@@ -769,6 +791,95 @@ async function carregarStatusHoje(){
 }
 
 /* =========================================================================
+   ARRASTAR PARA REORDENAR — cada painel/card guarda sua ordem no navegador
+   (localStorage), por "grupo" (admin-secoes = painéis grandes do admin;
+   dashboard-cards = cards do Dashboard Executivo). É preferência de tela,
+   não dado da clínica — não precisa ir pro backend nem ser compartilhada
+   entre dispositivos.
+   ========================================================================= */
+function ordemSalva(grupo, padrao){
+  try {
+    const raw = localStorage.getItem("ordem_"+grupo);
+    if (!raw) return padrao;
+    const salva = JSON.parse(raw);
+    const validas = salva.filter(k => padrao.includes(k));
+    const faltando = padrao.filter(k => !validas.includes(k));
+    return [...validas, ...faltando];
+  } catch(err){ return padrao; }
+}
+function salvarOrdem(grupo, ordem){
+  try { localStorage.setItem("ordem_"+grupo, JSON.stringify(ordem)); } catch(err){}
+}
+
+const ARRASTAR_ESTADO = { grupo:null, chave:null };
+
+function inicializarArrastar(){
+  document.addEventListener("dragstart", e => {
+    const handle = e.target.closest(".drag-handle");
+    if (!handle) return;
+    const item = handle.closest("[data-arrastavel]");
+    if (!item) return;
+    ARRASTAR_ESTADO.grupo = item.dataset.grupo;
+    ARRASTAR_ESTADO.chave = item.dataset.chave;
+    item.classList.add("arrastando");
+    e.dataTransfer.effectAllowed = "move";
+  });
+  document.addEventListener("dragend", e => {
+    const item = e.target.closest("[data-arrastavel]");
+    if (item) item.classList.remove("arrastando");
+    document.querySelectorAll(".drop-alvo").forEach(el => el.classList.remove("drop-alvo"));
+  });
+  document.addEventListener("dragover", e => {
+    const item = e.target.closest("[data-arrastavel]");
+    if (!item || item.dataset.grupo !== ARRASTAR_ESTADO.grupo) return;
+    e.preventDefault();
+    item.classList.add("drop-alvo");
+  });
+  document.addEventListener("dragleave", e => {
+    const item = e.target.closest("[data-arrastavel]");
+    if (item) item.classList.remove("drop-alvo");
+  });
+  document.addEventListener("drop", e => {
+    const alvo = e.target.closest("[data-arrastavel]");
+    if (!alvo || alvo.dataset.grupo !== ARRASTAR_ESTADO.grupo) return;
+    e.preventDefault();
+    alvo.classList.remove("drop-alvo");
+    if (alvo.dataset.chave === ARRASTAR_ESTADO.chave) return;
+    const container = alvo.parentElement;
+    const itens = Array.from(container.querySelectorAll(`:scope > [data-grupo="${ARRASTAR_ESTADO.grupo}"]`));
+    const arrastado = itens.find(i => i.dataset.chave === ARRASTAR_ESTADO.chave);
+    if (!arrastado) return;
+    if (itens.indexOf(arrastado) < itens.indexOf(alvo)) alvo.after(arrastado); else alvo.before(arrastado);
+    const novaOrdem = Array.from(container.querySelectorAll(`:scope > [data-grupo="${ARRASTAR_ESTADO.grupo}"]`)).map(i => i.dataset.chave);
+    salvarOrdem(ARRASTAR_ESTADO.grupo, novaOrdem);
+  });
+}
+
+const ORDEM_SECOES_ADMIN_PADRAO = ["dashboard-executivo-bloco","ranking","destaques","alertas","faltas10","metas","nanda","reativacao","usuarios"];
+
+/** Reordena os painéis grandes do admin conforme a ordem salva — os painéis já existem fixos no HTML, só move os nós de lugar. */
+function aplicarOrdemSecoesAdmin(){
+  const container = document.getElementById("view-admin-placeholder");
+  if (!container) return;
+  ordemSalva("admin-secoes", ORDEM_SECOES_ADMIN_PADRAO).forEach(chave => {
+    const el = container.querySelector(`:scope > [data-chave="${chave}"]`);
+    if (el) container.appendChild(el);
+  });
+}
+function resetarOrdemSecoesAdmin(){
+  localStorage.removeItem("ordem_admin-secoes");
+  aplicarOrdemSecoesAdmin();
+  toast("Ordem dos painéis restaurada.");
+}
+
+const ORDEM_CARDS_DASHBOARD_PADRAO = ["funil","comparecimento","resgate","qualidade","objecoes","oportunidades"];
+function resetarOrdemCardsDashboard(){
+  localStorage.removeItem("ordem_dashboard-cards");
+  renderDashboardExecutivo();
+  toast("Ordem dos cards restaurada.");
+}
+
+/* =========================================================================
    ROTEAMENTO DE TELAS
    ========================================================================= */
 function mostrarView(nome){
@@ -781,7 +892,7 @@ function mostrarView(nome){
   if (nome==="relatorio") renderFormularioRelatorio();
   if (nome==="reativacao") renderReativacao();
   if (nome==="nanda") renderGestaoNanda();
-  if (nome==="admin"){ renderDashboardExecutivo(); renderUsuariosLista(); renderCentralReativacaoAdmin(); renderRankingAdmin(); renderDestaquesEquipe(); renderAlertasEquipe(); renderFaltas10Admin(); renderMetasAdmin(); renderNandaAdmin(); }
+  if (nome==="admin"){ renderDashboardExecutivo(); renderUsuariosLista(); renderCentralReativacaoAdmin(); renderRankingAdmin(); renderDestaquesEquipe(); renderAlertasEquipe(); renderFaltas10Admin(); renderMetasAdmin(); renderNandaAdmin(); aplicarOrdemSecoesAdmin(); }
 }
 
 /* =========================================================================
@@ -2326,6 +2437,7 @@ function renderDashboardExecutivo(){
         `).join("")}
       </div>
     </div>
+    <p style="margin:0 0 14px;"><button class="restaurar-ordem-link" onclick="App.resetarOrdemCardsDashboard()">↺ Restaurar ordem padrão dos cards</button> — arraste pelo ⠿ no canto de cada card pra reordenar.</p>
   `;
 
   if (!crcsAtivas.length){
@@ -2353,7 +2465,8 @@ function renderDashboardExecutivo(){
   const maiorResgate = Math.max(a.resgate.trabalhados, 1);
 
   const funilHtml = `
-    <div class="exec-card">
+    <div class="exec-card arrastavel" data-arrastavel data-grupo="dashboard-cards" data-chave="funil">
+      <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
       <h4>Funil de Leads (${periodoLabel})</h4>
       ${funilStepHtml("Entraram", a.funilLeads.entraram, maiorFunil)}
       ${funilStepHtml("Trabalhados", a.funilLeads.trabalhados, maiorFunil)}
@@ -2364,7 +2477,8 @@ function renderDashboardExecutivo(){
   `;
 
   const comparecimentoHtml = `
-    <div class="exec-card">
+    <div class="exec-card arrastavel" data-arrastavel data-grupo="dashboard-cards" data-chave="comparecimento">
+      <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
       <h4>Comparecimento (${periodoLabel})</h4>
       ${funilStepHtml("Agendados", a.comparecimento.agendados, maiorAgendados)}
       ${funilStepHtml("Compareceram", a.comparecimento.compareceram, maiorAgendados)}
@@ -2375,7 +2489,8 @@ function renderDashboardExecutivo(){
   `;
 
   const resgateHtml = `
-    <div class="exec-card">
+    <div class="exec-card arrastavel" data-arrastavel data-grupo="dashboard-cards" data-chave="resgate">
+      <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
       <h4>Resgate de leads antigos (${periodoLabel})</h4>
       ${funilStepHtml("Trabalhados", a.resgate.trabalhados, maiorResgate)}
       ${funilStepHtml("Agendados", a.resgate.agendados, maiorResgate)}
@@ -2384,7 +2499,8 @@ function renderDashboardExecutivo(){
   `;
 
   const qualidadeHtml = `
-    <div class="exec-card">
+    <div class="exec-card arrastavel" data-arrastavel data-grupo="dashboard-cards" data-chave="qualidade">
+      <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
       <h4>Qualidade dos leads (${periodoLabel})</h4>
       <div class="donut-wrap">
         <div class="donut" style="${donutEstiloHtml(a.qualidade.contagem, CORES_QUALIDADE)}"></div>
@@ -2398,14 +2514,16 @@ function renderDashboardExecutivo(){
   `;
 
   const objecoesHtml = `
-    <div class="exec-card">
+    <div class="exec-card arrastavel" data-arrastavel data-grupo="dashboard-cards" data-chave="objecoes">
+      <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
       <h4>Principais objeções (${periodoLabel})</h4>
       ${a.objecoes.length ? a.objecoes.slice(0,6).map(o => barraHHtml(o.nome, o.qtd, a.objecoes[0].qtd)).join("") : `<p class="exec-vazio">Nenhuma objeção registrada neste recorte.</p>`}
     </div>
   `;
 
   const oportunidadesHtml = `
-    <div class="exec-card">
+    <div class="exec-card arrastavel" data-arrastavel data-grupo="dashboard-cards" data-chave="oportunidades">
+      <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
       <h4>Oportunidades por temperatura (mês)</h4>
       <div class="donut-wrap">
         <div class="donut" style="${donutEstiloHtml(a.oportunidades.contagem, CORES_TEMPERATURA)}"></div>
@@ -2423,7 +2541,9 @@ function renderDashboardExecutivo(){
     </div>
   `;
 
-  el.innerHTML = controlesHtml + `<div class="exec-grid">${funilHtml}${comparecimentoHtml}${resgateHtml}${qualidadeHtml}${objecoesHtml}${oportunidadesHtml}</div>` + extrasHtml;
+  const cardsPorChave = { funil:funilHtml, comparecimento:comparecimentoHtml, resgate:resgateHtml, qualidade:qualidadeHtml, objecoes:objecoesHtml, oportunidades:oportunidadesHtml };
+  const cardsEmOrdem = ordemSalva("dashboard-cards", ORDEM_CARDS_DASHBOARD_PADRAO).map(chave => cardsPorChave[chave]).join("");
+  el.innerHTML = controlesHtml + `<div class="exec-grid">${cardsEmOrdem}</div>` + extrasHtml;
 }
 
 /* =========================================================================
@@ -3296,6 +3416,7 @@ function mostrarSucesso(){
    INICIALIZAÇÃO
    ========================================================================= */
 async function init(){
+  inicializarArrastar();
   carregarSessao();
   if (PERFIL_ATUAL){
     await aoLogar();
@@ -3317,7 +3438,8 @@ window.App = {
   alternarPeriodoRankingIEC, alternarDetalheCRC, alternarDetalheIEC,
   abrirGestaoNanda, alternarPeriodoNanda, abrirFormularioNanda, fecharFormularioNanda, salvarNandaForm,
   selecionarNovoStatusAdmin, cancelarMotivoAdmin, cancelarRemocaoAdmin, confirmarRemocaoAdmin, confirmarMotivoAdmin,
-  alternarPeriodoFaltas10, alternarEdicaoMetaNanda, salvarMetaNandaCRC
+  alternarPeriodoFaltas10, alternarEdicaoMetaNanda, salvarMetaNandaCRC,
+  resetarOrdemSecoesAdmin, resetarOrdemCardsDashboard
 };
 
 init();
