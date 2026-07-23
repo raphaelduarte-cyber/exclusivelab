@@ -148,6 +148,7 @@ function doGet(e) {
     relatoriosHoje: lerRelatoriosPorData_(hoje),
     relatoriosMes: lerRelatoriosPorMes_(mesAtual),
     relatoriosHistorico: lerRelatoriosUltimosMeses_(6),
+    relatoriosTodos: lerRelatorios_(),
     oportunidadesMes: lerOportunidadesPorMes_(mesAtual),
     pacientesFaltantes: lerPacientesFaltantesAtivos_(),
     pacientesReagendadosMes: lerPacientesReagendadosPorMes_(mesAtual),

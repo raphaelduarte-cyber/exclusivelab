@@ -506,7 +506,7 @@ const Api = {
     return resp.json();
   },
   async statusHoje(){
-    if (!CONFIG.API_URL) return { ok:true, usuarios: USUARIOS_EXEMPLO, relatoriosHoje:[], relatoriosMes: RELATORIOS_MES_EXEMPLO, relatoriosHistorico: RELATORIOS_HISTORICO_EXEMPLO, oportunidadesMes: OPORTUNIDADES_MES_EXEMPLO, pacientesFaltantes: PACIENTES_FALTANTES_EXEMPLO, pacientesReagendadosMes: PACIENTES_REAGENDADOS_MES_EXEMPLO, metas: METAS_EXEMPLO, nandaMes: NANDA_MES_EXEMPLO, nandaHistorico: NANDA_HISTORICO_EXEMPLO };
+    if (!CONFIG.API_URL) return { ok:true, usuarios: USUARIOS_EXEMPLO, relatoriosHoje:[], relatoriosMes: RELATORIOS_MES_EXEMPLO, relatoriosHistorico: RELATORIOS_HISTORICO_EXEMPLO, relatoriosTodos: RELATORIOS_HISTORICO_EXEMPLO, oportunidadesMes: OPORTUNIDADES_MES_EXEMPLO, pacientesFaltantes: PACIENTES_FALTANTES_EXEMPLO, pacientesReagendadosMes: PACIENTES_REAGENDADOS_MES_EXEMPLO, metas: METAS_EXEMPLO, nandaMes: NANDA_MES_EXEMPLO, nandaHistorico: NANDA_HISTORICO_EXEMPLO };
     const resp = await fetch(CONFIG.API_URL);
     return resp.json();
   },
@@ -572,6 +572,7 @@ let PACIENTES_FALTANTES_CACHE = [];
 let PACIENTES_REAGENDADOS_MES_CACHE = [];
 let RELATORIOS_MES_CACHE = [];
 let RELATORIOS_HISTORICO_CACHE = [];
+let RELATORIOS_TODOS_CACHE = []; // todo o histórico (sem recorte de meses) — usado só pelo filtro "Histórico"
 let OPORTUNIDADES_MES_CACHE = [];
 let METAS_CACHE = [];
 let METAS_EDITANDO = new Set();
@@ -746,6 +747,7 @@ async function carregarStatusHoje(){
       PACIENTES_REAGENDADOS_MES_CACHE = data.pacientesReagendadosMes || [];
       RELATORIOS_MES_CACHE = data.relatoriosMes || [];
       RELATORIOS_HISTORICO_CACHE = data.relatoriosHistorico || [];
+      RELATORIOS_TODOS_CACHE = data.relatoriosTodos || [];
       OPORTUNIDADES_MES_CACHE = data.oportunidadesMes || [];
       METAS_CACHE = data.metas || [];
       NANDA_MES_CACHE = data.nandaMes || [];
@@ -872,6 +874,12 @@ function limitesPeriodo(periodo, customInicio, customFim){
     inicioAtual = new Date(hoje); inicioAtual.setDate(inicioAtual.getDate()-89);
     fimAnterior = new Date(inicioAtual); fimAnterior.setDate(fimAnterior.getDate()-1);
     inicioAnterior = new Date(fimAnterior); inicioAnterior.setDate(inicioAnterior.getDate()-89);
+  } else if (periodo==="historico"){
+    // Sem recorte de data — o chamador (calcularRankingIEC) troca a fonte pra RELATORIOS_TODOS_CACHE nesse caso.
+    // O período "anterior" fica vazio de propósito (não existe "antes de todo o histórico").
+    inicioAtual = new Date(2000, 0, 1);
+    fimAnterior = new Date(inicioAtual); fimAnterior.setDate(fimAnterior.getDate()-1);
+    inicioAnterior = new Date(fimAnterior);
   } else if (periodo==="personalizado" && customInicio && customFim){
     inicioAtual = new Date(customInicio+"T00:00:00");
     fimAtual = new Date(customFim+"T00:00:00");
@@ -900,9 +908,11 @@ function elegivelRanking(agendados, atingimentoMetaAgendamentos, periodo){
  * customInicio/customFim só valem quando periodo==="personalizado" (Faltas/10) — os demais chamadores não passam esses 2 args. */
 function calcularRankingIEC(crcsAtivas, periodo, customInicio, customFim){
   const { inicioAtual, fimAtual, inicioAnterior, fimAnterior } = limitesPeriodo(periodo, customInicio, customFim);
+  // "Histórico" precisa da fonte sem recorte de meses — RELATORIOS_HISTORICO_CACHE só guarda os últimos 6 meses.
+  const fonte = periodo==="historico" ? RELATORIOS_TODOS_CACHE : RELATORIOS_HISTORICO_CACHE;
   const linhas = crcsAtivas.map(u => {
-    const relatoriosAtual = somarPeriodo(RELATORIOS_HISTORICO_CACHE, u.email, inicioAtual, fimAtual);
-    const relatoriosAnterior = somarPeriodo(RELATORIOS_HISTORICO_CACHE, u.email, inicioAnterior, fimAnterior);
+    const relatoriosAtual = somarPeriodo(fonte, u.email, inicioAtual, fimAtual);
+    const relatoriosAnterior = somarPeriodo(fonte, u.email, inicioAnterior, fimAnterior);
     const registro = METAS_CACHE.find(m => m.crcEmail===u.email);
     const metaComparecimentos = registro ? registro.metaComparecimentos : 0;
     const metaAgendamentos = registro ? registro.metaAgendamentos : 0;
@@ -1146,7 +1156,7 @@ function renderRankingAdmin(){
 
   el.innerHTML = `
     <div class="pill-group" style="margin-bottom:14px;">
-      ${[["dia","Diário"],["semana","Semanal"],["mes","Mensal"]].map(([v,l]) => `
+      ${[["dia","Diário"],["semana","Semanal"],["mes","Mensal"],["historico","Histórico"]].map(([v,l]) => `
         <button class="pill ${PERIODO_RANKING_IEC===v?'ativo':''}" onclick="App.alternarPeriodoRankingIEC('${v}')">${l}</button>
       `).join("")}
     </div>
@@ -2131,7 +2141,7 @@ const CORES_TEMPERATURA = { "Muito Quente":"var(--red)", "Quente":"var(--orange)
 
 /** Filtra relatórios (já recortados no mês atual pelo backend) para o recorte Diário/Semanal/Mensal escolhido no Dashboard Executivo. */
 function filtrarRelatoriosPorPeriodo(lista, periodo){
-  if (periodo === "mes") return lista;
+  if (periodo === "mes" || periodo === "historico") return lista;
   const hoje = dataLocalISO();
   if (periodo === "dia") return lista.filter(r => r.data === hoje);
   if (periodo === "semana"){
@@ -2288,7 +2298,7 @@ function renderDashboardExecutivo(){
   const controlesHtml = `
     <div class="dash-exec-controles">
       <div class="pill-group">
-        ${[["dia","Diário"],["semana","Semanal"],["mes","Mensal"]].map(([v,l]) => `
+        ${[["dia","Diário"],["semana","Semanal"],["mes","Mensal"],["historico","Histórico"]].map(([v,l]) => `
           <button class="pill ${PERIODO_DASHBOARD===v?'ativo':''}" onclick="App.alternarPeriodoDashboard('${v}')">${l}</button>
         `).join("")}
       </div>
@@ -2307,7 +2317,8 @@ function renderDashboardExecutivo(){
   }
 
   const filtroCrc = r => emailsAtivos.has(r.crcEmail) && (!CRC_SELECIONADA_DASHBOARD || r.crcEmail===CRC_SELECIONADA_DASHBOARD);
-  const relatoriosFiltrados = filtrarRelatoriosPorPeriodo(RELATORIOS_MES_CACHE.filter(filtroCrc), PERIODO_DASHBOARD);
+  const fonteDashboard = PERIODO_DASHBOARD==="historico" ? RELATORIOS_TODOS_CACHE : RELATORIOS_MES_CACHE;
+  const relatoriosFiltrados = filtrarRelatoriosPorPeriodo(fonteDashboard.filter(filtroCrc), PERIODO_DASHBOARD);
   const oportunidadesFiltradas = OPORTUNIDADES_MES_CACHE.filter(filtroCrc);
 
   const a = calcularAnaliseExecutiva(relatoriosFiltrados, oportunidadesFiltradas);
@@ -2319,7 +2330,7 @@ function renderDashboardExecutivo(){
     return;
   }
   const pct = v => v===null ? "—" : Math.round(v*100)+"%";
-  const periodoLabel = { dia:"hoje", semana:"últimos 7 dias", mes:"mês" }[PERIODO_DASHBOARD];
+  const periodoLabel = { dia:"hoje", semana:"últimos 7 dias", mes:"mês", historico:"todo o histórico" }[PERIODO_DASHBOARD];
   const maiorFunil = Math.max(a.funilLeads.entraram, 1);
   const maiorAgendados = Math.max(a.comparecimento.agendados, 1);
   const maiorResgate = Math.max(a.resgate.trabalhados, 1);
