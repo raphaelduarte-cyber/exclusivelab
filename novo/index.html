@@ -278,6 +278,12 @@ h1,h2,h3,h4{margin:0;}
       </div>
 
       <div class="form-card" style="margin-top:20px;">
+        <div class="section-title">📉 Faltas a Cada 10 Agendamentos</div>
+        <p style="font-size:12px;color:var(--text-light);margin:-6px 0 14px;">Apoio ao IEC — quem agenda muito mas perde muita agenda por falta não deve parecer "boa" só pelo volume. Não basta agendar. É necessário fazer o paciente comparecer.</p>
+        <div id="faltas10-admin"></div>
+      </div>
+
+      <div class="form-card" style="margin-top:20px;">
         <div class="section-title">Metas do mês — Agendamentos por CRC</div>
         <div id="metas-admin"></div>
       </div>
@@ -761,7 +767,7 @@ function mostrarView(nome){
   if (nome==="relatorio") renderFormularioRelatorio();
   if (nome==="reativacao") renderReativacao();
   if (nome==="nanda") renderGestaoNanda();
-  if (nome==="admin"){ renderDashboardExecutivo(); renderUsuariosLista(); renderCentralReativacaoAdmin(); renderRankingAdmin(); renderAlertasEquipe(); renderMetasAdmin(); renderNandaAdmin(); }
+  if (nome==="admin"){ renderDashboardExecutivo(); renderUsuariosLista(); renderCentralReativacaoAdmin(); renderRankingAdmin(); renderAlertasEquipe(); renderFaltas10Admin(); renderMetasAdmin(); renderNandaAdmin(); }
 }
 
 /* =========================================================================
@@ -789,6 +795,32 @@ const IEC_LIMITES = {
   desvioVermelhoEquipe: 10           // p.p. abaixo da média da equipe
 };
 
+/** Faltas a cada 10 agendamentos — indicador de apoio ao IEC, mesmos limites-padrão editáveis pelo gestor numa rodada futura. */
+const FALTAS10_LIMITES = {
+  volumeMinimo: 20,      // agendamentos no período p/ o indicador ser confiável
+  limiteVerde: 2,        // até aqui: verde
+  limiteVerdeClaro: 3,   // até aqui: verde-claro
+  limiteAmarelo: 4,      // até aqui: amarelo
+  limiteLaranja: 5,      // até aqui: laranja; acima: vermelho
+  alertaMinimo: 4        // faltas/10 acima disso (+ volumeMinimo) dispara alerta
+};
+const CORES_FALTAS10 = { verde:"var(--green)", verdeClaro:"#5aab6e", amarelo:"var(--gold)", laranja:"var(--orange)", vermelho:"var(--red)" };
+
+function calcularFaltasPor10(faltaram, agendados){
+  return agendados>0 ? (faltaram/agendados)*10 : 0;
+}
+function corFaltasPor10(v){
+  if (v<=FALTAS10_LIMITES.limiteVerde) return CORES_FALTAS10.verde;
+  if (v<=FALTAS10_LIMITES.limiteVerdeClaro) return CORES_FALTAS10.verdeClaro;
+  if (v<=FALTAS10_LIMITES.limiteAmarelo) return CORES_FALTAS10.amarelo;
+  if (v<=FALTAS10_LIMITES.limiteLaranja) return CORES_FALTAS10.laranja;
+  return CORES_FALTAS10.vermelho;
+}
+function formatarFaltas10(v){
+  const r = Math.round(v*10)/10;
+  return (r%1===0 ? String(r) : r.toFixed(1).replace(".", ","));
+}
+
 function classificarIEC(iec){
   if (iec>=90) return { label:"Excelente", cor:"var(--green)" };
   if (iec>=80) return { label:"Alta performance", cor:"var(--blue)" };
@@ -810,20 +842,24 @@ function calcularIEC(relatorios, metaComparecimentos){
   const agendamentosDesperdicados = Math.max(0, s.pacientesAgendadosDia - s.compareceram);
   const taxaDesperdicio = s.pacientesAgendadosDia>0 ? agendamentosDesperdicados/s.pacientesAgendadosDia : null;
   const taxaFaltas = s.pacientesAgendadosDia>0 ? s.faltaram/s.pacientesAgendadosDia : null;
+  const faltasPor10 = calcularFaltasPor10(s.faltaram, s.pacientesAgendadosDia);
+  const amostraSuficiente = s.pacientesAgendadosDia>=FALTAS10_LIMITES.volumeMinimo;
   return {
     semDados:false, iec, semMetaComparecimento, metaComparecimentos:meta,
     taxaComparecimento, atingimentoMetaComparecimento,
     agendados: s.pacientesAgendadosDia, compareceram: s.compareceram, faltaram: s.faltaram, reagendaram: s.reagendaram,
-    agendamentosDesperdicados, taxaDesperdicio, taxaFaltas,
+    agendamentosDesperdicados, taxaDesperdicio, taxaFaltas, faltasPor10, amostraSuficiente,
     classificacao: classificarIEC(iec)
   };
 }
 
-/** Início/fim do período escolhido e do período imediatamente anterior (pra comparação). */
-function limitesPeriodo(periodo){
+/** Início/fim do período escolhido e do período imediatamente anterior (pra comparação).
+ * customInicio/customFim (strings ISO) só são usados quando periodo==="personalizado" —
+ * os 4 chamadores pré-existentes nunca passam esses 2 parâmetros, então continuam intactos. */
+function limitesPeriodo(periodo, customInicio, customFim){
   const iso = d => dataLocalISO(d);
   const hoje = new Date();
-  let inicioAtual, inicioAnterior, fimAnterior;
+  let inicioAtual, inicioAnterior, fimAnterior, fimAtual;
   if (periodo==="dia"){
     inicioAtual = new Date(hoje);
     fimAnterior = new Date(hoje); fimAnterior.setDate(fimAnterior.getDate()-1);
@@ -832,12 +868,22 @@ function limitesPeriodo(periodo){
     inicioAtual = new Date(hoje); inicioAtual.setDate(inicioAtual.getDate()-6);
     fimAnterior = new Date(inicioAtual); fimAnterior.setDate(fimAnterior.getDate()-1);
     inicioAnterior = new Date(fimAnterior); inicioAnterior.setDate(inicioAnterior.getDate()-6);
+  } else if (periodo==="trimestre"){
+    inicioAtual = new Date(hoje); inicioAtual.setDate(inicioAtual.getDate()-89);
+    fimAnterior = new Date(inicioAtual); fimAnterior.setDate(fimAnterior.getDate()-1);
+    inicioAnterior = new Date(fimAnterior); inicioAnterior.setDate(inicioAnterior.getDate()-89);
+  } else if (periodo==="personalizado" && customInicio && customFim){
+    inicioAtual = new Date(customInicio+"T00:00:00");
+    fimAtual = new Date(customFim+"T00:00:00");
+    const spanDias = Math.max(0, Math.round((fimAtual-inicioAtual)/86400000));
+    fimAnterior = new Date(inicioAtual); fimAnterior.setDate(fimAnterior.getDate()-1);
+    inicioAnterior = new Date(fimAnterior); inicioAnterior.setDate(inicioAnterior.getDate()-spanDias);
   } else {
     inicioAtual = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
     fimAnterior = new Date(inicioAtual); fimAnterior.setDate(fimAnterior.getDate()-1);
     inicioAnterior = new Date(fimAnterior.getFullYear(), fimAnterior.getMonth(), 1);
   }
-  return { inicioAtual: iso(inicioAtual), fimAtual: iso(hoje), inicioAnterior: iso(inicioAnterior), fimAnterior: iso(fimAnterior) };
+  return { inicioAtual: iso(inicioAtual), fimAtual: iso(fimAtual||hoje), inicioAnterior: iso(inicioAnterior), fimAnterior: iso(fimAnterior) };
 }
 
 function somarPeriodo(lista, crcEmail, inicio, fim){
@@ -850,9 +896,10 @@ function elegivelRanking(agendados, atingimentoMetaAgendamentos, periodo){
   return agendados>=IEC_LIMITES.minAgendamentosRanking && atingimentoMetaAgendamentos*100>=IEC_LIMITES.minAtingimentoMetaRanking;
 }
 
-/** Ranking pelo IEC (comparecimento real), não pelo IE-CRC de produtividade. Devolve elegíveis (ordenados, disputam o pódio) e não-elegíveis (mostram números, fora da disputa). */
-function calcularRankingIEC(crcsAtivas, periodo){
-  const { inicioAtual, fimAtual, inicioAnterior, fimAnterior } = limitesPeriodo(periodo);
+/** Ranking pelo IEC (comparecimento real), não pelo IE-CRC de produtividade. Devolve elegíveis (ordenados, disputam o pódio) e não-elegíveis (mostram números, fora da disputa).
+ * customInicio/customFim só valem quando periodo==="personalizado" (Faltas/10) — os demais chamadores não passam esses 2 args. */
+function calcularRankingIEC(crcsAtivas, periodo, customInicio, customFim){
+  const { inicioAtual, fimAtual, inicioAnterior, fimAnterior } = limitesPeriodo(periodo, customInicio, customFim);
   const linhas = crcsAtivas.map(u => {
     const relatoriosAtual = somarPeriodo(RELATORIOS_HISTORICO_CACHE, u.email, inicioAtual, fimAtual);
     const relatoriosAnterior = somarPeriodo(RELATORIOS_HISTORICO_CACHE, u.email, inicioAnterior, fimAnterior);
@@ -870,8 +917,10 @@ function calcularRankingIEC(crcsAtivas, periodo){
   const desempate = (a,b) => {
     if ((b.iecInfo.iec||0) !== (a.iecInfo.iec||0)) return (b.iecInfo.iec||0)-(a.iecInfo.iec||0);
     if (b.iecInfo.compareceram !== a.iecInfo.compareceram) return b.iecInfo.compareceram-a.iecInfo.compareceram;
+    // Faltas/10 só entra no desempate quando as duas CRCs têm amostra suficiente — senão o número não é confiável (ver seção 11 do pedido).
+    if (a.iecInfo.amostraSuficiente && b.iecInfo.amostraSuficiente && (a.iecInfo.faltasPor10||0) !== (b.iecInfo.faltasPor10||0)) return (a.iecInfo.faltasPor10||0)-(b.iecInfo.faltasPor10||0);
     if ((b.iecInfo.taxaComparecimento||0) !== (a.iecInfo.taxaComparecimento||0)) return (b.iecInfo.taxaComparecimento||0)-(a.iecInfo.taxaComparecimento||0);
-    if ((a.iecInfo.taxaFaltas||0) !== (b.iecInfo.taxaFaltas||0)) return (a.iecInfo.taxaFaltas||0)-(b.iecInfo.taxaFaltas||0);
+    if (a.iecInfo.faltaram !== b.iecInfo.faltaram) return a.iecInfo.faltaram-b.iecInfo.faltaram;
     if (b.iecInfo.atingimentoMetaComparecimento !== a.iecInfo.atingimentoMetaComparecimento) return b.iecInfo.atingimentoMetaComparecimento-a.iecInfo.atingimentoMetaComparecimento;
     return a.iecInfo.agendamentosDesperdicados-b.iecInfo.agendamentosDesperdicados;
   };
@@ -884,10 +933,12 @@ function calcularRankingIEC(crcsAtivas, periodo){
 function calcularContextoEquipe(linhas){
   const validos = linhas.filter(l => !l.iecInfo.semDados);
   const media = fn => validos.length ? validos.reduce((s,l) => s+fn(l), 0)/validos.length : null;
+  const validosFaltas10 = validos.filter(l => l.iecInfo.amostraSuficiente);
   return {
     mediaTaxaComparecimento: media(l => l.iecInfo.taxaComparecimento||0),
     mediaAgendamentos: media(l => l.iecInfo.agendados||0),
-    mediaTaxaFaltas: media(l => l.iecInfo.taxaFaltas||0)
+    mediaTaxaFaltas: media(l => l.iecInfo.taxaFaltas||0),
+    mediaFaltasPor10: validosFaltas10.length ? validosFaltas10.reduce((s,l) => s+l.iecInfo.faltasPor10, 0)/validosFaltas10.length : null
   };
 }
 
@@ -936,6 +987,9 @@ function calcularAlertasCRC(linha, contexto){
     if (quedaTaxaPp>=10 || quedaComparecimentosPct>=IEC_LIMITES.quedaComparecimentosRelevante || aumentoFaltasPct>=IEC_LIMITES.aumentoFaltasRelevante || quedaIEC>=IEC_LIMITES.quedaIECRelevante){
       alertas.push({ nivel:"amarelo", titulo:"Queda de desempenho", mensagem:"A CRC apresentou queda relevante em relação ao período anterior. Verificar alterações na abordagem, velocidade de resposta, confirmação, follow-up e perfil dos leads recebidos." });
     }
+  }
+  if (info.amostraSuficiente && info.faltasPor10 > FALTAS10_LIMITES.alertaMinimo){
+    alertas.push({ nivel:"vermelho", titulo:"Alto índice de faltas", mensagem:`A cada 10 pacientes agendados por esta CRC, ${formatarFaltas10(info.faltasPor10)} faltam. É necessário revisar a qualidade do agendamento, a criação de compromisso, a confirmação e o acompanhamento pré-consulta.` });
   }
   return alertas;
 }
@@ -1000,6 +1054,7 @@ function renderDetalheCRC(linha, contexto, alertas){
       <div class="section-title" style="margin-top:0;">IEC de ${esc(linha.nome)}</div>
       <p style="font-size:13px;margin-bottom:4px;">Taxa de comparecimento: <strong>${Math.round((info.taxaComparecimento||0)*100)}%</strong> · Meta de comparecimentos: <strong>${info.metaComparecimentos||"não definida"}</strong> (${Math.round(info.atingimentoMetaComparecimento*100)}% atingido)</p>
       <p style="font-size:13px;margin-bottom:4px;">Agendamentos desperdiçados: <strong>${info.agendamentosDesperdicados}</strong>${info.taxaDesperdicio!==null ? ` (${Math.round(info.taxaDesperdicio*100)}%)` : ""}</p>
+      <p style="font-size:13px;margin-bottom:4px;">Faltas a cada 10 agendamentos: ${info.amostraSuficiente ? `<strong style="color:${corFaltasPor10(info.faltasPor10)};">A cada 10 agendados, ${formatarFaltas10(info.faltasPor10)} faltam</strong>` : `<span style="color:var(--text-light);">Amostra insuficiente para avaliação confiável.</span>`}</p>
       ${info.semMetaComparecimento ? `<p style="font-size:12px;color:var(--orange);">⚠️ Meta de Comparecimentos não definida — o IEC desta CRC está incompleto.</p>` : ""}
       <div class="section-title" style="margin:14px 0 8px;font-size:11px;">Alertas ativos</div>
       ${alertas.map(a => `<div class="alerta-chip nivel-${a.nivel}"><strong>${esc(a.titulo)}</strong><p>${esc(a.mensagem)}</p></div>`).join("")}
@@ -1074,14 +1129,18 @@ function renderRankingAdmin(){
     const alertas = calcularAlertasCRC(l, contexto);
     const nivelPrincipal = alertas[0] ? alertas[0].nivel : "amarelo";
     const corNivel = nivelPrincipal==="verde" ? "var(--green)" : nivelPrincipal==="vermelho" ? "var(--red)" : "var(--orange)";
+    const faltas10Html = info.semDados ? "—" : (info.amostraSuficiente
+      ? `<span class="badge-perfil" style="background:${corFaltasPor10(info.faltasPor10)}22;color:${corFaltasPor10(info.faltasPor10)};">${formatarFaltas10(info.faltasPor10)}</span>`
+      : `<span style="font-size:10.5px;color:var(--text-light);">Amostra insuf.</span>`);
     return `
       <tr style="cursor:pointer;" onclick="App.alternarDetalheCRC('${esc(l.email)}')">
         <td>${posicao!==null ? (medalhas[posicao] || (posicao+1)+"º") : "—"}</td>
         <td>${esc(l.nome)} ${!l.elegivel ? '<span style="font-size:10px;color:var(--text-light);">(fora da disputa)</span>' : ""}</td>
         <td>${info.semDados ? "—" : info.iec} ${setaIec}</td>
         <td>${info.semDados ? "—" : `<span class="badge-perfil" style="background:${corNivel}22;color:${corNivel};">${info.classificacao.label}</span>`}</td>
+        <td>${faltas10Html}</td>
       </tr>
-      ${CRC_DETALHE_IEC_ABERTA===l.email ? `<tr><td colspan="4">${renderDetalheCRC(l, contexto, alertas)}</td></tr>` : ""}
+      ${CRC_DETALHE_IEC_ABERTA===l.email ? `<tr><td colspan="5">${renderDetalheCRC(l, contexto, alertas)}</td></tr>` : ""}
     `;
   };
 
@@ -1092,7 +1151,7 @@ function renderRankingAdmin(){
       `).join("")}
     </div>
     <table class="tabela-usuarios">
-      <tr><th>#</th><th>CRC</th><th>IEC</th><th>Classificação</th></tr>
+      <tr><th>#</th><th>CRC</th><th>IEC</th><th>Classificação</th><th>Faltas a cada 10 agendados</th></tr>
       ${elegiveis.map((l,i) => linhaHtml(l,i)).join("")}
       ${naoElegiveis.map(l => linhaHtml(l,null)).join("")}
     </table>
@@ -1154,6 +1213,140 @@ function renderAlertasEquipe(){
       ${item("Melhor equilíbrio volume/comparecimento", melhorEquilibrio)}
       ${item("Melhor IEC", melhorIEC, melhorIEC.iecInfo.iec)}
     </div>
+  `;
+}
+
+let PERIODO_FALTAS10 = "mes";
+let FALTAS10_CUSTOM_INICIO = "";
+let FALTAS10_CUSTOM_FIM = "";
+function alternarPeriodoFaltas10(periodo){
+  PERIODO_FALTAS10 = periodo;
+  renderFaltas10Admin();
+}
+function atualizarFaltas10CustomInicio(valor){ FALTAS10_CUSTOM_INICIO = valor; renderFaltas10Admin(); }
+function atualizarFaltas10CustomFim(valor){ FALTAS10_CUSTOM_FIM = valor; renderFaltas10Admin(); }
+
+/** Seta de evolução do faltas/10 — ao contrário do IEC, aqui SUBIR é ruim (mais faltas) e DESCER é bom. */
+function setaEvolucaoFaltas10(atual, anterior){
+  if (anterior===null || anterior===undefined) return { seta:"", cor:"var(--text-light)", texto:"sem período anterior pra comparar" };
+  const diff = Math.round((atual-anterior)*10)/10;
+  if (diff>0) return { seta:"▲", cor:"var(--red)", texto:`+${formatarFaltas10(diff)} vs período anterior (piorou)` };
+  if (diff<0) return { seta:"▼", cor:"var(--green)", texto:`${formatarFaltas10(diff)} vs período anterior (melhorou)` };
+  return { seta:"—", cor:"var(--text-light)", texto:"igual ao período anterior" };
+}
+
+/** "Faltas a Cada 10 Agendamentos" — apoio ao Ranking/IEC: comparação entre CRCs, resumo gerencial e evolução histórica. */
+function renderFaltas10Admin(){
+  const el = document.getElementById("faltas10-admin");
+  if (!el) return;
+  const crcsAtivas = USUARIOS_CACHE.filter(u => u.perfil === "CRC" && u.ativo !== false);
+  if (!crcsAtivas.length){
+    el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
+    return;
+  }
+
+  const pillsHtml = `
+    <div class="pill-group" style="margin-bottom:10px;">
+      ${[["dia","Diário"],["semana","Semanal"],["mes","Mensal"],["trimestre","Trimestral"],["personalizado","Personalizado"]].map(([v,l]) => `
+        <button class="pill ${PERIODO_FALTAS10===v?'ativo':''}" onclick="App.alternarPeriodoFaltas10('${v}')">${l}</button>
+      `).join("")}
+    </div>
+    ${PERIODO_FALTAS10==="personalizado" ? `
+      <div class="field-grid" style="margin-bottom:14px;">
+        <div class="field"><label>De</label><input type="date" value="${esc(FALTAS10_CUSTOM_INICIO)}" onchange="App.atualizarFaltas10CustomInicio(this.value)"></div>
+        <div class="field"><label>Até</label><input type="date" value="${esc(FALTAS10_CUSTOM_FIM)}" onchange="App.atualizarFaltas10CustomFim(this.value)"></div>
+      </div>
+    ` : ""}
+  `;
+
+  if (PERIODO_FALTAS10==="personalizado" && (!FALTAS10_CUSTOM_INICIO || !FALTAS10_CUSTOM_FIM)){
+    el.innerHTML = pillsHtml + `<p class="usuarios-vazio">Escolha as duas datas para ver o período personalizado.</p>`;
+    return;
+  }
+
+  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_FALTAS10, FALTAS10_CUSTOM_INICIO, FALTAS10_CUSTOM_FIM);
+  const linhas = [...elegiveis, ...naoElegiveis].filter(l => !l.iecInfo.semDados);
+  if (!linhas.length){
+    el.innerHTML = pillsHtml + `<p class="usuarios-vazio">Sem relatórios neste recorte ainda.</p>`;
+    return;
+  }
+  const contexto = calcularContextoEquipe(linhas);
+
+  // Resumo gerencial ("Quem mais deixa o paciente faltar")
+  const comAmostra = linhas.filter(l => l.iecInfo.amostraSuficiente);
+  const melhor = comAmostra.length ? [...comAmostra].sort((a,b) => a.iecInfo.faltasPor10-b.iecInfo.faltasPor10)[0] : null;
+  const pior = comAmostra.length ? [...comAmostra].sort((a,b) => b.iecInfo.faltasPor10-a.iecInfo.faltasPor10)[0] : null;
+  const comEvolucao = comAmostra.filter(l => !l.iecAnterior.semDados && l.iecAnterior.amostraSuficiente);
+  const maisMelhorou = comEvolucao.length ? [...comEvolucao].sort((a,b) => (a.iecInfo.faltasPor10-a.iecAnterior.faltasPor10)-(b.iecInfo.faltasPor10-b.iecAnterior.faltasPor10))[0] : null;
+  const maisPiorou = comEvolucao.length ? [...comEvolucao].sort((a,b) => (b.iecInfo.faltasPor10-b.iecAnterior.faltasPor10)-(a.iecInfo.faltasPor10-a.iecAnterior.faltasPor10))[0] : null;
+  const totalHorariosPerdidos = linhas.reduce((s,l) => s+l.iecInfo.faltaram, 0);
+
+  const itemResumo = (label, l, valor) => l ? `
+    <div class="alerta-equipe-item"><span class="lbl-item">${esc(label)}</span><strong>${esc(l.nome)}</strong>${valor!==undefined ? `<span class="v">${esc(String(valor))}</span>` : ""}</div>
+  ` : "";
+
+  const resumoHtml = `
+    <div class="section-title" style="margin:16px 0 8px;font-size:11px;">Quem mais deixa o paciente faltar</div>
+    <div class="alerta-equipe-grid">
+      ${itemResumo("Melhor resultado", melhor, melhor ? `${formatarFaltas10(melhor.iecInfo.faltasPor10)} faltas/10` : undefined)}
+      ${itemResumo("Maior atenção", pior, pior ? `${formatarFaltas10(pior.iecInfo.faltasPor10)} faltas/10` : undefined)}
+      <div class="alerta-equipe-item"><span class="lbl-item">Média da equipe</span><strong>${contexto.mediaFaltasPor10!==null ? formatarFaltas10(contexto.mediaFaltasPor10)+" faltas/10" : "—"}</strong></div>
+      ${itemResumo("Mais melhorou", maisMelhorou)}
+      ${itemResumo("Mais piorou", maisPiorou)}
+      <div class="alerta-equipe-item"><span class="lbl-item">Total de horários perdidos</span><strong>${totalHorariosPerdidos}</strong></div>
+    </div>
+  `;
+
+  // Tabela comparativa — amostra suficiente ordenada por faltas/10 crescente, insuficiente sempre por último.
+  const linhasOrdenadas = [
+    ...comAmostra.sort((a,b) => a.iecInfo.faltasPor10-b.iecInfo.faltasPor10),
+    ...linhas.filter(l => !l.iecInfo.amostraSuficiente)
+  ];
+  const tabelaHtml = `
+    <table class="tabela-usuarios" style="margin-top:10px;">
+      <tr><th>CRC</th><th>Agendamentos</th><th>Comparecimentos</th><th>Faltas</th><th>Taxa comparecimento</th><th>Taxa faltas</th><th>Faltas/10</th><th>vs equipe</th><th>vs período anterior</th></tr>
+      ${linhasOrdenadas.map(l => {
+        const info = l.iecInfo;
+        if (!info.amostraSuficiente){
+          return `<tr><td>${esc(l.nome)}</td><td>${info.agendados}</td><td>${info.compareceram}</td><td>${info.faltaram}</td><td>${Math.round((info.taxaComparecimento||0)*100)}%</td><td>${Math.round((info.taxaFaltas||0)*100)}%</td><td colspan="3" style="color:var(--text-light);font-size:11.5px;">Amostra insuficiente para avaliação confiável.</td></tr>`;
+        }
+        const vsEquipe = contexto.mediaFaltasPor10!==null ? Math.round((info.faltasPor10-contexto.mediaFaltasPor10)*10)/10 : null;
+        const vsEquipeHtml = vsEquipe===null ? "—" : `<span style="color:${vsEquipe<=0?'var(--green)':'var(--red)'};">${vsEquipe>0?"+":""}${formatarFaltas10(vsEquipe)}</span>`;
+        const evolucao = setaEvolucaoFaltas10(info.faltasPor10, l.iecAnterior.amostraSuficiente ? l.iecAnterior.faltasPor10 : null);
+        return `
+          <tr>
+            <td>${esc(l.nome)}</td>
+            <td>${info.agendados}</td>
+            <td>${info.compareceram}</td>
+            <td>${info.faltaram}</td>
+            <td>${Math.round((info.taxaComparecimento||0)*100)}%</td>
+            <td>${Math.round((info.taxaFaltas||0)*100)}%</td>
+            <td><span class="badge-perfil" style="background:${corFaltasPor10(info.faltasPor10)}22;color:${corFaltasPor10(info.faltasPor10)};">${formatarFaltas10(info.faltasPor10)}</span></td>
+            <td>${vsEquipeHtml}</td>
+            <td style="color:${evolucao.cor};">${evolucao.seta} ${esc(evolucao.texto)}</td>
+          </tr>
+        `;
+      }).join("")}
+    </table>
+  `;
+
+  // Evolução histórica (6 meses) — mesma trilha da tendência mensal já usada no Dashboard Executivo.
+  const emailsAtivos = new Set(crcsAtivas.map(u => u.email));
+  const historico = RELATORIOS_HISTORICO_CACHE.filter(r => emailsAtivos.has(r.crcEmail));
+  const { meses, series } = calcularTendenciaMensal(historico, crcsAtivas);
+  const evolucaoHtml = meses.length ? `
+    <div class="section-title" style="margin:20px 0 8px;font-size:11px;">Evolução histórica — faltas a cada 10 agendamentos (6 meses)</div>
+    ${graficoLinhaSvg(meses, series, "faltasPor10")}
+    <div class="linha-legenda" style="flex-direction:column;align-items:flex-start;gap:4px;">
+      ${series.map(s => {
+        const t = setaEvolucaoFaltas10(s.faltasPor10[s.faltasPor10.length-1], s.faltasPor10.length>1 ? s.faltasPor10[s.faltasPor10.length-2] : null);
+        return `<div class="linha-legenda-item"><span class="dot" style="background:${s.cor};"></span>${esc(s.nome)}: <strong style="color:${t.cor};">${t.seta}</strong> ${esc(t.texto)}</div>`;
+      }).join("")}
+    </div>
+  ` : "";
+
+  el.innerHTML = pillsHtml + resumoHtml + tabelaHtml + evolucaoHtml + `
+    <p style="font-size:12px;color:var(--text-light);margin-top:16px;font-style:italic;">Não basta agendar. É necessário fazer o paciente comparecer.</p>
   `;
 }
 
@@ -2016,7 +2209,13 @@ function calcularTendenciaMensal(historico, crcsAtivas){
       nome: u.nomeCurto || u.nomeCompleto,
       cor: CORES_LINHA_CRC[i % CORES_LINHA_CRC.length],
       agendados: meses.map(m => doMes(m).reduce((s,r) => s+(Number(r.pacientesAgendadosDia)||0), 0)),
-      compareceram: meses.map(m => doMes(m).reduce((s,r) => s+(Number(r.compareceram)||0), 0))
+      compareceram: meses.map(m => doMes(m).reduce((s,r) => s+(Number(r.compareceram)||0), 0)),
+      faltasPor10: meses.map(m => {
+        const regs = doMes(m);
+        const agendados = regs.reduce((s,r) => s+(Number(r.pacientesAgendadosDia)||0), 0);
+        const faltaram = regs.reduce((s,r) => s+(Number(r.faltaram)||0), 0);
+        return Math.round(calcularFaltasPor10(faltaram, agendados)*10)/10;
+      })
     };
   });
   return { meses, series };
@@ -3051,7 +3250,8 @@ window.App = {
   alternarEdicaoMeta, alternarPeriodoDashboard, selecionarCrcDashboard,
   alternarPeriodoRankingIEC, alternarDetalheCRC, alternarDetalheIEC,
   abrirGestaoNanda, alternarPeriodoNanda, abrirFormularioNanda, fecharFormularioNanda, salvarNandaForm,
-  selecionarNovoStatusAdmin, cancelarMotivoAdmin, cancelarRemocaoAdmin, confirmarRemocaoAdmin, confirmarMotivoAdmin
+  selecionarNovoStatusAdmin, cancelarMotivoAdmin, cancelarRemocaoAdmin, confirmarRemocaoAdmin, confirmarMotivoAdmin,
+  alternarPeriodoFaltas10, atualizarFaltas10CustomInicio, atualizarFaltas10CustomFim
 };
 
 init();
