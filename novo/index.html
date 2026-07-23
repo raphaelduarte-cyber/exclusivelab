@@ -143,6 +143,12 @@ h1,h2,h3,h4{margin:0;}
 .alerta-equipe-item strong{font-size:13.5px; color:var(--graphite);}
 .alerta-equipe-item .v{margin-left:6px; color:var(--text-light);}
 
+.destaque-equipe-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px;}
+.destaque-equipe-item{background:var(--green-light); border:1px solid var(--green); border-radius:12px; padding:14px 16px;}
+.destaque-equipe-item .lbl-item{display:block; color:var(--green); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.2px; margin-bottom:6px;}
+.destaque-equipe-item strong{font-size:17px; color:var(--graphite);}
+.destaque-equipe-item .v{margin-left:8px; font-size:15px; font-weight:800; color:var(--green);}
+
 /* ---------- DASHBOARD EXECUTIVO ---------- */
 .exec-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; margin-bottom:16px;}
 .exec-card{background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow);}
@@ -270,6 +276,11 @@ h1,h2,h3,h4{margin:0;}
         <div class="section-title">Ranking — IEC (Índice de Efetividade da CRC)</div>
         <p style="font-size:12px;color:var(--text-light);margin:-6px 0 14px;">O trabalho da CRC não termina quando o paciente agenda. O trabalho termina quando o paciente comparece à clínica.</p>
         <div id="ranking-admin"></div>
+      </div>
+
+      <div class="form-card" style="margin-top:20px;">
+        <div class="section-title">🌟 Destaques da Equipe</div>
+        <div id="destaques-equipe"></div>
       </div>
 
       <div class="form-card" style="margin-top:20px;">
@@ -769,7 +780,7 @@ function mostrarView(nome){
   if (nome==="relatorio") renderFormularioRelatorio();
   if (nome==="reativacao") renderReativacao();
   if (nome==="nanda") renderGestaoNanda();
-  if (nome==="admin"){ renderDashboardExecutivo(); renderUsuariosLista(); renderCentralReativacaoAdmin(); renderRankingAdmin(); renderAlertasEquipe(); renderFaltas10Admin(); renderMetasAdmin(); renderNandaAdmin(); }
+  if (nome==="admin"){ renderDashboardExecutivo(); renderUsuariosLista(); renderCentralReativacaoAdmin(); renderRankingAdmin(); renderDestaquesEquipe(); renderAlertasEquipe(); renderFaltas10Admin(); renderMetasAdmin(); renderNandaAdmin(); }
 }
 
 /* =========================================================================
@@ -1102,6 +1113,7 @@ let CRC_DETALHE_IEC_ABERTA = "";
 function alternarPeriodoRankingIEC(periodo){
   PERIODO_RANKING_IEC = periodo;
   renderRankingAdmin();
+  renderDestaquesEquipe();
   renderAlertasEquipe();
 }
 function alternarDetalheCRC(email){
@@ -1163,7 +1175,45 @@ function renderRankingAdmin(){
   `;
 }
 
-/** "Alertas da Equipe" — os 10 destaques pedidos, varrendo todas as CRCs ativas no mesmo recorte do ranking. */
+/** "Destaques da Equipe" — as boas notícias do período, isoladas dos alertas (que só devem trazer pontos de atenção) e com destaque visual próprio. */
+function renderDestaquesEquipe(){
+  const el = document.getElementById("destaques-equipe");
+  if (!el) return;
+  const crcsAtivas = USUARIOS_CACHE.filter(u => u.perfil === "CRC" && u.ativo !== false);
+  if (!crcsAtivas.length){
+    el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
+    return;
+  }
+  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_RANKING_IEC);
+  const linhas = [...elegiveis, ...naoElegiveis].filter(l => !l.iecInfo.semDados);
+  if (!linhas.length){
+    el.innerHTML = `<p class="usuarios-vazio">Sem relatórios neste recorte ainda.</p>`;
+    return;
+  }
+
+  const comEvolucao = linhas.filter(l => !l.iecAnterior.semDados);
+  const maiorEvolucao = comEvolucao.length ? [...comEvolucao].sort((a,b) => (b.iecInfo.iec-b.iecAnterior.iec)-(a.iecInfo.iec-a.iecAnterior.iec))[0] : null;
+  const melhorEquilibrio = [...linhas].sort((a,b) => {
+    const scoreA = Math.min(a.atingimentoMetaAgendamentos,1) + (a.iecInfo.taxaComparecimento||0);
+    const scoreB = Math.min(b.atingimentoMetaAgendamentos,1) + (b.iecInfo.taxaComparecimento||0);
+    return scoreB-scoreA;
+  })[0];
+  const melhorIEC = [...linhas].sort((a,b) => b.iecInfo.iec-a.iecInfo.iec)[0];
+
+  const item = (label, l, valor) => l ? `
+    <div class="destaque-equipe-item"><span class="lbl-item">${esc(label)}</span><strong>${esc(l.nome)}</strong>${valor!==undefined ? `<span class="v">${esc(String(valor))}</span>` : ""}</div>
+  ` : "";
+
+  el.innerHTML = `
+    <div class="destaque-equipe-grid">
+      ${item("🏆 Melhor IEC", melhorIEC, melhorIEC.iecInfo.iec)}
+      ${item("⚖️ Melhor equilíbrio volume/comparecimento", melhorEquilibrio)}
+      ${item("📈 Maior evolução no período", maiorEvolucao)}
+    </div>
+  `;
+}
+
+/** "Alertas da Equipe" — só pontos de atenção (o que precisa de olhar do gestor), varrendo todas as CRCs ativas no mesmo recorte do ranking. Os destaques positivos ficam à parte, em "Destaques da Equipe". */
 function renderAlertasEquipe(){
   const el = document.getElementById("alertas-equipe");
   if (!el) return;
@@ -1188,14 +1238,7 @@ function renderAlertasEquipe(){
     .sort((a,b) => (b.iecInfo.taxaComparecimento||0)-(a.iecInfo.taxaComparecimento||0))[0];
   const menorAtingimentoMeta = [...linhas].sort((a,b) => a.atingimentoMetaAgendamentos-b.atingimentoMetaAgendamentos)[0];
   const comEvolucao = linhas.filter(l => !l.iecAnterior.semDados);
-  const maiorEvolucao = comEvolucao.length ? [...comEvolucao].sort((a,b) => (b.iecInfo.iec-b.iecAnterior.iec)-(a.iecInfo.iec-a.iecAnterior.iec))[0] : null;
   const maiorQueda = comEvolucao.length ? [...comEvolucao].sort((a,b) => (a.iecInfo.iec-a.iecAnterior.iec)-(b.iecInfo.iec-b.iecAnterior.iec))[0] : null;
-  const melhorEquilibrio = [...linhas].sort((a,b) => {
-    const scoreA = Math.min(a.atingimentoMetaAgendamentos,1) + (a.iecInfo.taxaComparecimento||0);
-    const scoreB = Math.min(b.atingimentoMetaAgendamentos,1) + (b.iecInfo.taxaComparecimento||0);
-    return scoreB-scoreA;
-  })[0];
-  const melhorIEC = [...linhas].sort((a,b) => b.iecInfo.iec-a.iecInfo.iec)[0];
 
   const item = (label, l, valor) => l ? `
     <div class="alerta-equipe-item"><span class="lbl-item">${esc(label)}</span><strong>${esc(l.nome)}</strong>${valor!==undefined ? `<span class="v">${esc(String(valor))}</span>` : ""}</div>
@@ -1209,10 +1252,7 @@ function renderAlertasEquipe(){
       ${item("Mais agendamentos desperdiçados", maisDesperdicio, maisDesperdicio.iecInfo.agendamentosDesperdicados)}
       ${item("Boa taxa, mas baixo volume", boaTaxaBaixoVolume)}
       ${item("Menor atingimento da meta", menorAtingimentoMeta, Math.round(menorAtingimentoMeta.atingimentoMetaAgendamentos*100)+"%")}
-      ${item("Maior evolução no período", maiorEvolucao)}
       ${item("Maior queda no período", maiorQueda)}
-      ${item("Melhor equilíbrio volume/comparecimento", melhorEquilibrio)}
-      ${item("Melhor IEC", melhorIEC, melhorIEC.iecInfo.iec)}
     </div>
   `;
 }
