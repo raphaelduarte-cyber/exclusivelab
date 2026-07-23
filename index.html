@@ -167,6 +167,8 @@ h1,h2,h3,h4{margin:0;}
 .info-box{background:var(--blue-light); border:1px solid var(--blue); border-radius:10px; padding:9px 11px; font-size:12px; color:#1e3a8a; margin:8px 0;}
 .obs-producao-box{background:var(--gold-light); border:2px solid var(--gold-dark); border-radius:10px; padding:9px 11px; font-size:12.5px; color:var(--graphite); margin:8px 0; font-weight:600;}
 .obs-producao-box .tag{display:block; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; color:var(--gold-dark); margin-bottom:3px;}
+.obs-producao-box.relatorio-pendente{background:var(--blue-light); border-color:var(--blue);}
+.obs-producao-box.relatorio-pendente .tag{color:var(--blue);}
 .fin-alerta-box{border-radius:8px; padding:8px 11px; margin:8px 0; font-size:12.5px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; text-align:center;}
 .fin-alerta-box.nao-pago{background:var(--red); color:#fff;}
 .fin-alerta-box.parcial{background:var(--orange); color:#fff;}
@@ -561,8 +563,34 @@ const STORAGE = {
       headers:{"Content-Type":"text/plain;charset=utf-8"},
       body: JSON.stringify({action:"notificarNovoProfissional", email, nomeCurto, urlPainel: location.href})
     });
+  },
+  // Upload do relatório de planejamento — o arquivo em si não cabe na célula
+  // de dadosJSON da planilha (limite de 50.000 caracteres do Sheets), então
+  // vai pro Google Drive via Apps Script; só a URL + metadados voltam pra
+  // guardar dentro de caso.planejamento.relatorio.
+  async uploadArquivo(file){
+    if (CONFIG.STORAGE_MODE !== "sheets") throw new Error("Upload de relatório só está disponível em STORAGE_MODE:\"sheets\" por enquanto.");
+    const conteudoBase64 = await fileParaBase64_(file);
+    const res = await fetch(CONFIG.API_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({action:"uploadArquivo", nomeArquivo:file.name, mimeType:file.type||"application/pdf", conteudoBase64, solicitanteEmail: PERFIL_ATUAL?.email})
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || "Falha ao enviar relatório.");
+    return data;
   }
 };
+// Lê um File do navegador e devolve só a parte base64 (sem o prefixo
+// "data:...;base64," que o FileReader inclui em readAsDataURL).
+function fileParaBase64_(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+    reader.onerror = () => reject(new Error("Falha ao ler o arquivo."));
+    reader.readAsDataURL(file);
+  });
+}
 
 /* =========================================================================
    ESTADO
@@ -1407,6 +1435,14 @@ function cardHTML(c){
   const obsProducaoBlock = (obsProducao && STATUS_TO_COL[c.statusAtual]==="producao") ? `
     <div class="obs-producao-box"><span class="tag">⚠ Observação para produção</span>${esc(obsProducao)}</div>
   ` : "";
+  // Relatório do planejamento aguardando impressão: mesmo destaque visual
+  // de observacaoProducao, só que numa cor separada — aparece assim que o
+  // caso entra em Produção e some sozinho depois de "Marcar relatório como
+  // impresso" (não bloqueia nada, é só pra chamar atenção de quem produz).
+  const relatorio = c.planejamento?.relatorio;
+  const relatorioBlock = (relatorio && !relatorio.impressao && STATUS_TO_COL[c.statusAtual]==="producao") ? `
+    <div class="obs-producao-box relatorio-pendente"><span class="tag">📄 Relatório do planejamento</span>Aguardando impressão — ${esc(relatorio.nome)}</div>
+  ` : "";
   // Selo financeiro: só caso externo com financeiro já definido. Não pago/
   // parcial ganham faixa vermelha/laranja bem visível; pago é só um selo
   // discreto — nunca aparece "cortesia"/"bonificação"/"grátis" no card.
@@ -1436,6 +1472,7 @@ function cardHTML(c){
     ${financeiroBlock}
     ${prazoBlock}
     ${obsProducaoBlock}
+    ${relatorioBlock}
     <div class="card-status">#${esc(c.numeroCaso)||"—"}${isItens?"":` · Planejador: ${esc(c.dentistaPlanejador)||"—"}`}<br>Status: <b>${c.statusAtual}</b></div>
     ${platesBlock}
     ${attachBlock}
@@ -1907,6 +1944,10 @@ function promptPlanejamento(id){
       <div class="field full"><label>Observação para produção</label>
         <textarea id="p-obs-producao" placeholder="Recado para quem for produzir — aparece em destaque assim que o caso entrar em Produção">${esc(p.observacaoProducao||"")}</textarea>
       </div>
+      <div class="field full"><label>Relatório do planejamento (PDF)${p.relatorio ? ` — atual: <a href="${esc(p.relatorio.url)}" target="_blank" rel="noopener">${esc(p.relatorio.nome)}</a>` : ""}</label>
+        <input type="file" id="p-relatorio-arquivo" accept="application/pdf,image/*">
+        <p style="font-size:11px;color:var(--text-light);margin-top:4px;">Opcional aqui — também dá pra anexar depois. Máximo 8MB. Quem for produzir vai poder abrir e imprimir esse arquivo assim que o caso entrar em Produção.</p>
+      </div>
     </div>
     <p style="font-size:12px;color:var(--text-light);margin-top:10px;">O sistema soma automaticamente a placa 0 (quando houver) ao total de modelos obrigatórios para validar a impressão.</p>
   `, `<button class="btn outline" onclick="App.abrirFicha('${id}')">Cancelar</button>
@@ -1916,25 +1957,93 @@ function promptPlanejamento(id){
 // sem precisar de um clique extra em "Avançar". Interno vai direto para
 // produção; externo vai para aprovação (só chega em produção depois que o
 // cliente/dentista aprovar, ver aprovarPlanejamento).
-function __submitPlanejamento(id){
+async function __submitPlanejamento(id){
   const qtdSup = parseInt(document.getElementById("p-qtd-sup").value);
   const qtdInf = parseInt(document.getElementById("p-qtd-inf").value);
   if (isNaN(qtdSup) || isNaN(qtdInf)){ toast("Informe a quantidade de placas superiores e inferiores."); return; }
   if (qtdSup + qtdInf <= 0){ toast("Informe pelo menos uma placa (superior ou inferior)."); return; }
   const caso = findCaso(id);
+  const relatorioExistente = caso.planejamento?.relatorio || null;
+  const arquivo = document.getElementById("p-relatorio-arquivo")?.files?.[0];
+  if (arquivo && arquivo.size > 8*1024*1024){ toast("Arquivo do relatório muito grande (máx. 8MB)."); return; }
+  let relatorio = relatorioExistente;
+  if (arquivo){
+    toast("Enviando relatório...");
+    try {
+      const up = await STORAGE.uploadArquivo(arquivo);
+      relatorio = { nome:up.nome, url:up.url, fileId:up.fileId, tamanho:up.tamanho, enviadoPor:OPERADOR, enviadoEm:new Date().toISOString(), impressao:null };
+    } catch(err){
+      toast("Falha ao enviar relatório: " + err.message + " — planejamento não foi salvo, tente novamente.");
+      return;
+    }
+  }
   const attachSup = document.getElementById("p-attach-sup").value==="sim";
   const attachInf = document.getElementById("p-attach-inf").value==="sim";
   caso.planejamento = {
     qtdSuperior: qtdSup, qtdInferior: qtdInf,
     placa0Superior: attachSup, placa0Inferior: attachInf,
     observacaoProducao: document.getElementById("p-obs-producao").value.trim(),
-    definidoEm: new Date().toISOString()
+    definidoEm: new Date().toISOString(),
+    relatorio
   };
   caso.attachSuperior = attachSup;
   caso.attachInferior = attachInf;
   const novoStatus = caso.tipoCaso==="externo" ? "Aguardando aprovação do cliente/dentista externo" : STATUS_PRODUCAO;
   changeStatus(caso, novoStatus, "Planejamento de placas definido — avanço automático");
   persist(caso).then(()=>{ abrirFicha(id); toast("Planejamento salvo — caso avançou automaticamente."); });
+}
+
+// Anexar/substituir/remover o relatório do planejamento depois do momento
+// inicial (ex.: esqueceram na hora de salvar as placas) — não mexe em
+// quantidade/attachment, só no arquivo.
+function promptAnexarRelatorio(id){
+  const caso = findCaso(id);
+  const r = caso.planejamento?.relatorio;
+  openModal("Anexar relatório do planejamento", `
+    <div class="form-grid">
+      <div class="field full"><label>Relatório (PDF)${r ? ` — atual: <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.nome)}</a>` : ""}</label>
+        <input type="file" id="ar-arquivo" accept="application/pdf,image/*">
+        <p style="font-size:11px;color:var(--text-light);margin-top:4px;">Máximo 8MB. Escolher um arquivo novo substitui o atual.</p>
+      </div>
+      ${r ? `<div class="field full"><label><input type="checkbox" id="ar-remover" style="width:auto;margin-right:6px;">Remover relatório atual (sem anexar outro)</label></div>` : ""}
+    </div>
+  `, `<button class="btn outline" onclick="App.abrirFicha('${id}')">Cancelar</button>
+      <button class="btn primary" onclick="App.__submitAnexarRelatorio('${id}')">Salvar</button>`);
+}
+async function __submitAnexarRelatorio(id){
+  const caso = findCaso(id);
+  const arquivo = document.getElementById("ar-arquivo")?.files?.[0];
+  const remover = document.getElementById("ar-remover")?.checked;
+  if (!arquivo && !remover){ toast("Escolha um arquivo ou marque \"Remover relatório atual\"."); return; }
+  if (arquivo && arquivo.size > 8*1024*1024){ toast("Arquivo do relatório muito grande (máx. 8MB)."); return; }
+  caso.planejamento = caso.planejamento || {};
+  if (arquivo){
+    toast("Enviando relatório...");
+    try {
+      const up = await STORAGE.uploadArquivo(arquivo);
+      caso.planejamento.relatorio = { nome:up.nome, url:up.url, fileId:up.fileId, tamanho:up.tamanho, enviadoPor:OPERADOR, enviadoEm:new Date().toISOString(), impressao:null };
+    } catch(err){
+      toast("Falha ao enviar relatório: " + err.message);
+      return;
+    }
+    logHistorico(caso, caso.statusAtual, caso.statusAtual, `Relatório do planejamento anexado: ${caso.planejamento.relatorio.nome}`);
+  } else {
+    caso.planejamento.relatorio = null;
+    logHistorico(caso, caso.statusAtual, caso.statusAtual, "Relatório do planejamento removido");
+  }
+  persist(caso).then(()=>{ abrirFicha(id); toast("Relatório atualizado."); });
+}
+
+// "Dar baixa" na impressão do relatório — só existe a partir de Produção,
+// e só quando há relatório anexado ainda não marcado como impresso. Não
+// muda status nem interfere em completoTotal/lotes, é só um registro
+// paralelo (mesmo espírito de observacaoProducao: informativo, não trava).
+function marcarRelatorioImpresso(id){
+  if (!requireOperador()) return;
+  const caso = findCaso(id);
+  caso.planejamento.relatorio.impressao = { responsavel: OPERADOR, data: todayISO(), hora: nowTime() };
+  logHistorico(caso, caso.statusAtual, caso.statusAtual, "Relatório do planejamento impresso");
+  persist(caso).then(()=>{ abrirFicha(id); toast("Relatório marcado como impresso."); });
 }
 
 
@@ -2051,6 +2160,18 @@ function getActionsForCaso(caso){
 
   if (naEtapaPlanejamento){
     actions.push({label: planejamentoValido(caso) ? "Editar placas do planejamento" : "Definir placas do planejamento", fn:()=>promptPlanejamento(caso.id)});
+  }
+  // Anexar/substituir o relatório do planejamento fica disponível em
+  // qualquer etapa a partir do momento em que as placas já existem — cobre
+  // quem esqueceu de anexar no momento de salvar o planejamento.
+  if (ehTipoAlinhadores(caso) && planejamentoValido(caso)){
+    actions.push({label: caso.planejamento?.relatorio ? "Substituir/remover relatório do planejamento" : "Anexar relatório do planejamento", fn:()=>promptAnexarRelatorio(caso.id)});
+  }
+  // "Dar baixa" na impressão do relatório: só faz sentido a partir do
+  // momento em que o caso está em produção e já existe um relatório
+  // anexado ainda não marcado como impresso.
+  if (ehTipoAlinhadores(caso) && STATUS_TO_COL[s]==="producao" && caso.planejamento?.relatorio && !caso.planejamento.relatorio.impressao){
+    actions.push({label:"Marcar relatório como impresso", fn:()=>marcarRelatorioImpresso(caso.id)});
   }
   // Contenção/modelo de estudo não têm planejamento — saem de "Caso
   // recebido" direto pra produção com essa ação nomeada.
@@ -2213,6 +2334,18 @@ function itensProducaoSectionHTML(caso){
   `;
 }
 
+// Resumo do relatório do planejamento (link + status de impressão) — usado
+// dentro do bloco "Planejamento de placas" da ficha.
+function relatorioResumoHTML(caso){
+  const r = caso.planejamento?.relatorio;
+  if (!r) return "nenhum anexado";
+  const link = `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.nome)}</a>`;
+  const status = r.impressao
+    ? `✅ impresso em ${fmtDate(r.impressao.data)} por ${esc(r.impressao.responsavel)}`
+    : "⏳ aguardando impressão";
+  return `${link} — ${status}`;
+}
+
 function fichaCompletaHTML(caso){
   const actions = getActionsForCaso(caso);
   const d = computeDerived(caso);
@@ -2243,6 +2376,7 @@ function fichaCompletaHTML(caso){
       <div><span class="k">Attachment sup. / inf. (= placa 0)</span><span class="v">${caso.attachSuperior?"Sim":"Não"} / ${caso.attachInferior?"Sim":"Não"}</span></div>
       <div><span class="k">Total real de modelos</span><span class="v">${totalRealSup(caso)} sup. + ${totalRealInf(caso)} inf. = ${totalRealPlacas(caso)}</span></div>
       ${caso.planejamento?.observacaoProducao ? `<div class="full"><span class="k">Observação para produção</span><span class="v">${esc(caso.planejamento.observacaoProducao)}</span></div>` : ""}
+      <div class="full"><span class="k">Relatório do planejamento</span><span class="v">${relatorioResumoHTML(caso)}</span></div>
     </div>
     ` : `<div class="alert-empty">Planejamento de placas ainda não definido.</div>`}
 
@@ -3186,6 +3320,7 @@ window.App = {
   aprovarPlanejamento, solicitarAjuste, promptAprovacao, promptAjuste, prontoParaImpressao,
   promptCriarLote, __submitCriarLote,
   promptFinanceiro, __submitFinanceiro, promptSinalizarPagamento, __submitSinalizarPagamento, finalizarCasoExterno,
+  promptAnexarRelatorio, __submitAnexarRelatorio, marcarRelatorioImpresso,
   promptConferenciaImpressaoLote, __submitConferenciaImpressaoLote,
   promptFinalizacaoLote, __submitFinalizacaoLote,
   promptEnvioLote, __submitEnvioLote,

@@ -481,6 +481,45 @@ fora da coluna Planejamento (ver acima), esse botão some sozinho logo depois
 do primeiro salvamento — não precisa de nenhuma lógica extra pra "travar" a
 edição das placas depois que os lotes já existem.
 
+### 2.7 Relatório do planejamento (upload) + "dar baixa" na impressão em Produção
+
+Só existe para alinhadores (`ehTipoAlinhadores`) — contenção/modelo de
+estudo não têm planejamento. Dentro do próprio formulário "Definir placas
+do planejamento" (seção 2.6) existe um campo de upload de arquivo (PDF ou
+imagem, até 8MB) para o **relatório do planejamento** — o documento gerado
+pelo software de alinhadores com as instruções de impressão. É **opcional**
+nesse momento: salvar o planejamento não trava esperando o arquivo.
+
+**O arquivo em si não é guardado na planilha.** Uma célula do Google
+Sheets tem limite de 50.000 caracteres, e um relatório real em base64
+estoura isso fácil — por isso o upload vai para uma pasta no Google Drive
+(`getPastaRelatorios_` no `Code.gs`, criada automaticamente no primeiro
+envio) e só a URL + metadados (nome, tamanho, quem enviou, quando) ficam
+em `caso.planejamento.relatorio`, dentro do `dadosJSON` do caso — mesmo
+espírito de "o banco guarda só o essencial" já usado no resto do sistema.
+
+- **Esqueceu de anexar na hora do planejamento?** A ação **"Anexar
+  relatório do planejamento"** (ou "Substituir/remover..." se já houver
+  um) fica disponível na ficha em qualquer etapa a partir do momento em
+  que as placas já foram definidas — não precisa voltar pra coluna
+  Planejamento pra isso.
+- **"Marcar relatório como impresso"** (dar baixa) só aparece quando o
+  caso já está em **Produção** e existe um relatório anexado ainda não
+  marcado — é assim que a pessoa responsável no laboratório confirma que
+  abriu o arquivo, imprimiu fisicamente e pode seguir com a produção.
+  Fica registrado no histórico com responsável/data/hora
+  (`marcarRelatorioImpresso`).
+- **Não é um bloqueio.** Diferente da aprovação externa ou da conferência
+  de impressão do lote, "dar baixa" no relatório não impede criar lotes
+  nem qualquer outra ação — é só um registro rastreável, mesmo espírito
+  de `observacaoProducao` (que já ganha destaque no card assim que o caso
+  entra em Produção, sem travar nada).
+- **Card**: enquanto o caso está em Produção e o relatório ainda não foi
+  marcado como impresso, aparece uma caixa de destaque azul "📄 Relatório
+  do planejamento — Aguardando impressão" (mesmo padrão visual da caixa
+  dourada de `observacaoProducao`, cor separada pra não confundir os
+  dois avisos). Some sozinha assim que alguém dá a baixa.
+
 ---
 
 ## 4. Modelagem de dados
@@ -514,6 +553,13 @@ Caso {
     placa0Inferior: boolean      // = attachInferior
     observacaoProducao: string   // recado pra quem vai produzir — só ganha destaque no card quando o caso entra na coluna Produção (ver cardHTML)
     definidoEm: datetime
+    // relatório do planejamento (upload) — ver seção 2.7. O arquivo mora no
+    // Google Drive (não cabe na célula da planilha); aqui só metadados.
+    relatorio: {
+      nome: string, url: string, fileId: string, tamanho: number,
+      enviadoPor: string, enviadoEm: datetime,
+      impressao: { responsavel: string, data: date, hora: string } | null   // "dar baixa" — null até alguém marcar como impresso
+    } | null
   } | null
   attachSuperior: boolean
   attachInferior: boolean
@@ -778,7 +824,14 @@ Netlify, Vercel, servidor da clínica), sem precisar de PHP.
    `backend-appsscript/Code.gs` em Extensões > Apps Script, rodar `setup()`
    uma vez, e publicar como Web App (Implantar > Nova implantação > "App da
    Web", executar como "Eu", acesso "Qualquer pessoa"). Copiar a URL gerada
-   (termina em `/exec`).
+   (termina em `/exec`). Sempre que colar uma versão nova do `Code.gs`
+   (ex.: depois de puxar uma atualização deste repositório), é preciso
+   **implantar de novo** — Implantar > Gerenciar implantações > editar a
+   implantação existente > versão "Nova versão" > Implantar (mesma URL,
+   não precisa mudar `CONFIG.API_URL`). A partir da versão com upload de
+   relatório (seção 2.7), o script passa a usar `DriveApp` — a primeira
+   execução depois do redeploy pode pedir reautorização de escopo, só pro
+   dono da conta que roda o script.
 2. **Login com o Google**: criar um OAuth Client ID em
    [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials)
    (tipo "Aplicativo da Web", com a URL do GitHub Pages nas origens
@@ -818,6 +871,10 @@ atualização imediata sem esperar o intervalo.
 - No modo `"sheets"` (Google Sheets + Apps Script, `backend-appsscript/Code.gs`),
   o backup nativo é o histórico de versões do próprio Google Sheets (Arquivo >
   Histórico de versões).
+- Os relatórios de planejamento enviados por upload (seção 2.7) ficam numa
+  pasta do Google Drive chamada **"ExclusiveLab - Relatórios de
+  planejamento"**, na mesma conta que roda o Apps Script — segue o backup
+  padrão do Google Drive dessa conta, nada extra a configurar.
 
 ---
 

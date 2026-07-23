@@ -31,6 +31,15 @@
  * aba "Profissionais" da planilha, marque a célula da coluna "administrador"
  * dessa linha como TRUE. A partir daí esse administrador pode promover os
  * demais pela própria tela "cadastro de profissionais".
+ *
+ * ATUALIZANDO UMA VERSÃO JÁ IMPLANTADA
+ * Depois de colar uma versão nova deste arquivo no editor, vá em Implantar >
+ * Gerenciar implantações > (lápis de editar na implantação existente) >
+ * Versão "Nova versão" > Implantar. Isso atualiza o Web App sem trocar a
+ * URL (não precisa mexer em CONFIG.API_URL no index.html). Se a mudança
+ * usar um serviço novo do Google (ex.: a partir de agora, DriveApp, usado
+ * pelo upload de relatório), o Google pode pedir reautorização na primeira
+ * execução — só aparece pra quem é dono da conta que roda o script.
  */
 
 var SHEET_NAME = 'Casos';
@@ -82,6 +91,15 @@ function getSheetProf_() {
     sheet = ss.getSheetByName(SHEET_PROF_NAME);
   }
   return sheet;
+}
+
+var PASTA_RELATORIOS_NOME = 'ExclusiveLab - Relatórios de planejamento';
+
+/** Pasta do Drive onde os relatórios de planejamento (upload) são salvos — criada na primeira vez que alguém enviar um arquivo. */
+function getPastaRelatorios_() {
+  var pastas = DriveApp.getFoldersByName(PASTA_RELATORIOS_NOME);
+  if (pastas.hasNext()) return pastas.next();
+  return DriveApp.createFolder(PASTA_RELATORIOS_NOME);
 }
 
 function jsonResponse_(obj) {
@@ -197,7 +215,32 @@ function doPost(e) {
     return jsonResponse_({ ok: true, caso: body.caso });
   }
 
+  if (body.action === 'uploadArquivo') {
+    if (!solicitanteEhProfissionalAtivo_(body.solicitanteEmail)) {
+      return jsonResponse_({ ok: false, error: 'Entre com sua conta Google antes de continuar.' });
+    }
+    return uploadArquivo_(body);
+  }
+
   return jsonResponse_({ ok: false, error: 'Ação desconhecida: ' + body.action });
+}
+
+/**
+ * Upload do relatório de planejamento (PDF/imagem) — o arquivo em si vai pro
+ * Google Drive (não cabe dentro da célula de dadosJSON da planilha); só a
+ * URL + metadados voltam pro front-end pra guardar dentro do caso.
+ */
+function uploadArquivo_(body) {
+  try {
+    var bytes = Utilities.base64Decode(body.conteudoBase64);
+    var blob = Utilities.newBlob(bytes, body.mimeType || 'application/pdf', body.nomeArquivo || 'relatorio.pdf');
+    var pasta = getPastaRelatorios_();
+    var file = pasta.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return jsonResponse_({ ok: true, url: file.getUrl(), fileId: file.getId(), nome: file.getName(), tamanho: bytes.length });
+  } catch (err) {
+    return jsonResponse_({ ok: false, error: 'Falha ao enviar arquivo: ' + err.message });
+  }
 }
 
 /** Valida o idToken do Google Identity Services e devolve o profissional correspondente. */
