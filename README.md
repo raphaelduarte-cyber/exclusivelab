@@ -511,15 +511,28 @@ espírito de "o banco guarda só o essencial" já usado no resto do sistema.
 - **"Imprimir relatório" é mais uma etapa da produção**, no mesmo espírito
   da conferência de impressão do lote ou da confecção das placas: só
   aparece quando o caso já está em **Produção** e existe um relatório
-  anexado ainda não marcado como impresso. `concluirProducao` (chamada
-  tanto pelo recebimento de lotes quanto pelo de itens) **não finaliza o
-  caso nem avança pra Entrega/Financeiro enquanto o relatório não for
-  marcado como impresso** — mesmo que todos os lotes já tenham sido
-  produzidos, entregues e recebidos, o caso fica retido em Produção com um
-  aviso no histórico até alguém clicar em "Imprimir relatório"
-  (`marcarRelatorioImpresso`), que registra responsável/data/hora e, se os
-  lotes já estavam completos, conclui a produção imediatamente na mesma
-  ação.
+  anexado ainda não marcado como impresso. Clicar nele **abre o arquivo
+  numa aba nova** (pra já poder imprimir) e marca como impresso na mesma
+  ação (`marcarRelatorioImpresso`, que registra responsável/data/hora).
+  `concluirProducao` (chamada tanto pelo recebimento de lotes quanto pelo
+  de itens) **não finaliza o caso nem avança pra Entrega/Financeiro
+  enquanto o relatório não for marcado como impresso** — mesmo que todos
+  os lotes já tenham sido produzidos, entregues e recebidos, o caso fica
+  retido em Produção com um aviso no histórico até isso acontecer; se os
+  lotes já estavam completos, marcar como impresso conclui a produção
+  imediatamente na mesma ação.
+- **Limpeza automática do Drive ao finalizar.** Assim que o caso vira
+  "Finalizado" — seja pelo caminho automático interno
+  (`concluirProducao`) ou pela finalização administrativa de caso externo
+  (`finalizarCasoExterno`) — o arquivo do relatório é movido pra **lixeira
+  do Drive** (`limparRelatorioAoFinalizar` → ação `excluirArquivo` no
+  `Code.gs`, `DriveApp...setTrashed(true)`), pra não acumular espaço com
+  relatórios de casos já entregues. Não é exclusão definitiva (mesmo
+  espírito de "nada é apagado de verdade" usado pros casos) — fica
+  recuperável na lixeira do Drive por um tempo. Só `url`/`fileId` ficam
+  `null` depois disso; nome, quem enviou/imprimiu e quando continuam
+  guardados no caso pra auditoria, e a ficha mostra "(arquivo removido do
+  Drive após finalização)" no lugar do link.
 - **Card**: enquanto o caso está em Produção e o relatório ainda não foi
   marcado como impresso, aparece uma caixa de destaque azul "📄 Relatório
   do planejamento — Aguardando impressão" (mesmo padrão visual da caixa
@@ -880,7 +893,10 @@ atualização imediata sem esperar o intervalo.
 - Os relatórios de planejamento enviados por upload (seção 2.7) ficam numa
   pasta do Google Drive chamada **"ExclusiveLab - Relatórios de
   planejamento"**, na mesma conta que roda o Apps Script — segue o backup
-  padrão do Google Drive dessa conta, nada extra a configurar.
+  padrão do Google Drive dessa conta, nada extra a configurar. Só ficam lá
+  enquanto o caso está ativo: ao finalizar, o arquivo é movido pra lixeira
+  do Drive (seção 2.7), então essa pasta tende a acumular só os relatórios
+  de casos ainda em produção.
 
 ---
 

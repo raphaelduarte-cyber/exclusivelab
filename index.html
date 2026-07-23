@@ -579,6 +579,16 @@ const STORAGE = {
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || "Falha ao enviar relatório.");
     return data;
+  },
+  // Move o relatório pra lixeira do Drive quando o caso finaliza — libera
+  // espaço sem apagar de vez (fica recuperável na lixeira por um tempo).
+  async excluirArquivo(fileId){
+    if (CONFIG.STORAGE_MODE !== "sheets") return;
+    await fetch(CONFIG.API_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({action:"excluirArquivo", fileId, solicitanteEmail: PERFIL_ATUAL?.email})
+    });
   }
 };
 // Lê um File do navegador e devolve só a parte base64 (sem o prefixo
@@ -1607,6 +1617,7 @@ async function finalizarCasoExterno(id){
   caso.dataConclusaoReal = todayISO();
   caso.finalizadoPor = OPERADOR;
   changeStatus(caso, "Finalizado", "Finalização administrativa");
+  limparRelatorioAoFinalizar(caso);
   await persist(caso);
   abrirFicha(id); toast("Caso externo finalizado.");
 }
@@ -2001,7 +2012,7 @@ function promptAnexarRelatorio(id){
   const r = caso.planejamento?.relatorio;
   openModal("Anexar relatório do planejamento", `
     <div class="form-grid">
-      <div class="field full"><label>Relatório (PDF)${r ? ` — atual: <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.nome)}</a>` : ""}</label>
+      <div class="field full"><label>Relatório (PDF)${r ? ` — atual: ${r.fileId ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.nome)}</a>` : esc(r.nome)}` : ""}</label>
         <input type="file" id="ar-arquivo" accept="application/pdf,image/*">
         <p style="font-size:11px;color:var(--text-light);margin-top:4px;">Máximo 8MB. Escolher um arquivo novo substitui o atual.</p>
       </div>
@@ -2041,6 +2052,10 @@ async function __submitAnexarRelatorio(id){
 function marcarRelatorioImpresso(id){
   if (!requireOperador()) return;
   const caso = findCaso(id);
+  // Abre o arquivo numa aba nova pra já poder imprimir — precisa ser a
+  // primeira coisa síncrona da função (antes de qualquer await), senão o
+  // navegador bloqueia como pop-up.
+  window.open(caso.planejamento.relatorio.url, "_blank", "noopener");
   caso.planejamento.relatorio.impressao = { responsavel: OPERADOR, data: todayISO(), hora: nowTime() };
   logHistorico(caso, caso.statusAtual, caso.statusAtual, "Relatório do planejamento impresso");
   // Se todos os lotes/itens já tinham sido recebidos antes da impressão (ver
@@ -2179,7 +2194,7 @@ function getActionsForCaso(caso){
   // nunca anexou nenhum, o "Anexar" continua aparecendo mesmo em Produção
   // (senão o caso ficaria sem nenhuma forma de sair do bloqueio de
   // finalização).
-  if (ehTipoAlinhadores(caso) && planejamentoValido(caso) && (STATUS_TO_COL[s]!=="producao" || !caso.planejamento?.relatorio)){
+  if (ehTipoAlinhadores(caso) && planejamentoValido(caso) && s!=="Finalizado" && (STATUS_TO_COL[s]!=="producao" || !caso.planejamento?.relatorio)){
     actions.push({label: caso.planejamento?.relatorio ? "Substituir/remover relatório do planejamento" : "Anexar relatório do planejamento", fn:()=>promptAnexarRelatorio(caso.id)});
   }
   // "Imprimir relatório": só faz sentido a partir do momento em que o caso
@@ -2355,11 +2370,16 @@ function itensProducaoSectionHTML(caso){
 function relatorioResumoHTML(caso){
   const r = caso.planejamento?.relatorio;
   if (!r) return "nenhum anexado";
-  const link = `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.nome)}</a>`;
+  // Depois que o caso finaliza, o arquivo é movido pra lixeira do Drive
+  // (ver limparRelatorioAoFinalizar) — fileId/url ficam null, mas nome e
+  // impressão continuam registrados pra auditoria.
+  const arquivo = r.fileId
+    ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.nome)}</a>`
+    : `${esc(r.nome)} (arquivo removido do Drive após finalização)`;
   const status = r.impressao
     ? `✅ impresso em ${fmtDate(r.impressao.data)} por ${esc(r.impressao.responsavel)}`
     : "⏳ aguardando impressão";
-  return `${link} — ${status}`;
+  return `${arquivo} — ${status}`;
 }
 
 function fichaCompletaHTML(caso){
@@ -2667,6 +2687,21 @@ function promptRecebimentoLote(casoId, loteId){
 // como sempre; externo só vai pra "Entrega / Financeiro" — aguarda um
 // administrador finalizar explicitamente (ver finalizarCasoExterno), já
 // que ainda pode faltar entrega física e/ou pagamento.
+// Move o relatório pra lixeira do Drive assim que o caso vira "Finalizado"
+// — evita acumular espaço com arquivos de casos já entregues. Não é
+// exclusão de verdade: fica na lixeira do Drive por um tempo, e os
+// metadados (nome, quem imprimiu, quando) continuam na ficha — só o link
+// pra abrir o arquivo deixa de existir. Roda em segundo plano (não trava a
+// finalização); qualquer falha aqui é silenciosa de propósito.
+function limparRelatorioAoFinalizar(caso){
+  const r = caso.planejamento?.relatorio;
+  if (!r || !r.fileId) return;
+  const fileId = r.fileId;
+  r.url = null;
+  r.fileId = null;
+  r.removidoDoStorageEm = new Date().toISOString();
+  STORAGE.excluirArquivo(fileId).catch(()=>{});
+}
 function concluirProducao(caso, motivoFinalizacao){
   // Pra alinhadores, a impressão do relatório do planejamento é mais uma
   // etapa da produção — mesmo com todos os lotes/itens já recebidos, o
@@ -2684,6 +2719,7 @@ function concluirProducao(caso, motivoFinalizacao){
   caso.dataConclusaoReal = todayISO();
   caso.finalizadoPor = OPERADOR;
   changeStatus(caso, "Finalizado", motivoFinalizacao);
+  limparRelatorioAoFinalizar(caso);
 }
 function __submitRecebimentoLote(casoId, loteId){
   const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);

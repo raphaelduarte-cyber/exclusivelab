@@ -222,6 +222,13 @@ function doPost(e) {
     return uploadArquivo_(body);
   }
 
+  if (body.action === 'excluirArquivo') {
+    if (!solicitanteEhProfissionalAtivo_(body.solicitanteEmail)) {
+      return jsonResponse_({ ok: false, error: 'Entre com sua conta Google antes de continuar.' });
+    }
+    return excluirArquivo_(body.fileId);
+  }
+
   return jsonResponse_({ ok: false, error: 'Ação desconhecida: ' + body.action });
 }
 
@@ -240,6 +247,23 @@ function uploadArquivo_(body) {
     return jsonResponse_({ ok: true, url: file.getUrl(), fileId: file.getId(), nome: file.getName(), tamanho: bytes.length });
   } catch (err) {
     return jsonResponse_({ ok: false, error: 'Falha ao enviar arquivo: ' + err.message });
+  }
+}
+
+/**
+ * Move pra lixeira do Drive o relatório de um caso já finalizado — não é
+ * exclusão permanente de propósito (mesmo espírito de "nada é apagado" já
+ * usado pros casos): fica recuperável na lixeira do Drive por um tempo,
+ * mas não conta mais como armazenamento ativo.
+ */
+function excluirArquivo_(fileId) {
+  try {
+    if (fileId) {
+      DriveApp.getFileById(fileId).setTrashed(true);
+    }
+    return jsonResponse_({ ok: true });
+  } catch (err) {
+    return jsonResponse_({ ok: false, error: 'Falha ao excluir arquivo: ' + err.message });
   }
 }
 
