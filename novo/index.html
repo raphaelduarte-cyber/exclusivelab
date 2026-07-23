@@ -587,6 +587,7 @@ let RELATORIOS_TODOS_CACHE = []; // todo o histórico (sem recorte de meses) —
 let OPORTUNIDADES_MES_CACHE = [];
 let METAS_CACHE = [];
 let METAS_EDITANDO = new Set();
+let NANDA_META_EDITANDO = new Set();
 let PERIODO_DASHBOARD = "mes";
 let CRC_SELECIONADA_DASHBOARD = "";
 let NANDA_MES_CACHE = [];
@@ -2790,11 +2791,10 @@ function renderMetasAdmin(){
             <div class="field"><label>🥈 Mega Meta</label><input type="number" min="0" id="f-mega-${esc(u.email)}" value="${registro ? registro.metaMegaAgendamentos : ""}"></div>
             <div class="field"><label>🥇 Super Meta</label><input type="number" min="0" id="f-super-${esc(u.email)}" value="${registro ? registro.metaSuperAgendamentos : ""}"></div>
             <div class="field"><label>🎯 Meta de Comparecimentos</label><input type="number" min="0" id="f-comp-${esc(u.email)}" value="${registro ? registro.metaComparecimentos : ""}"></div>
-            <div class="field"><label>🤖 Meta da Nanda</label><input type="number" min="0" id="f-nanda-meta-${esc(u.email)}" value="${registro ? (registro.metaNanda||"") : ""}"></div>
             <button class="btn small primary" onclick="App.salvarMetaCRC('${esc(u.email)}')">Salvar</button>
           </div>
         ` : `
-          <p style="font-size:13px;margin:2px 0 10px;">🥉 Meta: <strong>${registro.metaAgendamentos}</strong> · 🥈 Mega Meta: <strong>${registro.metaMegaAgendamentos}</strong> · 🥇 Super Meta: <strong>${registro.metaSuperAgendamentos}</strong> · 🎯 Meta de Comparecimentos: <strong>${registro.metaComparecimentos || 0}</strong> · 🤖 Meta da Nanda: <strong>${registro.metaNanda || 0}</strong></p>
+          <p style="font-size:13px;margin:2px 0 10px;">🥉 Meta: <strong>${registro.metaAgendamentos}</strong> · 🥈 Mega Meta: <strong>${registro.metaMegaAgendamentos}</strong> · 🥇 Super Meta: <strong>${registro.metaSuperAgendamentos}</strong> · 🎯 Meta de Comparecimentos: <strong>${registro.metaComparecimentos || 0}</strong></p>
           <button class="btn small outline" onclick="App.alternarEdicaoMeta('${esc(u.email)}')">Alterar</button>
         `}
         ${metaInfo ? `
@@ -2821,7 +2821,6 @@ async function salvarMetaCRC(crcEmail){
   const mega = Number(document.getElementById(`f-mega-${crcEmail}`)?.value);
   const superMeta = Number(document.getElementById(`f-super-${crcEmail}`)?.value);
   const comparecimentos = Number(document.getElementById(`f-comp-${crcEmail}`)?.value) || 0;
-  const metaNanda = Number(document.getElementById(`f-nanda-meta-${crcEmail}`)?.value) || 0;
   if (!meta || meta <= 0 || !mega || mega <= 0 || !superMeta || superMeta <= 0){
     toast("Informe os 3 níveis de agendamento, todos maiores que zero.");
     return;
@@ -2833,6 +2832,10 @@ async function salvarMetaCRC(crcEmail){
   if (!comparecimentos){
     toast("Sem Meta de Comparecimentos definida, o IEC dessa CRC fica incompleto — mas a meta de agendamentos foi salva.");
   }
+  // Meta da Nanda é um estudo à parte — é editada na própria seção "Gestão da Nanda", não aqui.
+  // Preserva o valor já salvo (se houver) pra não zerá-lo nesse upsert.
+  const registroAtual = METAS_CACHE.find(m => m.crcEmail === crcEmail);
+  const metaNanda = registroAtual ? (registroAtual.metaNanda || 0) : 0;
   try {
     const data = await Api.salvarMeta(TOKEN_ATUAL, crcEmail, { meta, mega, super: superMeta, comparecimentos, nanda: metaNanda });
     if (!data.ok){ toast(data.error || "Não foi possível salvar a meta."); return; }
@@ -2847,35 +2850,71 @@ async function salvarMetaCRC(crcEmail){
   }
 }
 
-/** Leitura agregada da Nanda pro admin — só visualização (edição de lançamentos fica na tela da própria CRC nesta rodada). */
+/** Leitura agregada da Nanda pro admin (edição de lançamentos fica na tela da própria CRC). A Meta da Nanda é editada aqui mesmo — é um estudo à parte, não faz parte das Metas pessoais da CRC. */
 function renderNandaAdmin(){
   const el = document.getElementById("nanda-admin");
   if (!el) return;
-  const crcsComNanda = USUARIOS_CACHE.filter(u => u.perfil === "CRC" && u.ativo !== false && NANDA_MES_CACHE.some(r => r.crcEmail===u.email));
-  if (!crcsComNanda.length){
-    el.innerHTML = `<p class="usuarios-vazio">Nenhum lançamento da Nanda este mês ainda.</p>`;
+  const crcsAtivas = USUARIOS_CACHE.filter(u => u.perfil === "CRC" && u.ativo !== false);
+  if (!crcsAtivas.length){
+    el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
     return;
   }
   const pct = v => v===null ? "—" : Math.round(v*100)+"%";
   el.innerHTML = `
     <table class="tabela-usuarios">
-      <tr><th>CRC responsável</th><th>Recebidos</th><th>Diretos</th><th>Assistidos</th><th>Conversão total</th><th>Transferência</th><th>Meta (mês)</th></tr>
-      ${crcsComNanda.map(u => {
+      <tr><th>CRC responsável</th><th>Recebidos</th><th>Diretos</th><th>Assistidos</th><th>Conversão total</th><th>Transferência</th><th>Meta da Nanda (mês)</th></tr>
+      ${crcsAtivas.map(u => {
         const registrosDela = NANDA_MES_CACHE.filter(r => r.crcEmail===u.email);
         const metaRegistro = METAS_CACHE.find(m => m.crcEmail===u.email);
-        const d = calcularNanda(registrosDela, metaRegistro ? metaRegistro.metaNanda : 0);
+        const metaNanda = metaRegistro ? (metaRegistro.metaNanda||0) : 0;
+        const d = calcularNanda(registrosDela, metaNanda);
+        const emEdicao = NANDA_META_EDITANDO.has(u.email);
+        const atingimentoTexto = metaNanda>0 ? `${d.semDados ? 0 : d.agendamentosTotais} / ${metaNanda} (${Math.round((d.semDados ? 0 : d.atingimentoMetaNanda)*100)}%)` : "não definida";
         return `<tr>
           <td>${esc(u.nomeCurto||u.nomeCompleto)}</td>
-          <td>${d.leadsRecebidos}</td>
-          <td>${d.agendadosDiretos}</td>
-          <td>${d.transferidosAgendados}</td>
-          <td>${pct(d.taxaConversaoTotal)}</td>
-          <td>${pct(d.taxaTransferencia)}</td>
-          <td>${d.metaNanda>0 ? `${d.agendamentosTotais} / ${d.metaNanda} (${Math.round(d.atingimentoMetaNanda*100)}%)` : "não definida"}</td>
+          <td>${d.semDados ? "—" : d.leadsRecebidos}</td>
+          <td>${d.semDados ? "—" : d.agendadosDiretos}</td>
+          <td>${d.semDados ? "—" : d.transferidosAgendados}</td>
+          <td>${d.semDados ? "—" : pct(d.taxaConversaoTotal)}</td>
+          <td>${d.semDados ? "—" : pct(d.taxaTransferencia)}</td>
+          <td>${emEdicao ? `
+            <input type="number" min="0" id="f-nanda-meta-${esc(u.email)}" value="${metaNanda||""}" style="width:70px;">
+            <button class="btn small primary" onclick="App.salvarMetaNandaCRC('${esc(u.email)}')">Salvar</button>
+          ` : `
+            ${atingimentoTexto}
+            <button class="btn small outline" onclick="App.alternarEdicaoMetaNanda('${esc(u.email)}')">Alterar</button>
+          `}</td>
         </tr>`;
       }).join("")}
     </table>
   `;
+}
+
+function alternarEdicaoMetaNanda(crcEmail){
+  NANDA_META_EDITANDO.add(crcEmail);
+  renderNandaAdmin();
+}
+
+/** Salva só a Meta da Nanda — preserva meta/mega/super/comparecimentos já salvos da CRC (upsert na mesma linha), sem misturar com as Metas pessoais dela. */
+async function salvarMetaNandaCRC(crcEmail){
+  const metaNanda = Number(document.getElementById(`f-nanda-meta-${crcEmail}`)?.value) || 0;
+  const registroAtual = METAS_CACHE.find(m => m.crcEmail === crcEmail);
+  const meta = registroAtual ? registroAtual.metaAgendamentos : 0;
+  const mega = registroAtual ? registroAtual.metaMegaAgendamentos : 0;
+  const superMeta = registroAtual ? registroAtual.metaSuperAgendamentos : 0;
+  const comparecimentos = registroAtual ? registroAtual.metaComparecimentos : 0;
+  try {
+    const data = await Api.salvarMeta(TOKEN_ATUAL, crcEmail, { meta, mega, super: superMeta, comparecimentos, nanda: metaNanda });
+    if (!data.ok){ toast(data.error || "Não foi possível salvar a meta da Nanda."); return; }
+    const idx = METAS_CACHE.findIndex(m => m.crcEmail === crcEmail);
+    if (idx !== -1) METAS_CACHE[idx] = data.meta; else METAS_CACHE.push(data.meta);
+    NANDA_META_EDITANDO.delete(crcEmail);
+    toast("Meta da Nanda salva.");
+    renderNandaAdmin();
+  } catch(err){
+    console.error(err);
+    toast("Falha ao salvar — verifique sua conexão.");
+  }
 }
 
 async function salvarUsuario(){
@@ -3278,7 +3317,7 @@ window.App = {
   alternarPeriodoRankingIEC, alternarDetalheCRC, alternarDetalheIEC,
   abrirGestaoNanda, alternarPeriodoNanda, abrirFormularioNanda, fecharFormularioNanda, salvarNandaForm,
   selecionarNovoStatusAdmin, cancelarMotivoAdmin, cancelarRemocaoAdmin, confirmarRemocaoAdmin, confirmarMotivoAdmin,
-  alternarPeriodoFaltas10
+  alternarPeriodoFaltas10, alternarEdicaoMetaNanda, salvarMetaNandaCRC
 };
 
 init();
