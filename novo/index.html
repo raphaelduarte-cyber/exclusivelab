@@ -855,13 +855,11 @@ function calcularIEC(relatorios, metaComparecimentos){
   };
 }
 
-/** Início/fim do período escolhido e do período imediatamente anterior (pra comparação).
- * customInicio/customFim (strings ISO) só são usados quando periodo==="personalizado" —
- * os 4 chamadores pré-existentes nunca passam esses 2 parâmetros, então continuam intactos. */
-function limitesPeriodo(periodo, customInicio, customFim){
+/** Início/fim do período escolhido e do período imediatamente anterior (pra comparação). */
+function limitesPeriodo(periodo){
   const iso = d => dataLocalISO(d);
   const hoje = new Date();
-  let inicioAtual, inicioAnterior, fimAnterior, fimAtual;
+  let inicioAtual, inicioAnterior, fimAnterior;
   if (periodo==="dia"){
     inicioAtual = new Date(hoje);
     fimAnterior = new Date(hoje); fimAnterior.setDate(fimAnterior.getDate()-1);
@@ -880,18 +878,12 @@ function limitesPeriodo(periodo, customInicio, customFim){
     inicioAtual = new Date(2000, 0, 1);
     fimAnterior = new Date(inicioAtual); fimAnterior.setDate(fimAnterior.getDate()-1);
     inicioAnterior = new Date(fimAnterior);
-  } else if (periodo==="personalizado" && customInicio && customFim){
-    inicioAtual = new Date(customInicio+"T00:00:00");
-    fimAtual = new Date(customFim+"T00:00:00");
-    const spanDias = Math.max(0, Math.round((fimAtual-inicioAtual)/86400000));
-    fimAnterior = new Date(inicioAtual); fimAnterior.setDate(fimAnterior.getDate()-1);
-    inicioAnterior = new Date(fimAnterior); inicioAnterior.setDate(inicioAnterior.getDate()-spanDias);
   } else {
     inicioAtual = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
     fimAnterior = new Date(inicioAtual); fimAnterior.setDate(fimAnterior.getDate()-1);
     inicioAnterior = new Date(fimAnterior.getFullYear(), fimAnterior.getMonth(), 1);
   }
-  return { inicioAtual: iso(inicioAtual), fimAtual: iso(fimAtual||hoje), inicioAnterior: iso(inicioAnterior), fimAnterior: iso(fimAnterior) };
+  return { inicioAtual: iso(inicioAtual), fimAtual: iso(hoje), inicioAnterior: iso(inicioAnterior), fimAnterior: iso(fimAnterior) };
 }
 
 function somarPeriodo(lista, crcEmail, inicio, fim){
@@ -904,10 +896,9 @@ function elegivelRanking(agendados, atingimentoMetaAgendamentos, periodo){
   return agendados>=IEC_LIMITES.minAgendamentosRanking && atingimentoMetaAgendamentos*100>=IEC_LIMITES.minAtingimentoMetaRanking;
 }
 
-/** Ranking pelo IEC (comparecimento real), não pelo IE-CRC de produtividade. Devolve elegíveis (ordenados, disputam o pódio) e não-elegíveis (mostram números, fora da disputa).
- * customInicio/customFim só valem quando periodo==="personalizado" (Faltas/10) — os demais chamadores não passam esses 2 args. */
-function calcularRankingIEC(crcsAtivas, periodo, customInicio, customFim){
-  const { inicioAtual, fimAtual, inicioAnterior, fimAnterior } = limitesPeriodo(periodo, customInicio, customFim);
+/** Ranking pelo IEC (comparecimento real), não pelo IE-CRC de produtividade. Devolve elegíveis (ordenados, disputam o pódio) e não-elegíveis (mostram números, fora da disputa). */
+function calcularRankingIEC(crcsAtivas, periodo){
+  const { inicioAtual, fimAtual, inicioAnterior, fimAnterior } = limitesPeriodo(periodo);
   // "Histórico" precisa da fonte sem recorte de meses — RELATORIOS_HISTORICO_CACHE só guarda os últimos 6 meses.
   const fonte = periodo==="historico" ? RELATORIOS_TODOS_CACHE : RELATORIOS_HISTORICO_CACHE;
   const linhas = crcsAtivas.map(u => {
@@ -1227,14 +1218,10 @@ function renderAlertasEquipe(){
 }
 
 let PERIODO_FALTAS10 = "mes";
-let FALTAS10_CUSTOM_INICIO = "";
-let FALTAS10_CUSTOM_FIM = "";
 function alternarPeriodoFaltas10(periodo){
   PERIODO_FALTAS10 = periodo;
   renderFaltas10Admin();
 }
-function atualizarFaltas10CustomInicio(valor){ FALTAS10_CUSTOM_INICIO = valor; renderFaltas10Admin(); }
-function atualizarFaltas10CustomFim(valor){ FALTAS10_CUSTOM_FIM = valor; renderFaltas10Admin(); }
 
 /** Seta de evolução do faltas/10 — ao contrário do IEC, aqui SUBIR é ruim (mais faltas) e DESCER é bom. */
 function setaEvolucaoFaltas10(atual, anterior){
@@ -1257,24 +1244,13 @@ function renderFaltas10Admin(){
 
   const pillsHtml = `
     <div class="pill-group" style="margin-bottom:10px;">
-      ${[["dia","Diário"],["semana","Semanal"],["mes","Mensal"],["trimestre","Trimestral"],["personalizado","Personalizado"]].map(([v,l]) => `
+      ${[["dia","Diário"],["semana","Semanal"],["mes","Mensal"],["trimestre","Trimestral"],["historico","Histórico"]].map(([v,l]) => `
         <button class="pill ${PERIODO_FALTAS10===v?'ativo':''}" onclick="App.alternarPeriodoFaltas10('${v}')">${l}</button>
       `).join("")}
     </div>
-    ${PERIODO_FALTAS10==="personalizado" ? `
-      <div class="field-grid" style="margin-bottom:14px;">
-        <div class="field"><label>De</label><input type="date" value="${esc(FALTAS10_CUSTOM_INICIO)}" onchange="App.atualizarFaltas10CustomInicio(this.value)"></div>
-        <div class="field"><label>Até</label><input type="date" value="${esc(FALTAS10_CUSTOM_FIM)}" onchange="App.atualizarFaltas10CustomFim(this.value)"></div>
-      </div>
-    ` : ""}
   `;
 
-  if (PERIODO_FALTAS10==="personalizado" && (!FALTAS10_CUSTOM_INICIO || !FALTAS10_CUSTOM_FIM)){
-    el.innerHTML = pillsHtml + `<p class="usuarios-vazio">Escolha as duas datas para ver o período personalizado.</p>`;
-    return;
-  }
-
-  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_FALTAS10, FALTAS10_CUSTOM_INICIO, FALTAS10_CUSTOM_FIM);
+  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_FALTAS10);
   const linhas = [...elegiveis, ...naoElegiveis].filter(l => !l.iecInfo.semDados);
   if (!linhas.length){
     el.innerHTML = pillsHtml + `<p class="usuarios-vazio">Sem relatórios neste recorte ainda.</p>`;
@@ -3262,7 +3238,7 @@ window.App = {
   alternarPeriodoRankingIEC, alternarDetalheCRC, alternarDetalheIEC,
   abrirGestaoNanda, alternarPeriodoNanda, abrirFormularioNanda, fecharFormularioNanda, salvarNandaForm,
   selecionarNovoStatusAdmin, cancelarMotivoAdmin, cancelarRemocaoAdmin, confirmarRemocaoAdmin, confirmarMotivoAdmin,
-  alternarPeriodoFaltas10, atualizarFaltas10CustomInicio, atualizarFaltas10CustomFim
+  alternarPeriodoFaltas10
 };
 
 init();
