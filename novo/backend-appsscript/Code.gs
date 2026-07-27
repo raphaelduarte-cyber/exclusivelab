@@ -50,7 +50,10 @@ var HEADERS_RELATORIOS = [
   'pacientesAgendadosDia', 'compareceram', 'faltaram', 'reagendaram', 'semRetornoConfirmacao',
   // Controle de resgate - leads antigos
   'resgateTrabalhados', 'resgateAgendados', 'resgateRetornoComunicacao', 'resgateSemInteresse', 'resgateSemRetorno',
-  'principalObjecao', 'qualidadeLead', 'motivoQualidadeLead', 'criadoEm', 'dadosJSON'
+  'principalObjecao', 'qualidadeLead', 'motivoQualidadeLead', 'criadoEm', 'dadosJSON',
+  // Adicionado depois de dadosJSON de propósito — inserir antes deslocaria o índice
+  // dessa coluna e quebraria a leitura dos relatórios já salvos na planilha real.
+  'confirmadosAmanha'
 ];
 var HEADERS_OPORTUNIDADES = [
   'id', 'relatorioId', 'data', 'crcEmail', 'crcNome',

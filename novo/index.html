@@ -137,6 +137,7 @@ h1,h2,h3,h4{margin:0;}
 .alerta-chip.nivel-verde{border-left-color:var(--green);}
 .alerta-chip.nivel-amarelo{border-left-color:var(--orange);}
 .alerta-chip.nivel-vermelho{border-left-color:var(--red);}
+.alerta-chip.nivel-azul{border-left-color:var(--blue);}
 .alerta-equipe-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px;}
 .alerta-equipe-item{background:var(--bg-alt); border-radius:10px; padding:10px 12px; font-size:12px;}
 .alerta-equipe-item .lbl-item{display:block; color:var(--text-light); font-size:10.5px; text-transform:uppercase; margin-bottom:4px;}
@@ -920,6 +921,40 @@ const IEC_LIMITES = {
   desvioVermelhoEquipe: 10           // p.p. abaixo da média da equipe
 };
 
+function diaAnteriorISO(dataISO){
+  const d = new Date(dataISO.slice(0,10)+"T00:00:00");
+  d.setDate(d.getDate()-1);
+  return dataLocalISO(d);
+}
+
+/** Índice de Processo (Taxa de Confirmação) — o que a CRC controla (confirmar a agenda de amanhã), separado do resultado (IEC). Limites editáveis pelo gestor numa rodada futura. */
+const PROCESSO_LIMITES = {
+  diasMinimos: 5,           // dias com par válido (confirmou véspera + teve agenda no dia) pro indicador ser confiável
+  taxaConfirmacaoAlta: 60   // % — acima disso: "alto processo"
+};
+
+/** Cruza, pra cada dia do período, o confirmadosAmanha que a CRC registrou na véspera com a agenda real do dia seguinte — mede processo (o que ela controla), não resultado (que sofre influência de fatores externos). */
+function calcularTaxaConfirmacao(relatoriosPeriodo, todosRelatoriosCRC){
+  const porData = {};
+  todosRelatoriosCRC.forEach(r => { porData[r.data] = r; });
+  let agendados = 0, confirmados = 0, diasComDado = 0;
+  relatoriosPeriodo.forEach(r => {
+    const vespera = porData[diaAnteriorISO(r.data)];
+    if (!vespera || vespera.confirmadosAmanha===undefined || vespera.confirmadosAmanha===null || vespera.confirmadosAmanha==="") return;
+    const agendadosDia = Number(r.pacientesAgendadosDia)||0;
+    agendados += agendadosDia;
+    confirmados += Math.min(Number(vespera.confirmadosAmanha)||0, agendadosDia); // trava de sanidade (não deixa passar de 100%)
+    diasComDado++;
+  });
+  const amostraSuficiente = diasComDado>=PROCESSO_LIMITES.diasMinimos;
+  return {
+    semDados: diasComDado===0,
+    amostraSuficiente,
+    taxaConfirmacao: agendados>0 ? confirmados/agendados : null,
+    diasComDado, agendados, confirmados
+  };
+}
+
 /** Faltas a cada 10 agendamentos — indicador de apoio ao IEC, mesmos limites-padrão editáveis pelo gestor numa rodada futura. */
 const FALTAS10_LIMITES = {
   volumeMinimo: 20,      // agendamentos no período p/ o indicador ser confiável
@@ -1032,11 +1067,12 @@ function calcularRankingIEC(crcsAtivas, periodo){
     const metaAgendamentos = registro ? registro.metaAgendamentos : 0;
     const iecInfo = calcularIEC(relatoriosAtual, metaComparecimentos);
     const iecAnterior = calcularIEC(relatoriosAnterior, metaComparecimentos);
+    const processoInfo = calcularTaxaConfirmacao(relatoriosAtual, fonte.filter(r => r.crcEmail===u.email));
     // pacientesAgendadosDia (não leadsAgendados) — mesma métrica de "agendamentos" usada em todo o IEC, pra não divergir da Meta nem dos gráficos.
     const agendados = relatoriosAtual.reduce((s,r) => s+(Number(r.pacientesAgendadosDia)||0), 0);
     const atingimentoMetaAgendamentos = metaAgendamentos>0 ? agendados/metaAgendamentos : 0;
     const elegivel = elegivelRanking(agendados, atingimentoMetaAgendamentos, periodo);
-    return { email:u.email, nome:u.nomeCurto||u.nomeCompleto, iecInfo, iecAnterior, agendados, atingimentoMetaAgendamentos, elegivel };
+    return { email:u.email, nome:u.nomeCurto||u.nomeCompleto, iecInfo, iecAnterior, processoInfo, agendados, atingimentoMetaAgendamentos, elegivel };
   });
   const desempate = (a,b) => {
     if ((b.iecInfo.iec||0) !== (a.iecInfo.iec||0)) return (b.iecInfo.iec||0)-(a.iecInfo.iec||0);
@@ -1051,6 +1087,17 @@ function calcularRankingIEC(crcsAtivas, periodo){
   const elegiveis = linhas.filter(l => l.elegivel && !l.iecInfo.semDados).sort(desempate);
   const naoElegiveis = linhas.filter(l => !l.elegivel || l.iecInfo.semDados).sort(desempate);
   return { elegiveis, naoElegiveis };
+}
+
+/** Classifica a CRC no mapa Processo × Resultado — processo é o que ela controla (confirmar a agenda), resultado sofre influência de fatores externos (qualidade do lead, imprevistos do paciente). A "melhor CRC" de verdade é quem tem os dois altos, não só quem tem o maior IEC isolado. */
+function classificarQuadrante(linha){
+  if (linha.iecInfo.semDados || !linha.processoInfo.amostraSuficiente) return { quadrante:"insuficiente", label:"Dados insuficientes", cor:"var(--text-light)" };
+  const altoResultado = linha.iecInfo.iec >= 70; // mesmo corte de "Bom desempenho" do classificarIEC
+  const altoProcesso = (linha.processoInfo.taxaConfirmacao||0)*100 >= PROCESSO_LIMITES.taxaConfirmacaoAlta;
+  if (altoProcesso && altoResultado) return { quadrante:"alta-performance", label:"🏆 Alta performance real", cor:"var(--green)" };
+  if (altoProcesso && !altoResultado) return { quadrante:"fatores-externos", label:"🔍 Vítima de fatores externos", cor:"var(--blue)" };
+  if (!altoProcesso && altoResultado) return { quadrante:"resultado-favorecido", label:"⚠️ Resultado favorecido — atenção", cor:"var(--orange)" };
+  return { quadrante:"desenvolvimento", label:"📉 Oportunidade de desenvolvimento", cor:"var(--red)" };
 }
 
 /** Média da equipe (taxa de comparecimento/agendamentos/faltas) — base pros alertas de desvio. */
@@ -1114,6 +1161,9 @@ function calcularAlertasCRC(linha, contexto){
   }
   if (info.amostraSuficiente && info.faltasPor10 > FALTAS10_LIMITES.alertaMinimo){
     alertas.push({ nivel:"vermelho", titulo:"Alto índice de faltas", mensagem:`A cada 10 pacientes agendados por esta CRC, ${formatarFaltas10(info.faltasPor10)} faltam. É necessário revisar a qualidade do agendamento, a criação de compromisso, a confirmação e o acompanhamento pré-consulta.` });
+  }
+  if (linha.processoInfo && classificarQuadrante(linha).quadrante==="fatores-externos"){
+    alertas.push({ nivel:"azul", titulo:"Possível fator externo afetando o resultado", mensagem:"Esta CRC está confirmando bem a agenda (processo em dia), mas o resultado ainda está abaixo do esperado. Antes de cobrar dela, vale investigar a qualidade dos leads/tráfego recebidos — o problema pode estar a montante, não no trabalho dela." });
   }
   return alertas;
 }
@@ -2416,6 +2466,17 @@ function renderGraficosTendencia(crcsAtivas){
   `;
 }
 
+/** Divisor e rótulo da "média" do Funil de Leads — mensal usa dias corridos do mês (não o mês inteiro, senão um mês ainda em andamento ficaria sub-representado), semanal usa os 7 dias fixos da janela "últimos 7 dias", histórico usa quantos meses distintos entraram na soma. Diário não mostra média (já é um dia só). */
+function calcularDivisorMediaFunil(periodo, relatoriosFiltrados){
+  if (periodo==="semana") return { divisor:7, rotulo:"Média diária (últimos 7 dias)" };
+  if (periodo==="mes") return { divisor: new Date().getDate(), rotulo:"Média diária (mês)" };
+  if (periodo==="historico"){
+    const meses = new Set(relatoriosFiltrados.map(r => String(r.data||"").slice(0,7)));
+    return { divisor: meses.size || 1, rotulo:"Média mensal" };
+  }
+  return null;
+}
+
 function renderDashboardExecutivo(){
   const el = document.getElementById("dashboard-executivo");
   if (!el) return;
@@ -2460,6 +2521,7 @@ function renderDashboardExecutivo(){
   }
   const pct = v => v===null ? "—" : Math.round(v*100)+"%";
   const periodoLabel = { dia:"hoje", semana:"últimos 7 dias", mes:"mês", historico:"todo o histórico" }[PERIODO_DASHBOARD];
+  const divisorMedia = calcularDivisorMediaFunil(PERIODO_DASHBOARD, relatoriosFiltrados);
   const maiorFunil = Math.max(a.funilLeads.entraram, 1);
   const maiorAgendados = Math.max(a.comparecimento.agendados, 1);
   const maiorResgate = Math.max(a.resgate.trabalhados, 1);
@@ -2471,6 +2533,7 @@ function renderDashboardExecutivo(){
       ${funilStepHtml("Entraram", a.funilLeads.entraram, maiorFunil)}
       ${funilStepHtml("Trabalhados", a.funilLeads.trabalhados, maiorFunil)}
       <div class="funil-conv">Taxa de resposta: ${pct(a.funilLeads.taxaResposta)}</div>
+      ${divisorMedia ? `<div class="funil-conv">${divisorMedia.rotulo}: ${(a.funilLeads.entraram/divisorMedia.divisor).toFixed(1)} entraram · ${(a.funilLeads.trabalhados/divisorMedia.divisor).toFixed(1)} trabalhados</div>` : ""}
       ${funilStepHtml("Convertidos em agendamento", a.funilLeads.agendados, maiorFunil)}
       <div class="funil-conv">Taxa de conversão em agendamento: ${pct(a.funilLeads.taxaConversao)} · conta só o lead novo que fechou no mesmo dia em que entrou — não inclui resgate de leads antigos nem quem demorou mais de um dia pra decidir (por isso é menor que o "Agendados" do card de Comparecimento, que soma toda a agenda do período).</div>
     </div>
@@ -3153,6 +3216,12 @@ function renderFormularioRelatorio(){
         <div class="field"><label>Sem retorno (não confirmou / não respondeu)</label><input type="number" min="0" id="f-semRetornoConfirmacao" oninput="App.atualizarPercentuais()"></div>
       </div>
 
+      <div class="section-title">📞 Confirmação da agenda de amanhã</div>
+      <div class="field-grid">
+        <div class="field"><label>Confirmados para amanhã</label><input type="number" min="0" id="f-confirmadosAmanha"></div>
+      </div>
+      <p style="font-size:12px;color:var(--text-light);margin:-6px 0 14px;">De quem você entrou em contato hoje pra confirmar a agenda de amanhã, quantos responderam confirmando presença (não conta quem foi só contatado sem resposta).</p>
+
       <div style="margin-top:18px;">
         <label style="display:block;font-size:11.5px;font-weight:700;color:var(--text-light);margin-bottom:8px;text-transform:uppercase;letter-spacing:.2px;">Pacientes que faltaram e não reagendaram</label>
         <div id="faltantes-rows" style="display:flex;flex-direction:column;gap:8px;"></div>
@@ -3348,6 +3417,7 @@ function coletarRelatorioDoFormulario(){
     faltaram: num("f-faltaram"),
     reagendaram: num("f-reagendaram"),
     semRetornoConfirmacao: num("f-semRetornoConfirmacao"),
+    confirmadosAmanha: num("f-confirmadosAmanha"),
     resgateTrabalhados: num("f-resgateTrabalhados"),
     resgateAgendados: num("f-resgateAgendados"),
     resgateRetornoComunicacao: num("f-resgateRetornoComunicacao"),
