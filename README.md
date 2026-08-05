@@ -77,11 +77,13 @@ O painel valida o token recebido direto no backend (Apps Script, ver
 profissionais do cadastro — qualquer pessoa logada continua podendo cadastrar,
 editar, ativar/desativar profissionais normalmente.
 
-A sessão fica em `sessionStorage` (não `localStorage`) de propósito: computadores
-de recepção/ASB costumam ser compartilhados por várias pessoas, então fechar a
-aba/navegador já encerra a sessão — evita que a próxima pessoa continue
-operando com a identidade anterior. Um link "sair" no cabeçalho também encerra
-a qualquer momento.
+A sessão fica em `localStorage`: sobrevive a fechar a aba ou reiniciar o
+navegador, então em computadores de uso individual (a maioria dos casos hoje)
+não é preciso logar de novo toda vez. Um link "sair" no cabeçalho encerra a
+sessão a qualquer momento — **importante lembrar disso em computador
+compartilhado** (recepção/ASB): quem estiver operando deve clicar em "sair"
+antes de entregar o computador pra próxima pessoa, já que a sessão não
+encerra sozinha ao fechar a aba/navegador.
 
 **A trava de login também existe no backend, não só na tela.** `doGet`
 (leitura de casos/profissionais) e a ação `upsert` exigem `solicitanteEmail`

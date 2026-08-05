@@ -609,10 +609,11 @@ let CASOS = [];
 let PROFISSIONAIS = null; // preenchido por profissionaisAtuais()/loadProfissionais() na primeira leitura
 let OPERADOR = "";
 // Perfil resolvido pelo login com o Google (ver seção "LOGIN COM O GOOGLE").
-// Guardado em sessionStorage (não localStorage) de propósito: computadores de
-// recepção/ASB são compartilhados, então a sessão deve acabar ao fechar a aba,
-// evitando que a próxima pessoa continue operando com a identidade anterior.
-let PERFIL_ATUAL = JSON.parse(sessionStorage.getItem("perfil_atual_v1") || "null");
+// Guardado em localStorage de propósito: a sessão sobrevive a fechar a aba
+// ou reiniciar o navegador, então quem usa o próprio computador não precisa
+// logar de novo toda vez — só sai mesmo clicando em "sair" (ou trocando de
+// pessoa manualmente nesse botão, importante em computador compartilhado).
+let PERFIL_ATUAL = JSON.parse(localStorage.getItem("perfil_atual_v1") || "null");
 if (PERFIL_ATUAL) OPERADOR = PERFIL_ATUAL.nomeCurto || PERFIL_ATUAL.nomeCompleto || "";
 // Antes do login, o backend não devolve a lista real de profissionais (ver
 // STORAGE.getAllProfissionais) — só essa flag, o suficiente pra tela de
@@ -3022,8 +3023,10 @@ function profissionalSelectHTML(idAttr, selectedValue){
    própria conta Google, o token é validado no backend (Apps Script) e
    comparado contra o e-mail cadastrado em "Profissionais" — dali vem o nome
    e o perfil (inclusive se é administrador). Sessão guardada em
-   sessionStorage (ver PERFIL_ATUAL), não localStorage: some ao fechar a aba,
-   importante em computador compartilhado (recepção/ASB).
+   localStorage (ver PERFIL_ATUAL): sobrevive a fechar a aba/navegador, só
+   termina quando alguém clica em "sair" — importante lembrar disso em
+   computador compartilhado (recepção/ASB): quem usar por último deve sair
+   antes de entregar o computador pra próxima pessoa.
    ========================================================================= */
 function podeExcluir(){ return !!PERFIL_ATUAL?.administrador; }
 
@@ -3073,7 +3076,7 @@ function loginLocalTeste(){
   if (!nome) return;
   PERFIL_ATUAL = { id:"local", nomeCurto:nome.trim(), nomeCompleto:nome.trim(), funcao:"Teste local", email:"", administrador:true };
   OPERADOR = PERFIL_ATUAL.nomeCurto;
-  sessionStorage.setItem("perfil_atual_v1", JSON.stringify(PERFIL_ATUAL));
+  localStorage.setItem("perfil_atual_v1", JSON.stringify(PERFIL_ATUAL));
   renderOperadorBox();
   render();
 }
@@ -3098,7 +3101,7 @@ async function handleCredentialResponse(response){
     if (!data.ok){ toast(data.error || "Não foi possível entrar."); return; }
     PERFIL_ATUAL = data.perfil;
     OPERADOR = PERFIL_ATUAL.nomeCurto || PERFIL_ATUAL.nomeCompleto || "";
-    sessionStorage.setItem("perfil_atual_v1", JSON.stringify(PERFIL_ATUAL));
+    localStorage.setItem("perfil_atual_v1", JSON.stringify(PERFIL_ATUAL));
     renderOperadorBox();
     await atualizarDados(); // busca casos/profissionais de verdade agora que já está autorizado
     toast(`Bem-vindo(a), ${OPERADOR}.`);
@@ -3111,7 +3114,7 @@ async function handleCredentialResponse(response){
 function logout(){
   PERFIL_ATUAL = null;
   OPERADOR = "";
-  sessionStorage.removeItem("perfil_atual_v1");
+  localStorage.removeItem("perfil_atual_v1");
   renderOperadorBox();
   render();
 }
@@ -3205,7 +3208,7 @@ async function __submitEditarProfissional(id){
   if (PERFIL_ATUAL && PERFIL_ATUAL.id === p.id){
     PERFIL_ATUAL = p;
     OPERADOR = p.nomeCurto || p.nomeCompleto;
-    sessionStorage.setItem("perfil_atual_v1", JSON.stringify(PERFIL_ATUAL));
+    localStorage.setItem("perfil_atual_v1", JSON.stringify(PERFIL_ATUAL));
   }
   renderOperadorBox();
   gerenciarProfissionais();
