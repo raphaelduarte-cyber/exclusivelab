@@ -160,6 +160,14 @@ Kanban para **6 colunas macro**:
    verdadeiro. Externo: exige finalização manual por um administrador a
    partir da coluna "Entrega / Financeiro" (seção 2.4-C).
 
+Cada coluna tem um botão **⤢ "Expandir coluna"** no cabeçalho: abre todos
+os casos daquela coluna numa grade lado a lado, ocupando a tela toda
+(`abrirColunaExpandida`), em vez de empilhados na coluna estreita de
+280px. Útil quando uma coluna acumula muitos casos (ex.: "Em produção")
+e rolar verticalmente deixa de dar uma visão geral. Reaproveita o mesmo
+card (`cardHTML`) e os mesmos filtros do Kanban normal — é só um layout
+diferente pra olhar os mesmos dados, fecha e volta pro quadro normal.
+
 ### Cadastro em duas fases (v2)
 
 O cadastro inicial do caso ficou enxuto de propósito: nome do paciente, tipo

@@ -126,6 +126,8 @@ h1,h2,h3,h4{margin:0;}
   border-bottom:1px solid #e2ddce; position:sticky; top:0; background:var(--bg-alt); border-radius:var(--radius) var(--radius) 0 0;
 }
 .kanban-col-header .count{background:#fff; border-radius:20px; padding:1px 9px; font-size:11.5px; border:1px solid var(--border);}
+.col-expand-btn{background:#fff; border:1px solid var(--border); border-radius:6px; color:var(--text-light); font-size:12px; line-height:1; padding:3px 5px; cursor:pointer;}
+.col-expand-btn:hover{color:var(--gold-dark); border-color:var(--gold-dark);}
 .kanban-col-body{padding:10px; display:flex; flex-direction:column; gap:10px; overflow-y:auto;}
 
 /* ---------- CARD ---------- */
@@ -204,6 +206,10 @@ h1,h2,h3,h4{margin:0;}
 .modal-close{background:none; border:none; font-size:20px; color:var(--text-light); line-height:1;}
 .modal-body{padding:16px 18px;}
 .modal-foot{padding:12px 18px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px;}
+/* Coluna expandida: mesma estrutura de modal, só bem mais larga, pra caber
+   os cards lado a lado numa grade em vez de empilhados numa coluna estreita. */
+.modal-box.modal-wide{max-width:min(1600px, 96vw); width:96vw;}
+.coluna-expandida-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:12px; align-items:start;}
 .form-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px 14px;}
 .form-grid .full{grid-column:1/-1;}
 .field label{display:block; font-size:11.5px; font-weight:700; color:var(--text-light); margin-bottom:3px; text-transform:uppercase; letter-spacing:.2px;}
@@ -1512,12 +1518,32 @@ function renderKanban(){
     const casosCol = casosFiltrados.filter(c=>STATUS_TO_COL[c.statusAtual]===col.key);
     return `
       <div class="kanban-col">
-        <div class="kanban-col-header"><span>${col.label}</span><span class="count">${casosCol.length}</span></div>
+        <div class="kanban-col-header">
+          <span>${col.label}</span>
+          <span style="display:flex;align-items:center;gap:6px;">
+            <span class="count">${casosCol.length}</span>
+            <button class="col-expand-btn" title="Expandir coluna — ver todos os casos lado a lado" onclick="App.abrirColunaExpandida('${col.key}')">⤢</button>
+          </span>
+        </div>
         <div class="kanban-col-body">
           ${casosCol.map(cardHTML).join("") || `<div style="font-size:11.5px;color:var(--text-light);padding:8px;">Sem casos</div>`}
         </div>
       </div>`;
   }).join("");
+}
+
+// Visão ampla de uma coluna: mesmos cards do Kanban (cardHTML), só que numa
+// grade lado a lado em vez de empilhados numa coluna estreita — pra ver
+// muito mais casos de uma vez sem precisar rolar tanto. Reaproveita o mesmo
+// filtro de renderKanban, então mostra exatamente os mesmos casos/ordem.
+function abrirColunaExpandida(colKey){
+  const col = COLS.find(c=>c.key===colKey);
+  const casosCol = CASOS.filter(casoPassaFiltro).filter(c=>STATUS_TO_COL[c.statusAtual]===colKey);
+  openModal(`${col.label} (${casosCol.length})`, `
+    <div class="coluna-expandida-grid">
+      ${casosCol.map(cardHTML).join("") || `<div style="font-size:12px;color:var(--text-light);">Sem casos nesta coluna.</div>`}
+    </div>
+  `, "", "modal-wide");
 }
 
 function render(){
@@ -1638,10 +1664,10 @@ async function excluirCaso(id){
 /* =========================================================================
    MODAL — infraestrutura
    ========================================================================= */
-function openModal(title, bodyHtml, footHtml){
+function openModal(title, bodyHtml, footHtml, extraBoxClass){
   document.getElementById("modal-root").innerHTML = `
     <div class="modal-overlay" onclick="if(event.target===this) App.closeModal()">
-      <div class="modal-box">
+      <div class="modal-box${extraBoxClass?" "+extraBoxClass:""}">
         <div class="modal-head"><h2>${title}</h2><button class="modal-close" onclick="App.closeModal()">✕</button></div>
         <div class="modal-body">${bodyHtml}</div>
         ${footHtml?`<div class="modal-foot">${footHtml}</div>`:""}
@@ -3377,7 +3403,7 @@ window.App = {
   logout, loginLocalTeste, gerenciarProfissionais, promptEditarProfissional,
   __submitNovoProfissional, __submitEditarProfissional, toggleProfissionalAtivo, excluirProfissional,
   setBusca, novoCaso, exportar, __clickAtualizarDados, abrirHistoricoEnviados, setHistFilter,
-  setFilter, limparFiltros, toggleAlerts, abrirFicha, avancar, voltar,
+  setFilter, limparFiltros, toggleAlerts, abrirFicha, abrirColunaExpandida, avancar, voltar,
   editarCaso, salvarCaso, toggleExterno, toggleRefinamentoNumero, toggleTipoProducao, toggleQtdItem,
   recalcularPrazoAutomatico,
   excluirCaso, closeModal,
