@@ -1256,7 +1256,7 @@ function renderGraficosIEC(linhas){
         <h4>Agendamentos × Comparecimentos por CRC</h4>
         ${linhas.map(l => `
           <div style="margin-bottom:10px;">
-            <div style="font-size:12px;font-weight:700;margin-bottom:4px;">${esc(l.nome)}</div>
+            <div style="font-size:12px;font-weight:700;margin-bottom:4px;">${esc(l.nome)} <span style="font-weight:400;color:var(--text-light);">— ${l.iecInfo.taxaComparecimento!==null ? Math.round(l.iecInfo.taxaComparecimento*100)+"% compareceram" : "—"}</span></div>
             ${funilStepHtml("Agendados", l.iecInfo.agendados, maiorAgendados)}
             ${funilStepHtml("Compareceram", l.iecInfo.compareceram, maiorAgendados)}
           </div>
