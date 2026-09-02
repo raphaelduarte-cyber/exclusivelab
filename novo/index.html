@@ -612,6 +612,7 @@ let METAS_CACHE = [];
 let METAS_EDITANDO = new Set();
 let NANDA_META_EDITANDO = new Set();
 let PERIODO_DASHBOARD = "mes";
+let MES_ESPECIFICO_DASHBOARD = "";
 let CRC_SELECIONADA_DASHBOARD = "";
 let NANDA_MES_CACHE = [];
 let NANDA_HISTORICO_CACHE = [];
@@ -1014,11 +1015,17 @@ function calcularIEC(relatorios, metaComparecimentos){
 }
 
 /** Início/fim do período escolhido e do período imediatamente anterior (pra comparação). */
-function limitesPeriodo(periodo){
+function limitesPeriodo(periodo, mesEscolhido){
   const iso = d => dataLocalISO(d);
   const hoje = new Date();
-  let inicioAtual, inicioAnterior, fimAnterior;
-  if (periodo==="dia"){
+  let inicioAtual, inicioAnterior, fimAnterior, fimAtual;
+  if (periodo==="mes-especifico" && mesEscolhido){
+    const [ano, mes] = mesEscolhido.split("-").map(Number);
+    inicioAtual = new Date(ano, mes-1, 1);
+    fimAtual = new Date(ano, mes, 0); // dia 0 do mês seguinte = último dia do mês escolhido
+    fimAnterior = new Date(inicioAtual); fimAnterior.setDate(fimAnterior.getDate()-1);
+    inicioAnterior = new Date(fimAnterior.getFullYear(), fimAnterior.getMonth(), 1);
+  } else if (periodo==="dia"){
     inicioAtual = new Date(hoje);
     fimAnterior = new Date(hoje); fimAnterior.setDate(fimAnterior.getDate()-1);
     inicioAnterior = new Date(fimAnterior);
@@ -1041,7 +1048,7 @@ function limitesPeriodo(periodo){
     fimAnterior = new Date(inicioAtual); fimAnterior.setDate(fimAnterior.getDate()-1);
     inicioAnterior = new Date(fimAnterior.getFullYear(), fimAnterior.getMonth(), 1);
   }
-  return { inicioAtual: iso(inicioAtual), fimAtual: iso(hoje), inicioAnterior: iso(inicioAnterior), fimAnterior: iso(fimAnterior) };
+  return { inicioAtual: iso(inicioAtual), fimAtual: iso(fimAtual||hoje), inicioAnterior: iso(inicioAnterior), fimAnterior: iso(fimAnterior) };
 }
 
 function somarPeriodo(lista, crcEmail, inicio, fim){
@@ -1055,10 +1062,10 @@ function elegivelRanking(agendados, atingimentoMetaAgendamentos, periodo){
 }
 
 /** Ranking pelo IEC (comparecimento real), não pelo IE-CRC de produtividade. Devolve elegíveis (ordenados, disputam o pódio) e não-elegíveis (mostram números, fora da disputa). */
-function calcularRankingIEC(crcsAtivas, periodo){
-  const { inicioAtual, fimAtual, inicioAnterior, fimAnterior } = limitesPeriodo(periodo);
-  // "Histórico" precisa da fonte sem recorte de meses — RELATORIOS_HISTORICO_CACHE só guarda os últimos 6 meses.
-  const fonte = periodo==="historico" ? RELATORIOS_TODOS_CACHE : RELATORIOS_HISTORICO_CACHE;
+function calcularRankingIEC(crcsAtivas, periodo, mesEscolhido){
+  const { inicioAtual, fimAtual, inicioAnterior, fimAnterior } = limitesPeriodo(periodo, mesEscolhido);
+  // "Histórico"/"Mês específico" precisam da fonte sem recorte de meses — RELATORIOS_HISTORICO_CACHE só guarda os últimos 6 meses.
+  const fonte = (periodo==="historico" || periodo==="mes-especifico") ? RELATORIOS_TODOS_CACHE : RELATORIOS_HISTORICO_CACHE;
   const linhas = crcsAtivas.map(u => {
     const relatoriosAtual = somarPeriodo(fonte, u.email, inicioAtual, fimAtual);
     const relatoriosAnterior = somarPeriodo(fonte, u.email, inicioAnterior, fimAnterior);
@@ -1271,9 +1278,17 @@ function renderGraficosIEC(linhas){
 }
 
 let PERIODO_RANKING_IEC = "mes";
+let MES_ESPECIFICO_RANKING = "";
 let CRC_DETALHE_IEC_ABERTA = "";
 function alternarPeriodoRankingIEC(periodo){
   PERIODO_RANKING_IEC = periodo;
+  if (periodo==="mes-especifico" && !MES_ESPECIFICO_RANKING) MES_ESPECIFICO_RANKING = mesesDisponiveis()[0];
+  renderRankingAdmin();
+  renderDestaquesEquipe();
+  renderAlertasEquipe();
+}
+function selecionarMesRanking(mes){
+  MES_ESPECIFICO_RANKING = mes;
   renderRankingAdmin();
   renderDestaquesEquipe();
   renderAlertasEquipe();
@@ -1291,7 +1306,7 @@ function renderRankingAdmin(){
     el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
     return;
   }
-  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_RANKING_IEC);
+  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_RANKING_IEC, MES_ESPECIFICO_RANKING);
   const todasLinhas = [...elegiveis, ...naoElegiveis];
   const contexto = calcularContextoEquipe(todasLinhas);
   const medalhas = ["🥇","🥈","🥉"];
@@ -1320,11 +1335,7 @@ function renderRankingAdmin(){
   };
 
   el.innerHTML = `
-    <div class="pill-group" style="margin-bottom:14px;">
-      ${[["dia","Diário"],["semana","Semanal"],["mes","Mensal"],["historico","Histórico"]].map(([v,l]) => `
-        <button class="pill ${PERIODO_RANKING_IEC===v?'ativo':''}" onclick="App.alternarPeriodoRankingIEC('${v}')">${l}</button>
-      `).join("")}
-    </div>
+    <div style="margin-bottom:14px;">${pillsPeriodoHtml([["dia","Diário"],["semana","Semanal"],["mes","Mensal"],["historico","Histórico"],["mes-especifico","📅 Mês específico"]], PERIODO_RANKING_IEC, MES_ESPECIFICO_RANKING, "alternarPeriodoRankingIEC", "selecionarMesRanking")}</div>
     <table class="tabela-usuarios">
       <tr><th>#</th><th>CRC</th><th>IEC</th><th>Classificação</th><th>Faltas a cada 10 agendados</th></tr>
       ${elegiveis.map((l,i) => linhaHtml(l,i)).join("")}
@@ -1346,7 +1357,7 @@ function renderDestaquesEquipe(){
     el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
     return;
   }
-  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_RANKING_IEC);
+  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_RANKING_IEC, MES_ESPECIFICO_RANKING);
   const linhas = [...elegiveis, ...naoElegiveis].filter(l => !l.iecInfo.semDados);
   if (!linhas.length){
     el.innerHTML = `<p class="usuarios-vazio">Sem relatórios neste recorte ainda.</p>`;
@@ -1384,7 +1395,7 @@ function renderAlertasEquipe(){
     el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
     return;
   }
-  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_RANKING_IEC);
+  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_RANKING_IEC, MES_ESPECIFICO_RANKING);
   const linhas = [...elegiveis, ...naoElegiveis].filter(l => !l.iecInfo.semDados);
   if (!linhas.length){
     el.innerHTML = `<p class="usuarios-vazio">Sem relatórios neste recorte ainda.</p>`;
@@ -1420,8 +1431,14 @@ function renderAlertasEquipe(){
 }
 
 let PERIODO_FALTAS10 = "mes";
+let MES_ESPECIFICO_FALTAS10 = "";
 function alternarPeriodoFaltas10(periodo){
   PERIODO_FALTAS10 = periodo;
+  if (periodo==="mes-especifico" && !MES_ESPECIFICO_FALTAS10) MES_ESPECIFICO_FALTAS10 = mesesDisponiveis()[0];
+  renderFaltas10Admin();
+}
+function selecionarMesFaltas10(mes){
+  MES_ESPECIFICO_FALTAS10 = mes;
   renderFaltas10Admin();
 }
 
@@ -1445,14 +1462,10 @@ function renderFaltas10Admin(){
   }
 
   const pillsHtml = `
-    <div class="pill-group" style="margin-bottom:10px;">
-      ${[["dia","Diário"],["semana","Semanal"],["mes","Mensal"],["trimestre","Trimestral"],["historico","Histórico"]].map(([v,l]) => `
-        <button class="pill ${PERIODO_FALTAS10===v?'ativo':''}" onclick="App.alternarPeriodoFaltas10('${v}')">${l}</button>
-      `).join("")}
-    </div>
+    <div style="margin-bottom:10px;">${pillsPeriodoHtml([["dia","Diário"],["semana","Semanal"],["mes","Mensal"],["trimestre","Trimestral"],["historico","Histórico"],["mes-especifico","📅 Mês específico"]], PERIODO_FALTAS10, MES_ESPECIFICO_FALTAS10, "alternarPeriodoFaltas10", "selecionarMesFaltas10")}</div>
   `;
 
-  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_FALTAS10);
+  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_FALTAS10, MES_ESPECIFICO_FALTAS10);
   const linhas = [...elegiveis, ...naoElegiveis].filter(l => !l.iecInfo.semDados);
   if (!linhas.length){
     el.innerHTML = pillsHtml + `<p class="usuarios-vazio">Sem relatórios neste recorte ainda.</p>`;
@@ -2318,7 +2331,7 @@ const CORES_QUALIDADE = { Bom:"var(--green)", Ruim:"var(--orange)", "Péssimo":"
 const CORES_TEMPERATURA = { "Muito Quente":"var(--red)", "Quente":"var(--orange)", "Morno":"var(--gold)" };
 
 /** Filtra relatórios (já recortados no mês atual pelo backend) para o recorte Diário/Semanal/Mensal escolhido no Dashboard Executivo. */
-function filtrarRelatoriosPorPeriodo(lista, periodo){
+function filtrarRelatoriosPorPeriodo(lista, periodo, mesEscolhido){
   if (periodo === "mes" || periodo === "historico") return lista;
   const hoje = dataLocalISO();
   if (periodo === "dia") return lista.filter(r => r.data === hoje);
@@ -2328,11 +2341,17 @@ function filtrarRelatoriosPorPeriodo(lista, periodo){
     const limiteISO = dataLocalISO(limite);
     return lista.filter(r => r.data >= limiteISO && r.data <= hoje);
   }
+  if (periodo === "mes-especifico" && mesEscolhido) return lista.filter(r => String(r.data||"").slice(0,7)===mesEscolhido);
   return lista;
 }
 
 function alternarPeriodoDashboard(periodo){
   PERIODO_DASHBOARD = periodo;
+  if (periodo==="mes-especifico" && !MES_ESPECIFICO_DASHBOARD) MES_ESPECIFICO_DASHBOARD = mesesDisponiveis()[0];
+  renderDashboardExecutivo();
+}
+function selecionarMesDashboard(mes){
+  MES_ESPECIFICO_DASHBOARD = mes;
   renderDashboardExecutivo();
 }
 
@@ -2345,6 +2364,30 @@ function mesLabelCurto(anoMes){
   const nomes = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
   const [ano,mes] = anoMes.split("-");
   return `${nomes[Number(mes)-1]}/${ano.slice(2)}`;
+}
+
+/** Meses (yyyy-MM) disponíveis pro seletor "Mês específico" — todo mês que já tem algum relatório, mais o mês atual (mesmo sem dados ainda), do mais recente pro mais antigo. */
+function mesesDisponiveis(){
+  const meses = new Set(RELATORIOS_TODOS_CACHE.map(r => String(r.data||"").slice(0,7)).filter(Boolean));
+  meses.add(dataLocalISO().slice(0,7));
+  return Array.from(meses).sort().reverse();
+}
+
+/** Monta as pills de período + o seletor de mês (só aparece quando "mes-especifico" está ativo) — reaproveitado pelos 3 painéis com filtro de período (Dashboard Executivo, Ranking, Faltas/10). */
+function pillsPeriodoHtml(opcoes, periodoAtual, mesEscolhido, fnPeriodo, fnMes){
+  return `
+    <div class="pill-group">
+      ${opcoes.map(([v,l]) => `<button class="pill ${periodoAtual===v?'ativo':''}" onclick="App.${fnPeriodo}('${v}')">${l}</button>`).join("")}
+    </div>
+    ${periodoAtual==="mes-especifico" ? `
+      <div class="field" style="max-width:220px;margin:10px 0 4px;">
+        <label>Escolha o mês</label>
+        <select onchange="App.${fnMes}(this.value)">
+          ${mesesDisponiveis().map(m => `<option value="${m}" ${mesEscolhido===m?'selected':''}>${mesLabelCurto(m)}</option>`).join("")}
+        </select>
+      </div>
+    ` : ""}
+  `;
 }
 
 /** Dias do mês atual em que a CRC já enviou relatório — base do calendário de preenchimento (visão de cobrança). */
@@ -2466,13 +2509,19 @@ function renderGraficosTendencia(crcsAtivas){
   `;
 }
 
-/** Divisor e rótulo da "média" do Funil de Leads — mensal usa dias corridos do mês (não o mês inteiro, senão um mês ainda em andamento ficaria sub-representado), semanal usa os 7 dias fixos da janela "últimos 7 dias", histórico usa quantos meses distintos entraram na soma. Diário não mostra média (já é um dia só). */
-function calcularDivisorMediaFunil(periodo, relatoriosFiltrados){
+/** Divisor e rótulo da "média" do Funil de Leads — mensal usa dias corridos do mês (não o mês inteiro, senão um mês ainda em andamento ficaria sub-representado), semanal usa os 7 dias fixos da janela "últimos 7 dias", histórico usa quantos meses distintos entraram na soma, mês específico usa os dias corridos daquele mês (todos, se já passou, ou só os já decorridos, se for o mês atual). Diário não mostra média (já é um dia só). */
+function calcularDivisorMediaFunil(periodo, relatoriosFiltrados, mesEscolhido){
   if (periodo==="semana") return { divisor:7, rotulo:"Média diária (últimos 7 dias)" };
   if (periodo==="mes") return { divisor: new Date().getDate(), rotulo:"Média diária (mês)" };
   if (periodo==="historico"){
     const meses = new Set(relatoriosFiltrados.map(r => String(r.data||"").slice(0,7)));
     return { divisor: meses.size || 1, rotulo:"Média mensal" };
+  }
+  if (periodo==="mes-especifico" && mesEscolhido){
+    const [ano, mes] = mesEscolhido.split("-").map(Number);
+    const ehMesAtual = mesEscolhido === dataLocalISO().slice(0,7);
+    const divisor = ehMesAtual ? new Date().getDate() : new Date(ano, mes, 0).getDate();
+    return { divisor, rotulo:`Média diária (${mesLabelCurto(mesEscolhido)})` };
   }
   return null;
 }
@@ -2486,11 +2535,7 @@ function renderDashboardExecutivo(){
 
   const controlesHtml = `
     <div class="dash-exec-controles">
-      <div class="pill-group">
-        ${[["dia","Diário"],["semana","Semanal"],["mes","Mensal"],["historico","Histórico"]].map(([v,l]) => `
-          <button class="pill ${PERIODO_DASHBOARD===v?'ativo':''}" onclick="App.alternarPeriodoDashboard('${v}')">${l}</button>
-        `).join("")}
-      </div>
+      ${pillsPeriodoHtml([["dia","Diário"],["semana","Semanal"],["mes","Mensal"],["historico","Histórico"],["mes-especifico","📅 Mês específico"]], PERIODO_DASHBOARD, MES_ESPECIFICO_DASHBOARD, "alternarPeriodoDashboard", "selecionarMesDashboard")}
       <div class="pill-group">
         <button class="pill ${!CRC_SELECIONADA_DASHBOARD?'ativo':''}" onclick="App.selecionarCrcDashboard('')">Total</button>
         ${crcsAtivas.map(u => `
@@ -2507,8 +2552,8 @@ function renderDashboardExecutivo(){
   }
 
   const filtroCrc = r => emailsAtivos.has(r.crcEmail) && (!CRC_SELECIONADA_DASHBOARD || r.crcEmail===CRC_SELECIONADA_DASHBOARD);
-  const fonteDashboard = PERIODO_DASHBOARD==="historico" ? RELATORIOS_TODOS_CACHE : RELATORIOS_MES_CACHE;
-  const relatoriosFiltrados = filtrarRelatoriosPorPeriodo(fonteDashboard.filter(filtroCrc), PERIODO_DASHBOARD);
+  const fonteDashboard = (PERIODO_DASHBOARD==="historico" || PERIODO_DASHBOARD==="mes-especifico") ? RELATORIOS_TODOS_CACHE : RELATORIOS_MES_CACHE;
+  const relatoriosFiltrados = filtrarRelatoriosPorPeriodo(fonteDashboard.filter(filtroCrc), PERIODO_DASHBOARD, MES_ESPECIFICO_DASHBOARD);
   const oportunidadesFiltradas = OPORTUNIDADES_MES_CACHE.filter(filtroCrc);
 
   const a = calcularAnaliseExecutiva(relatoriosFiltrados, oportunidadesFiltradas);
@@ -2520,8 +2565,8 @@ function renderDashboardExecutivo(){
     return;
   }
   const pct = v => v===null ? "—" : Math.round(v*100)+"%";
-  const periodoLabel = { dia:"hoje", semana:"últimos 7 dias", mes:"mês", historico:"todo o histórico" }[PERIODO_DASHBOARD];
-  const divisorMedia = calcularDivisorMediaFunil(PERIODO_DASHBOARD, relatoriosFiltrados);
+  const periodoLabel = PERIODO_DASHBOARD==="mes-especifico" ? mesLabelCurto(MES_ESPECIFICO_DASHBOARD) : { dia:"hoje", semana:"últimos 7 dias", mes:"mês", historico:"todo o histórico" }[PERIODO_DASHBOARD];
+  const divisorMedia = calcularDivisorMediaFunil(PERIODO_DASHBOARD, relatoriosFiltrados, MES_ESPECIFICO_DASHBOARD);
   const maiorFunil = Math.max(a.funilLeads.entraram, 1);
   const maiorAgendados = Math.max(a.comparecimento.agendados, 1);
   const maiorResgate = Math.max(a.resgate.trabalhados, 1);
@@ -3509,7 +3554,8 @@ window.App = {
   abrirGestaoNanda, alternarPeriodoNanda, abrirFormularioNanda, fecharFormularioNanda, salvarNandaForm,
   selecionarNovoStatusAdmin, cancelarMotivoAdmin, cancelarRemocaoAdmin, confirmarRemocaoAdmin, confirmarMotivoAdmin,
   alternarPeriodoFaltas10, alternarEdicaoMetaNanda, salvarMetaNandaCRC,
-  resetarOrdemSecoesAdmin, resetarOrdemCardsDashboard
+  resetarOrdemSecoesAdmin, resetarOrdemCardsDashboard,
+  selecionarMesDashboard, selecionarMesRanking, selecionarMesFaltas10
 };
 
 init();
