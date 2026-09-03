@@ -2001,6 +2001,11 @@ async function __submitPlanejamento(id){
   if (isNaN(qtdSup) || isNaN(qtdInf)){ toast("Informe a quantidade de placas superiores e inferiores."); return; }
   if (qtdSup + qtdInf <= 0){ toast("Informe pelo menos uma placa (superior ou inferior)."); return; }
   const caso = findCaso(id);
+  // Distingue a primeira definição (ainda sem planejamento — avança o caso
+  // automaticamente, comportamento de sempre) de uma correção posterior
+  // (ex.: erro de digitação, caso já avançado) — nesse segundo caso só
+  // atualiza as placas, sem mexer no status atual do caso.
+  const primeiraVez = !planejamentoValido(caso);
   const relatorioExistente = caso.planejamento?.relatorio || null;
   const arquivo = document.getElementById("p-relatorio-arquivo")?.files?.[0];
   if (arquivo && arquivo.size > 8*1024*1024){ toast("Arquivo do relatório muito grande (máx. 8MB)."); return; }
@@ -2026,9 +2031,13 @@ async function __submitPlanejamento(id){
   };
   caso.attachSuperior = attachSup;
   caso.attachInferior = attachInf;
-  const novoStatus = caso.tipoCaso==="externo" ? "Aguardando aprovação do cliente/dentista externo" : STATUS_PRODUCAO;
-  changeStatus(caso, novoStatus, "Planejamento de placas definido — avanço automático");
-  persist(caso).then(()=>{ abrirFicha(id); toast("Planejamento salvo — caso avançou automaticamente."); });
+  if (primeiraVez){
+    const novoStatus = caso.tipoCaso==="externo" ? "Aguardando aprovação do cliente/dentista externo" : STATUS_PRODUCAO;
+    changeStatus(caso, novoStatus, "Planejamento de placas definido — avanço automático");
+  } else {
+    logHistorico(caso, caso.statusAtual, caso.statusAtual, `Planejamento de placas corrigido: ${qtdSup} sup. / ${qtdInf} inf.`);
+  }
+  persist(caso).then(()=>{ abrirFicha(id); toast(primeiraVez ? "Planejamento salvo — caso avançou automaticamente." : "Planejamento de placas corrigido."); });
 }
 
 // Anexar/substituir/remover o relatório do planejamento depois do momento
@@ -2205,12 +2214,17 @@ function getActionsForCaso(caso){
   const actions = [];
   const s = caso.statusAtual;
   const ext = caso.tipoCaso==="externo";
-  // "Definir/editar placas do planejamento" só aparece enquanto o caso está
-  // na coluna Planejamento — depois que avança (aprovação, produção...), as
-  // placas já podem estar alocadas em lotes e não devem ser alteradas livremente.
-  const naEtapaPlanejamento = STATUS_TO_COL[s] === "planejamento";
+  // "Definir/editar placas do planejamento" fica disponível até o primeiro
+  // lote ser criado — não trava mais assim que o caso sai da coluna
+  // Planejamento (isso impedia até corrigir um simples erro de digitação).
+  // O risco real é só depois que já existem lotes referenciando números de
+  // placa específicos (aí sim descasaria da produção); enquanto não há
+  // nenhum lote, editar é sempre seguro — __submitPlanejamento só avança o
+  // status automaticamente na primeira definição, uma correção posterior
+  // não mexe na etapa atual do caso.
+  const podeEditarPlacasPlanejamento = ehTipoAlinhadores(caso) && s!=="Finalizado" && (caso.lotes||[]).length === 0;
 
-  if (naEtapaPlanejamento){
+  if (podeEditarPlacasPlanejamento){
     actions.push({label: planejamentoValido(caso) ? "Editar placas do planejamento" : "Definir placas do planejamento", fn:()=>promptPlanejamento(caso.id)});
   }
   // Anexar/substituir o relatório do planejamento fica disponível antes de

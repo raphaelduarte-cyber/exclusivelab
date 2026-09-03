@@ -479,17 +479,21 @@ a impressão das placas escolhidas (seção 2.1). Cada botão só aparece quando
 o lote está no estágio correspondente, e só controla as placas daquele lote
 específico.
 
-### 2.6 "Definir placas do planejamento" só na coluna Planejamento — e salvar já avança o caso
+### 2.6 "Definir/editar placas do planejamento" — disponível até o primeiro lote existir
 
-Esse botão (ver seção 1, "Cadastro em duas fases") só é oferecido enquanto
-`STATUS_TO_COL[caso.statusAtual] === "planejamento"`. Em qualquer outra
-coluna — Recebido, Aprovação, Em produção ou Finalizado — ele não aparece
-mais na ficha. Isso evita que alguém altere a quantidade de placas depois
-que já existem lotes criados a partir delas, o que quebraria a
-correspondência entre planejamento e lotes. Como salvar já move o caso pra
-fora da coluna Planejamento (ver acima), esse botão some sozinho logo depois
-do primeiro salvamento — não precisa de nenhuma lógica extra pra "travar" a
-edição das placas depois que os lotes já existem.
+Esse botão (ver seção 1, "Cadastro em duas fases") continua oferecido
+mesmo depois que o caso sai da coluna Planejamento — a trava real não é a
+coluna, é `(caso.lotes||[]).length === 0`: enquanto nenhum lote foi criado
+a partir das placas, corrigir a quantidade (ex.: erro de digitação) é
+sempre seguro, porque nada ainda referencia números de placa específicos.
+Assim que existe pelo menos um lote, a ação some — só aí editar
+quebraria a correspondência entre planejamento e lotes.
+
+Salvar pela primeira vez continua avançando o caso automaticamente, como
+sempre (`__submitPlanejamento` detecta isso por `!planejamentoValido(caso)`
+antes de sobrescrever). Uma correção posterior (caso já avançado, ainda
+sem lote) só atualiza as placas e registra no histórico — não mexe na
+etapa atual do caso.
 
 ### 2.7 Relatório do planejamento (upload) + impressão como etapa da produção
 
