@@ -293,6 +293,13 @@ h1,h2,h3,h4{margin:0;}
         <div id="dashboard-executivo"></div>
       </div>
 
+      <div class="form-card arrastavel" data-arrastavel data-grupo="admin-secoes" data-chave="preenchimento" style="margin-top:20px;">
+        <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
+        <div class="section-title" style="margin-top:0;">📋 Preenchimento do Relatório Diário</div>
+        <p style="font-size:12px;color:var(--text-light);margin:-6px 0 14px;">Sempre mostra o mês atual — não muda com o "Período de análise" escolhido acima (não existe "cobrar preenchimento" de um mês que já passou).</p>
+        <div id="preenchimento-admin"></div>
+      </div>
+
       <div class="form-card arrastavel" data-arrastavel data-grupo="admin-secoes" data-chave="ranking" style="margin-top:20px;">
         <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
         <div class="section-title">Ranking — IEC (Índice de Efetividade da CRC)</div>
@@ -865,7 +872,7 @@ function inicializarArrastar(){
   });
 }
 
-const ORDEM_SECOES_ADMIN_PADRAO = ["dashboard-executivo-bloco","ranking","destaques","alertas","faltas10","metas","nanda","reativacao","usuarios"];
+const ORDEM_SECOES_ADMIN_PADRAO = ["dashboard-executivo-bloco","preenchimento","ranking","destaques","alertas","faltas10","metas","nanda","reativacao","usuarios"];
 
 /** Reordena os painéis grandes do admin conforme a ordem salva — os painéis já existem fixos no HTML, só move os nós de lugar. */
 function aplicarOrdemSecoesAdmin(){
@@ -902,7 +909,7 @@ function mostrarView(nome){
   if (nome==="relatorio") renderFormularioRelatorio();
   if (nome==="reativacao") renderReativacao();
   if (nome==="nanda") renderGestaoNanda();
-  if (nome==="admin"){ renderPeriodoAdminGlobal(); renderDashboardExecutivo(); renderUsuariosLista(); renderCentralReativacaoAdmin(); renderRankingAdmin(); renderDestaquesEquipe(); renderAlertasEquipe(); renderFaltas10Admin(); renderMetasAdmin(); renderNandaAdmin(); aplicarOrdemSecoesAdmin(); }
+  if (nome==="admin"){ renderPeriodoAdminGlobal(); renderDashboardExecutivo(); renderPreenchimentoAdmin(); renderUsuariosLista(); renderCentralReativacaoAdmin(); renderRankingAdmin(); renderDestaquesEquipe(); renderAlertasEquipe(); renderFaltas10Admin(); renderMetasAdmin(); renderNandaAdmin(); aplicarOrdemSecoesAdmin(); }
 }
 
 /* =========================================================================
@@ -2428,6 +2435,14 @@ function renderCalendarioPreenchimento(crcsAtivas){
   `;
 }
 
+/** Seção fixa e independente do "Período de análise" — o calendário é sempre do mês atual (não existe "preenchimento de um mês passado" pra cobrar), então fica fora do bloco que reage ao período escolhido. */
+function renderPreenchimentoAdmin(){
+  const el = document.getElementById("preenchimento-admin");
+  if (!el) return;
+  const crcsAtivas = USUARIOS_CACHE.filter(u => u.perfil === "CRC" && u.ativo !== false);
+  el.innerHTML = crcsAtivas.length ? renderCalendarioPreenchimento(crcsAtivas) : `<p class="usuarios-vazio">Nenhuma CRC ativa cadastrada ainda.</p>`;
+}
+
 const CORES_LINHA_CRC = ["var(--gold)","var(--blue)","var(--green)","var(--orange)","var(--red)","var(--graphite)"];
 
 /** Agrupa o histórico de relatórios (últimos meses) por CRC/mês para os gráficos de linha — soma de agendados e de comparecimentos, mês a mês. */
@@ -2558,7 +2573,10 @@ function renderDashboardExecutivo(){
 
   const a = calcularAnaliseExecutiva(relatoriosFiltrados, oportunidadesFiltradas);
   const crcsParaCalendarioTendencia = CRC_SELECIONADA_DASHBOARD ? crcsAtivas.filter(u => u.email===CRC_SELECIONADA_DASHBOARD) : crcsAtivas;
-  const extrasHtml = renderCalendarioPreenchimento(crcsParaCalendarioTendencia) + renderGraficosTendencia(crcsParaCalendarioTendencia);
+  // O calendário de preenchimento saiu daqui — ele é sempre "mês atual" e não muda com o
+  // período escolhido acima, então ficava confuso dentro do bloco que reage ao período
+  // (ver renderPreenchimentoAdmin, seção própria e fixa no painel do admin).
+  const extrasHtml = renderGraficosTendencia(crcsParaCalendarioTendencia);
 
   if (a.semDados){
     el.innerHTML = controlesHtml + `<div class="exec-card"><p class="exec-vazio">Nenhum relatório enviado neste recorte ainda.</p></div>` + extrasHtml;
