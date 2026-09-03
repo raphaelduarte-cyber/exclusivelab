@@ -278,12 +278,18 @@ h1,h2,h3,h4{margin:0;}
     <div id="view-crc-reativacao" class="hidden"></div>
     <div id="view-crc-nanda" class="hidden"></div>
     <div id="view-admin-placeholder" class="hidden">
+      <div class="form-card" style="margin-bottom:20px;">
+        <div class="section-title" style="margin-top:0;">Período de análise</div>
+        <p style="font-size:12px;color:var(--text-light);margin:-6px 0 14px;">Escolhido uma vez só — Dashboard Executivo, Ranking/Destaques/Alertas e Faltas/10 usam o mesmo recorte.</p>
+        <div id="periodo-admin-global"></div>
+      </div>
+
       <p style="margin:0 0 14px;"><button class="restaurar-ordem-link" onclick="App.resetarOrdemSecoesAdmin()">↺ Restaurar ordem padrão dos painéis</button> — arraste pelo ⠿ no canto de cada painel pra reordenar.</p>
 
       <div class="arrastavel" data-arrastavel data-grupo="admin-secoes" data-chave="dashboard-executivo-bloco">
         <span class="drag-handle" draggable="true" title="Arrastar para reordenar">⠿</span>
         <div class="saudacao" style="font-size:20px;">Dashboard Executivo</div>
-        <div class="saudacao-sub">Use os filtros abaixo para ver o total ou uma CRC específica, no período que quiser.</div>
+        <div class="saudacao-sub">Use o filtro de CRC abaixo pra ver o total ou uma CRC específica.</div>
         <div id="dashboard-executivo"></div>
       </div>
 
@@ -611,8 +617,10 @@ let OPORTUNIDADES_MES_CACHE = [];
 let METAS_CACHE = [];
 let METAS_EDITANDO = new Set();
 let NANDA_META_EDITANDO = new Set();
-let PERIODO_DASHBOARD = "mes";
-let MES_ESPECIFICO_DASHBOARD = "";
+// Período único do painel admin — Dashboard Executivo, Ranking/Destaques/Alertas
+// e Faltas/10 usam o MESMO recorte, escolhido uma vez só (ver renderPeriodoAdminGlobal).
+let PERIODO_ADMIN = "mes";
+let MES_ESPECIFICO_ADMIN = "";
 let CRC_SELECIONADA_DASHBOARD = "";
 let NANDA_MES_CACHE = [];
 let NANDA_HISTORICO_CACHE = [];
@@ -894,7 +902,7 @@ function mostrarView(nome){
   if (nome==="relatorio") renderFormularioRelatorio();
   if (nome==="reativacao") renderReativacao();
   if (nome==="nanda") renderGestaoNanda();
-  if (nome==="admin"){ renderDashboardExecutivo(); renderUsuariosLista(); renderCentralReativacaoAdmin(); renderRankingAdmin(); renderDestaquesEquipe(); renderAlertasEquipe(); renderFaltas10Admin(); renderMetasAdmin(); renderNandaAdmin(); aplicarOrdemSecoesAdmin(); }
+  if (nome==="admin"){ renderPeriodoAdminGlobal(); renderDashboardExecutivo(); renderUsuariosLista(); renderCentralReativacaoAdmin(); renderRankingAdmin(); renderDestaquesEquipe(); renderAlertasEquipe(); renderFaltas10Admin(); renderMetasAdmin(); renderNandaAdmin(); aplicarOrdemSecoesAdmin(); }
 }
 
 /* =========================================================================
@@ -1277,22 +1285,7 @@ function renderGraficosIEC(linhas){
   `;
 }
 
-let PERIODO_RANKING_IEC = "mes";
-let MES_ESPECIFICO_RANKING = "";
 let CRC_DETALHE_IEC_ABERTA = "";
-function alternarPeriodoRankingIEC(periodo){
-  PERIODO_RANKING_IEC = periodo;
-  if (periodo==="mes-especifico" && !MES_ESPECIFICO_RANKING) MES_ESPECIFICO_RANKING = mesesDisponiveis()[0];
-  renderRankingAdmin();
-  renderDestaquesEquipe();
-  renderAlertasEquipe();
-}
-function selecionarMesRanking(mes){
-  MES_ESPECIFICO_RANKING = mes;
-  renderRankingAdmin();
-  renderDestaquesEquipe();
-  renderAlertasEquipe();
-}
 function alternarDetalheCRC(email){
   CRC_DETALHE_IEC_ABERTA = CRC_DETALHE_IEC_ABERTA===email ? "" : email;
   renderRankingAdmin();
@@ -1306,7 +1299,7 @@ function renderRankingAdmin(){
     el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
     return;
   }
-  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_RANKING_IEC, MES_ESPECIFICO_RANKING);
+  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_ADMIN, MES_ESPECIFICO_ADMIN);
   const todasLinhas = [...elegiveis, ...naoElegiveis];
   const contexto = calcularContextoEquipe(todasLinhas);
   const medalhas = ["🥇","🥈","🥉"];
@@ -1335,13 +1328,12 @@ function renderRankingAdmin(){
   };
 
   el.innerHTML = `
-    <div style="margin-bottom:14px;">${pillsPeriodoHtml([["dia","Diário"],["semana","Semanal"],["mes","Mensal"],["historico","Histórico"],["mes-especifico","📅 Mês específico"]], PERIODO_RANKING_IEC, MES_ESPECIFICO_RANKING, "alternarPeriodoRankingIEC", "selecionarMesRanking")}</div>
     <table class="tabela-usuarios">
       <tr><th>#</th><th>CRC</th><th>IEC</th><th>Classificação</th><th>Faltas a cada 10 agendados</th></tr>
       ${elegiveis.map((l,i) => linhaHtml(l,i)).join("")}
       ${naoElegiveis.map(l => linhaHtml(l,null)).join("")}
     </table>
-    ${PERIODO_RANKING_IEC==="mes" ? `
+    ${PERIODO_ADMIN==="mes" ? `
       <p style="font-size:11px;color:var(--text-light);margin-top:10px;">Para concorrer ao título de melhor CRC do mês: mínimo de ${IEC_LIMITES.minAgendamentosRanking} agendamentos e ${IEC_LIMITES.minAtingimentoMetaRanking}% da meta de agendamentos batida — além disso, a gestão verifica manualmente se os status estão atualizados e se não há agendamentos duplicados, artificiais, reagendamentos contados como novos pacientes ou remarcações contadas como comparecimento.</p>
     ` : ""}
     ${renderGraficosIEC(todasLinhas.filter(l => !l.iecInfo.semDados))}
@@ -1357,7 +1349,7 @@ function renderDestaquesEquipe(){
     el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
     return;
   }
-  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_RANKING_IEC, MES_ESPECIFICO_RANKING);
+  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_ADMIN, MES_ESPECIFICO_ADMIN);
   const linhas = [...elegiveis, ...naoElegiveis].filter(l => !l.iecInfo.semDados);
   if (!linhas.length){
     el.innerHTML = `<p class="usuarios-vazio">Sem relatórios neste recorte ainda.</p>`;
@@ -1395,7 +1387,7 @@ function renderAlertasEquipe(){
     el.innerHTML = `<p class="usuarios-vazio">Nenhuma CRC cadastrada ainda.</p>`;
     return;
   }
-  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_RANKING_IEC, MES_ESPECIFICO_RANKING);
+  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_ADMIN, MES_ESPECIFICO_ADMIN);
   const linhas = [...elegiveis, ...naoElegiveis].filter(l => !l.iecInfo.semDados);
   if (!linhas.length){
     el.innerHTML = `<p class="usuarios-vazio">Sem relatórios neste recorte ainda.</p>`;
@@ -1430,18 +1422,6 @@ function renderAlertasEquipe(){
   `;
 }
 
-let PERIODO_FALTAS10 = "mes";
-let MES_ESPECIFICO_FALTAS10 = "";
-function alternarPeriodoFaltas10(periodo){
-  PERIODO_FALTAS10 = periodo;
-  if (periodo==="mes-especifico" && !MES_ESPECIFICO_FALTAS10) MES_ESPECIFICO_FALTAS10 = mesesDisponiveis()[0];
-  renderFaltas10Admin();
-}
-function selecionarMesFaltas10(mes){
-  MES_ESPECIFICO_FALTAS10 = mes;
-  renderFaltas10Admin();
-}
-
 /** Seta de evolução do faltas/10 — ao contrário do IEC, aqui SUBIR é ruim (mais faltas) e DESCER é bom. */
 function setaEvolucaoFaltas10(atual, anterior){
   if (anterior===null || anterior===undefined) return { seta:"", cor:"var(--text-light)", texto:"sem período anterior pra comparar" };
@@ -1461,11 +1441,9 @@ function renderFaltas10Admin(){
     return;
   }
 
-  const pillsHtml = `
-    <div style="margin-bottom:10px;">${pillsPeriodoHtml([["dia","Diário"],["semana","Semanal"],["mes","Mensal"],["trimestre","Trimestral"],["historico","Histórico"],["mes-especifico","📅 Mês específico"]], PERIODO_FALTAS10, MES_ESPECIFICO_FALTAS10, "alternarPeriodoFaltas10", "selecionarMesFaltas10")}</div>
-  `;
+  const pillsHtml = ""; // período agora é escolhido uma vez só, no controle global do topo (renderPeriodoAdminGlobal)
 
-  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_FALTAS10, MES_ESPECIFICO_FALTAS10);
+  const { elegiveis, naoElegiveis } = calcularRankingIEC(crcsAtivas, PERIODO_ADMIN, MES_ESPECIFICO_ADMIN);
   const linhas = [...elegiveis, ...naoElegiveis].filter(l => !l.iecInfo.semDados);
   if (!linhas.length){
     el.innerHTML = pillsHtml + `<p class="usuarios-vazio">Sem relatórios neste recorte ainda.</p>`;
@@ -2341,18 +2319,40 @@ function filtrarRelatoriosPorPeriodo(lista, periodo, mesEscolhido){
     const limiteISO = dataLocalISO(limite);
     return lista.filter(r => r.data >= limiteISO && r.data <= hoje);
   }
+  if (periodo === "trimestre"){
+    const limite = new Date();
+    limite.setDate(limite.getDate()-89);
+    const limiteISO = dataLocalISO(limite);
+    return lista.filter(r => r.data >= limiteISO && r.data <= hoje);
+  }
   if (periodo === "mes-especifico" && mesEscolhido) return lista.filter(r => String(r.data||"").slice(0,7)===mesEscolhido);
   return lista;
 }
 
-function alternarPeriodoDashboard(periodo){
-  PERIODO_DASHBOARD = periodo;
-  if (periodo==="mes-especifico" && !MES_ESPECIFICO_DASHBOARD) MES_ESPECIFICO_DASHBOARD = mesesDisponiveis()[0];
+/** Período único do painel admin — troca o recorte em todos os painéis de uma vez (Dashboard Executivo, Ranking/Destaques/Alertas, Faltas/10), pra não ficar cada um num período diferente. */
+function alternarPeriodoAdmin(periodo){
+  PERIODO_ADMIN = periodo;
+  if (periodo==="mes-especifico" && !MES_ESPECIFICO_ADMIN) MES_ESPECIFICO_ADMIN = mesesDisponiveis()[0];
+  renderPeriodoAdminGlobal();
   renderDashboardExecutivo();
+  renderRankingAdmin();
+  renderDestaquesEquipe();
+  renderAlertasEquipe();
+  renderFaltas10Admin();
 }
-function selecionarMesDashboard(mes){
-  MES_ESPECIFICO_DASHBOARD = mes;
+function selecionarMesAdmin(mes){
+  MES_ESPECIFICO_ADMIN = mes;
+  renderPeriodoAdminGlobal();
   renderDashboardExecutivo();
+  renderRankingAdmin();
+  renderDestaquesEquipe();
+  renderAlertasEquipe();
+  renderFaltas10Admin();
+}
+function renderPeriodoAdminGlobal(){
+  const el = document.getElementById("periodo-admin-global");
+  if (!el) return;
+  el.innerHTML = pillsPeriodoHtml([["dia","Diário"],["semana","Semanal"],["mes","Mensal"],["trimestre","Trimestral"],["historico","Histórico"],["mes-especifico","📅 Mês específico"]], PERIODO_ADMIN, MES_ESPECIFICO_ADMIN, "alternarPeriodoAdmin", "selecionarMesAdmin");
 }
 
 function selecionarCrcDashboard(email){
@@ -2512,6 +2512,7 @@ function renderGraficosTendencia(crcsAtivas){
 /** Divisor e rótulo da "média" do Funil de Leads — mensal usa dias corridos do mês (não o mês inteiro, senão um mês ainda em andamento ficaria sub-representado), semanal usa os 7 dias fixos da janela "últimos 7 dias", histórico usa quantos meses distintos entraram na soma, mês específico usa os dias corridos daquele mês (todos, se já passou, ou só os já decorridos, se for o mês atual). Diário não mostra média (já é um dia só). */
 function calcularDivisorMediaFunil(periodo, relatoriosFiltrados, mesEscolhido){
   if (periodo==="semana") return { divisor:7, rotulo:"Média diária (últimos 7 dias)" };
+  if (periodo==="trimestre") return { divisor:90, rotulo:"Média diária (últimos 90 dias)" };
   if (periodo==="mes") return { divisor: new Date().getDate(), rotulo:"Média diária (mês)" };
   if (periodo==="historico"){
     const meses = new Set(relatoriosFiltrados.map(r => String(r.data||"").slice(0,7)));
@@ -2535,7 +2536,6 @@ function renderDashboardExecutivo(){
 
   const controlesHtml = `
     <div class="dash-exec-controles">
-      ${pillsPeriodoHtml([["dia","Diário"],["semana","Semanal"],["mes","Mensal"],["historico","Histórico"],["mes-especifico","📅 Mês específico"]], PERIODO_DASHBOARD, MES_ESPECIFICO_DASHBOARD, "alternarPeriodoDashboard", "selecionarMesDashboard")}
       <div class="pill-group">
         <button class="pill ${!CRC_SELECIONADA_DASHBOARD?'ativo':''}" onclick="App.selecionarCrcDashboard('')">Total</button>
         ${crcsAtivas.map(u => `
@@ -2552,8 +2552,8 @@ function renderDashboardExecutivo(){
   }
 
   const filtroCrc = r => emailsAtivos.has(r.crcEmail) && (!CRC_SELECIONADA_DASHBOARD || r.crcEmail===CRC_SELECIONADA_DASHBOARD);
-  const fonteDashboard = (PERIODO_DASHBOARD==="historico" || PERIODO_DASHBOARD==="mes-especifico") ? RELATORIOS_TODOS_CACHE : RELATORIOS_MES_CACHE;
-  const relatoriosFiltrados = filtrarRelatoriosPorPeriodo(fonteDashboard.filter(filtroCrc), PERIODO_DASHBOARD, MES_ESPECIFICO_DASHBOARD);
+  const fonteDashboard = (PERIODO_ADMIN==="historico" || PERIODO_ADMIN==="mes-especifico" || PERIODO_ADMIN==="trimestre") ? RELATORIOS_TODOS_CACHE : RELATORIOS_MES_CACHE;
+  const relatoriosFiltrados = filtrarRelatoriosPorPeriodo(fonteDashboard.filter(filtroCrc), PERIODO_ADMIN, MES_ESPECIFICO_ADMIN);
   const oportunidadesFiltradas = OPORTUNIDADES_MES_CACHE.filter(filtroCrc);
 
   const a = calcularAnaliseExecutiva(relatoriosFiltrados, oportunidadesFiltradas);
@@ -2565,8 +2565,8 @@ function renderDashboardExecutivo(){
     return;
   }
   const pct = v => v===null ? "—" : Math.round(v*100)+"%";
-  const periodoLabel = PERIODO_DASHBOARD==="mes-especifico" ? mesLabelCurto(MES_ESPECIFICO_DASHBOARD) : { dia:"hoje", semana:"últimos 7 dias", mes:"mês", historico:"todo o histórico" }[PERIODO_DASHBOARD];
-  const divisorMedia = calcularDivisorMediaFunil(PERIODO_DASHBOARD, relatoriosFiltrados, MES_ESPECIFICO_DASHBOARD);
+  const periodoLabel = PERIODO_ADMIN==="mes-especifico" ? mesLabelCurto(MES_ESPECIFICO_ADMIN) : { dia:"hoje", semana:"últimos 7 dias", mes:"mês", trimestre:"últimos 90 dias", historico:"todo o histórico" }[PERIODO_ADMIN];
+  const divisorMedia = calcularDivisorMediaFunil(PERIODO_ADMIN, relatoriosFiltrados, MES_ESPECIFICO_ADMIN);
   const maiorFunil = Math.max(a.funilLeads.entraram, 1);
   const maiorAgendados = Math.max(a.comparecimento.agendados, 1);
   const maiorResgate = Math.max(a.resgate.trabalhados, 1);
@@ -3549,13 +3549,13 @@ window.App = {
   cancelarMotivo, confirmarMotivo, registrarTentativa,
   cancelarRemocao, confirmarRemocao, alternarDetalheIECRC,
   alternarDetalheMeta, salvarMetaCRC, alternarAtivoUsuario,
-  alternarEdicaoMeta, alternarPeriodoDashboard, selecionarCrcDashboard,
-  alternarPeriodoRankingIEC, alternarDetalheCRC, alternarDetalheIEC,
+  alternarEdicaoMeta, selecionarCrcDashboard,
+  alternarDetalheCRC, alternarDetalheIEC,
   abrirGestaoNanda, alternarPeriodoNanda, abrirFormularioNanda, fecharFormularioNanda, salvarNandaForm,
   selecionarNovoStatusAdmin, cancelarMotivoAdmin, cancelarRemocaoAdmin, confirmarRemocaoAdmin, confirmarMotivoAdmin,
-  alternarPeriodoFaltas10, alternarEdicaoMetaNanda, salvarMetaNandaCRC,
+  alternarEdicaoMetaNanda, salvarMetaNandaCRC,
   resetarOrdemSecoesAdmin, resetarOrdemCardsDashboard,
-  selecionarMesDashboard, selecionarMesRanking, selecionarMesFaltas10
+  alternarPeriodoAdmin, selecionarMesAdmin
 };
 
 init();
