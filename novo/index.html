@@ -754,7 +754,10 @@ function iniciarLogin(){
     setTimeout(iniciarLogin, 300); // biblioteca do Google ainda carregando (async defer)
     return;
   }
-  google.accounts.id.initialize({ client_id: CONFIG.GOOGLE_CLIENT_ID, callback: handleCredentialResponse });
+  // use_fedcm_for_button: usa a API nativa de credenciais do navegador em vez de popup/iframe
+  // de terceiros — resolve o login "não abre nada" em navegadores que bloqueiam cookies de
+  // terceiros por padrão (Brave, modo anônimo, Chrome com privacidade reforçada, etc.).
+  google.accounts.id.initialize({ client_id: CONFIG.GOOGLE_CLIENT_ID, callback: handleCredentialResponse, use_fedcm_for_button: true });
   google.accounts.id.renderButton(wrap, { theme:"outline", size:"large", text:"signin_with" });
 }
 
