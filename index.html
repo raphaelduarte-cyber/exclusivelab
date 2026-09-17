@@ -368,7 +368,7 @@ const CONFIG_ARQUIVAMENTO_DIAS = 30;
 const STATUS_PRODUCAO = "Em produção (lotes)";
 // Só caso externo passa por aqui — depois de produzido, fica aguardando
 // envio/entrega/pagamento até um administrador finalizar explicitamente
-// (ver finalizarCasoExterno). Interno finaliza sozinho, sem passar por essa etapa.
+// (ver finalizarCasoAdmin). Interno finaliza sozinho, sem passar por essa etapa.
 const STATUS_ENTREGA_FINANCEIRO = "Entrega / Financeiro";
 
 const FLOW_INTERNO = [
@@ -717,9 +717,19 @@ function collectChecked(idPrefix, numbers){
 }
 function checkboxGridHTML(idPrefix, numbers, checkedSet){
   if (!numbers.length) return `<p style="font-size:12px;color:var(--text-light);">Nenhuma placa nesta arcada.</p>`;
-  return `<div style="display:flex;flex-wrap:wrap;gap:6px;">${numbers.map(n=>`
+  // Sem checkedSet explícito, marca todas por padrão — selecionar todas as
+  // placas disponíveis é o caso comum (ex.: criar lote com tudo que está
+  // pendente); ainda dá pra desmarcar individualmente ou usar o link
+  // "desmarcar todas" quando o caso for parcial.
+  const marcados = checkedSet || new Set(numbers);
+  return `
+    <div style="margin-bottom:4px;">
+      <button type="button" class="linkbtn" onclick="App.toggleTodosCheckbox('${idPrefix}', true)">marcar todas</button>
+      · <button type="button" class="linkbtn" onclick="App.toggleTodosCheckbox('${idPrefix}', false)">desmarcar todas</button>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">${numbers.map(n=>`
     <label style="display:flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12.5px;font-weight:600;text-transform:none;">
-      <input type="checkbox" id="${idPrefix}-${n}" value="${n}" ${checkedSet&&checkedSet.has(n)?"checked":""}> ${n}
+      <input type="checkbox" id="${idPrefix}-${n}" value="${n}" ${marcados.has(n)?"checked":""}> ${n}
     </label>`).join("")}</div>`;
 }
 // Seletor de 3 opções por placa (OK / Reimprimir / Foi impresso novamente)
@@ -871,6 +881,60 @@ function completoTotal(caso){
   const lotes = caso.lotes || [];
   if (!lotes.length) return false;
   return lotes.every(l => loteEtapaAtual(l)==="concluido");
+}
+
+// Rótulo legível por status de item/placa individual (usado só pra montar
+// a lista de pendências abaixo — "cinza"/recebido nunca entra na lista,
+// já está concluído).
+const ITEM_STATUS_LABEL_PENDENCIA = {
+  branco: "aguardando impressão", verde: "impresso, aguardando confecção/entrega",
+  vermelho: "reimpressão pendente", laranja: "impressa novamente, aguardando conferência",
+  azul: "confeccionado, aguardando entrega", amarelo: "entregue, aguardando recebimento"
+};
+// Lista legível do que ainda falta pra um caso estar genuinamente completo
+// — nunca bloqueia nada sozinha, é só leitura. Usada no box de pendências
+// da ficha (visível pra qualquer usuário) e na confirmação do "Finalizar
+// caso" administrativo (ver finalizarCasoAdmin), pra quem for pular etapas
+// saber exatamente o que está ignorando.
+function calcularPendencias(caso){
+  const pend = [];
+  if (ehTipoAlinhadores(caso)){
+    if (!planejamentoValido(caso)){
+      pend.push("Planejamento de placas ainda não definido");
+    } else {
+      const pendPlacas = placasPendentesNovoLote(caso);
+      if (pendPlacas.sup.length || pendPlacas.inf.length){
+        pend.push(`Placas ainda sem lote: sup. ${fmtRanges(pendPlacas.sup,"nenhuma")} · inf. ${fmtRanges(pendPlacas.inf,"nenhuma")}`);
+      }
+      (caso.lotes||[]).forEach(l=>{
+        const etapa = loteEtapaAtual(l);
+        if (etapa!=="concluido") pend.push(`Lote ${l.numero}: ${LOTE_ETAPA_LABEL[etapa]}`);
+      });
+      if (caso.planejamento?.relatorio && !caso.planejamento.relatorio.impressao){
+        pend.push("Relatório do planejamento ainda não foi marcado como impresso");
+      }
+    }
+  } else {
+    const itens = itensDoCaso(caso);
+    if (!itens.length){
+      pend.push("Nenhum item de produção cadastrado");
+    } else {
+      itens.forEach(it=>{
+        const st = itemStatus(caso, it.id);
+        if (st!=="cinza") pend.push(`${it.label}: ${ITEM_STATUS_LABEL_PENDENCIA[st]||st}`);
+      });
+    }
+  }
+  if (caso.tipoCaso==="externo"){
+    if (!caso.externo?.dataAprovacaoPlanejamento) pend.push("Planejamento externo ainda não foi aprovado");
+    if (!caso.financeiro){
+      pend.push("Financeiro ainda não definido");
+    } else {
+      const fs = financeiroStatus(caso);
+      if (fs && fs!==FINANCEIRO_STATUS.PAGO) pend.push(`Financeiro: ${fs} (restante R$ ${financeiroRestante(caso).toFixed(2)})`);
+    }
+  }
+  return pend;
 }
 
 /* =========================================================================
@@ -1026,12 +1090,31 @@ function itensLegendaHTML(caso){
     <span><span class="plate-chip recebido">•</span> recebido pela ASB</span>
   </div>`;
 }
-function itemCheckboxGridHTML(idPrefix, itens){
+// marcarTodosPorPadrao=true (padrão): cada item já nasce marcado — a
+// lista recebida (elegiveis) já veio pré-filtrada pra exatamente quem
+// deveria ser incluído naquela ação (ex.: "registrar impressão" só lista
+// quem ainda não foi impresso), então marcar tudo é sempre a intenção
+// certa e evita reselecionar o mesmo item em cada modal. Passar false
+// (ver promptReimpressaoNecessariaItens) pra ações de exceção, onde
+// sinalizar um problema precisa ser uma escolha deliberada, nunca padrão.
+function itemCheckboxGridHTML(idPrefix, itens, marcarTodosPorPadrao){
   if (!itens.length) return `<p style="font-size:12px;color:var(--text-light);">Nenhum item disponível.</p>`;
-  return `<div style="display:flex;flex-wrap:wrap;gap:6px;">${itens.map(it=>`
+  if (marcarTodosPorPadrao===undefined) marcarTodosPorPadrao = true;
+  return `
+    <div style="margin-bottom:4px;">
+      <button type="button" class="linkbtn" onclick="App.toggleTodosCheckbox('${idPrefix}', true)">marcar todas</button>
+      · <button type="button" class="linkbtn" onclick="App.toggleTodosCheckbox('${idPrefix}', false)">desmarcar todas</button>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">${itens.map(it=>`
     <label style="display:flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12.5px;font-weight:600;text-transform:none;">
-      <input type="checkbox" id="${idPrefix}-${it.id}" value="${it.id}"> ${esc(it.label)}
+      <input type="checkbox" id="${idPrefix}-${it.id}" value="${it.id}" ${marcarTodosPorPadrao?"checked":""}> ${esc(it.label)}
     </label>`).join("")}</div>`;
+}
+// Marca/desmarca de uma vez todos os checkboxes de um grid (id começando
+// com idPrefix+"-") — usado pelos links "marcar/desmarcar todas" acima de
+// checkboxGridHTML e itemCheckboxGridHTML.
+function toggleTodosCheckbox(idPrefix, marcar){
+  document.querySelectorAll(`input[type="checkbox"][id^="${idPrefix}-"]`).forEach(el=>{ el.checked = marcar; });
 }
 function collectCheckedItens(idPrefix, itens){
   return itens.filter(it=>{ const el=document.getElementById(`${idPrefix}-${it.id}`); return el && el.checked; }).map(it=>it.id);
@@ -1556,13 +1639,27 @@ function render(){
 /* =========================================================================
    AÇÕES DE FLUXO GENÉRICAS
    ========================================================================= */
-function canAdvanceGeneric(caso){
+// Regra pura do fluxo, sem considerar quem está logado — usada tanto por
+// canAdvanceGeneric (decide se o botão "Avançar" genérico funciona pra
+// quem não é administrador) quanto por avancar() (decide se um
+// administrador está de fato pulando uma trava, pra registrar isso no
+// histórico).
+function avancarBloqueadoPorRegra(caso){
   // Contenção/modelo de estudo saem de "Caso recebido" só pela ação
   // nomeada "Pronto para impressão" (ver getActionsForCaso), nunca pelo
   // "Avançar" genérico — evita avanço acidental sem essa confirmação.
-  if (ehTipoItens(caso) && caso.statusAtual==="Caso recebido") return false;
+  if (ehTipoItens(caso) && caso.statusAtual==="Caso recebido") return true;
   const blocked = BLOCK_GENERIC_ADVANCE[caso.tipoCaso];
-  return !(blocked && blocked.has(caso.statusAtual)) && caso.statusAtual!=="Finalizado";
+  return !!(blocked && blocked.has(caso.statusAtual));
+}
+function canAdvanceGeneric(caso){
+  if (caso.statusAtual==="Finalizado") return false;
+  // Administrador nunca fica travado pelo fluxo — pode avançar/editar
+  // qualquer etapa a qualquer momento (ver avancar() pra onde isso fica
+  // registrado no histórico). Quem não é administrador continua sujeito
+  // às mesmas travas de sempre.
+  if (podeExcluir()) return true;
+  return !avancarBloqueadoPorRegra(caso);
 }
 
 async function avancar(id){
@@ -1576,15 +1673,23 @@ async function avancar(id){
     if (idx<0 || idx>=flow.length-1) return;
     novo = flow[idx+1];
   }
-  if (caso.tipoCaso==="externo" && novo===STATUS_PRODUCAO && !(caso.externo && caso.externo.dataAprovacaoPlanejamento)){
-    toast("Bloqueado: planejamento externo ainda não foi aprovado.");
-    return;
+  const aprovacaoPendente = caso.tipoCaso==="externo" && novo===STATUS_PRODUCAO && !(caso.externo && caso.externo.dataAprovacaoPlanejamento);
+  const planejamentoPendente = novo===STATUS_PRODUCAO && !planejamentoValido(caso);
+  if (!podeExcluir()){
+    if (aprovacaoPendente){
+      toast("Bloqueado: planejamento externo ainda não foi aprovado.");
+      return;
+    }
+    if (planejamentoPendente){
+      toast("Bloqueado: defina a quantidade de placas do planejamento (superior/inferior e placa 0) antes de avançar para produção.");
+      return;
+    }
   }
-  if (novo===STATUS_PRODUCAO && !planejamentoValido(caso)){
-    toast("Bloqueado: defina a quantidade de placas do planejamento (superior/inferior e placa 0) antes de avançar para produção.");
-    return;
-  }
-  changeStatus(caso, novo, "");
+  // Se um administrador chegou até aqui pulando uma trava que bloquearia
+  // qualquer outra pessoa, registra isso no histórico — fica rastreável
+  // quem avançou o quê sem a etapa estar de fato concluída.
+  const pulandoTrava = podeExcluir() && (avancarBloqueadoPorRegra(caso) || aprovacaoPendente || planejamentoPendente);
+  changeStatus(caso, novo, pulandoTrava ? "Avanço administrativo — pendência(s) ignorada(s)" : "");
   await persist(caso);
   toast(`Caso avançado para "${novo}"`);
 }
@@ -1633,20 +1738,27 @@ async function prontoParaImpressao(id){
   await persist(caso);
   abrirFicha(id); toast("Caso pronto para impressão — avançou para produção.");
 }
-// Só administrador finaliza caso externo (reaproveita podeExcluir, mesmo
-// flag de administrador — sem criar uma permissão nova só pra isso).
-// Usuário comum pode registrar envio/entrega/pagamento normalmente
-// enquanto o caso estiver em "Entrega / Financeiro", só não finaliza.
-async function finalizarCasoExterno(id){
-  if (!podeExcluir()){ toast("A finalização de casos externos é permitida apenas para administradores."); return; }
-  if (!confirm("Atenção: este caso externo será finalizado administrativamente. Confirme para continuar.")) return;
+// "Finalizar caso" administrativo — só administrador (reaproveita
+// podeExcluir, mesma flag de sempre, sem criar uma permissão nova só pra
+// isso), mas disponível em QUALQUER caso/etapa, não só externo em Entrega
+// / Financeiro. Usuário comum continua podendo registrar envio/entrega/
+// pagamento/etc. normalmente, só não finaliza pulando pendências.
+// calcularPendencias mostra exatamente o que está sendo ignorado antes de
+// confirmar, e fica registrado no histórico do caso.
+async function finalizarCasoAdmin(id){
+  if (!podeExcluir()){ toast("A finalização manual é permitida apenas para administradores."); return; }
   const caso = findCaso(id);
+  const pendencias = calcularPendencias(caso);
+  const aviso = pendencias.length
+    ? `Atenção: este caso será finalizado administrativamente mesmo com pendências:\n\n• ${pendencias.join("\n• ")}\n\nConfirme para continuar.`
+    : `Este caso será finalizado administrativamente. Confirme para continuar.`;
+  if (!confirm(aviso)) return;
   caso.dataConclusaoReal = todayISO();
   caso.finalizadoPor = OPERADOR;
-  changeStatus(caso, "Finalizado", "Finalização administrativa");
+  changeStatus(caso, "Finalizado", pendencias.length ? `Finalização administrativa — pendência(s) ignorada(s): ${pendencias.join("; ")}` : "Finalização administrativa");
   limparRelatorioAoFinalizar(caso);
   await persist(caso);
-  abrirFicha(id); toast("Caso externo finalizado.");
+  abrirFicha(id); toast("Caso finalizado.");
 }
 async function excluirCaso(id){
   if (!podeExcluir()){ toast("Apenas administradores podem excluir."); return; }
@@ -2263,10 +2375,14 @@ function getActionsForCaso(caso){
     actions.push({label: caso.financeiro ? "Editar financeiro" : "Definir financeiro", fn:()=>promptFinanceiro(caso.id)});
     if (caso.financeiro) actions.push({label:"Sinalizar pagamento", fn:()=>promptSinalizarPagamento(caso.id)});
   }
-  // Só nessa etapa existe a ação de finalizar — e só administrador consegue
-  // de fato (finalizarCasoExterno recusa e avisa quem não for).
-  if (ext && s===STATUS_ENTREGA_FINANCEIRO){
-    actions.push({label:"Finalizar caso externo", fn:()=>finalizarCasoExterno(caso.id)});
+  // "Finalizar caso" fica sempre disponível pra administrador, em
+  // qualquer etapa e qualquer tipo — pula qualquer pendência restante
+  // (lotes incompletos, relatório não impresso, aprovação externa,
+  // financeiro em aberto etc.), mostrando antes exatamente o que está
+  // sendo ignorado (ver finalizarCasoAdmin/calcularPendencias). Usuário
+  // comum nunca vê essa ação.
+  if (podeExcluir() && s!=="Finalizado"){
+    actions.push({label:"Finalizar caso", fn:()=>finalizarCasoAdmin(caso.id)});
   }
   return actions;
 }
@@ -2444,6 +2560,10 @@ function fichaCompletaHTML(caso){
       <div><span class="k">Setor responsável</span><span class="v">${esc(caso.setorResponsavelEtapaAtual)||"—"}</span></div>
       <div><span class="k">Responsável pela etapa</span><span class="v">${esc(caso.responsavelEtapaAtual)||"—"}</span></div>
     </div>
+
+    ${caso.statusAtual!=="Finalizado" && calcularPendencias(caso).length ? `
+    <div class="warn-box"><b>⚠ Pendências para finalizar</b><br>${calcularPendencias(caso).map(p=>`• ${esc(p)}`).join("<br>")}</div>
+    ` : ""}
 
     ${ehTipoAlinhadores(caso) ? `
     <div class="section-title">Planejamento de placas</div>
@@ -2726,7 +2846,7 @@ function promptRecebimentoLote(casoId, loteId){
 }
 // Chamado quando completoTotal(caso) vira true. Interno finaliza sozinho,
 // como sempre; externo só vai pra "Entrega / Financeiro" — aguarda um
-// administrador finalizar explicitamente (ver finalizarCasoExterno), já
+// administrador finalizar explicitamente (ver finalizarCasoAdmin), já
 // que ainda pode faltar entrega física e/ou pagamento.
 // Move o relatório pra lixeira do Drive assim que o caso vira "Finalizado"
 // — evita acumular espaço com arquivos de casos já entregues. Não é
@@ -2745,11 +2865,14 @@ function limparRelatorioAoFinalizar(caso){
 }
 function concluirProducao(caso, motivoFinalizacao){
   // Pra alinhadores, a impressão do relatório do planejamento é mais uma
-  // etapa da produção — mesmo com todos os lotes/itens já recebidos, o
-  // caso só finaliza (ou vai pra Entrega/Financeiro, se externo) depois
-  // que o relatório for marcado como impresso (ver marcarRelatorioImpresso,
-  // que chama concluirProducao de novo assim que isso acontecer).
-  if (ehTipoAlinhadores(caso) && !caso.planejamento?.relatorio?.impressao){
+  // etapa da produção — mas só quando um relatório foi de fato anexado.
+  // Se existe um relatório e ele ainda não foi marcado como impresso,
+  // segura o caso em Produção (ver marcarRelatorioImpresso, que chama
+  // concluirProducao de novo assim que isso acontecer). Se nenhum
+  // relatório nunca foi anexado, não bloqueia nada — o campo é opcional
+  // de verdade (ver promptPlanejamento), então não pode travar o caso
+  // pra sempre só por ninguém ter anexado um.
+  if (ehTipoAlinhadores(caso) && caso.planejamento?.relatorio && !caso.planejamento.relatorio.impressao){
     logHistorico(caso, caso.statusAtual, caso.statusAtual, "Todos os lotes recebidos, mas aguardando impressão do relatório do planejamento para concluir a produção");
     return;
   }
@@ -2817,7 +2940,7 @@ function promptReimpressaoNecessariaItens(id){
   if (!elegiveis.length){ toast("Não há itens elegíveis para reimpressão."); return; }
   openModal("Registrar reimpressão necessária", `
     <p style="font-size:12px;color:var(--text-light);">Marque os itens que precisam ser reimpressos.</p>
-    ${itemCheckboxGridHTML("rni", elegiveis)}
+    ${itemCheckboxGridHTML("rni", elegiveis, false)}
     <div class="form-grid" style="margin-top:12px;">
       <div class="field full"><label>Motivo (opcional)</label><textarea id="p-motivo"></textarea></div>
     </div>
@@ -3424,7 +3547,7 @@ window.App = {
   __runAction, __submitPlanejamento, promptPlanejamento,
   aprovarPlanejamento, solicitarAjuste, promptAprovacao, promptAjuste, prontoParaImpressao,
   promptCriarLote, __submitCriarLote,
-  promptFinanceiro, __submitFinanceiro, promptSinalizarPagamento, __submitSinalizarPagamento, finalizarCasoExterno,
+  promptFinanceiro, __submitFinanceiro, promptSinalizarPagamento, __submitSinalizarPagamento, finalizarCasoAdmin,
   promptAnexarRelatorio, __submitAnexarRelatorio, marcarRelatorioImpresso,
   promptConferenciaImpressaoLote, __submitConferenciaImpressaoLote,
   promptFinalizacaoLote, __submitFinalizacaoLote,
@@ -3435,7 +3558,8 @@ window.App = {
   promptReimpressaoConcluidaItens, __submitReimpressaoConcluidaItens,
   promptConfeccaoItens, __submitConfeccaoItens,
   promptEntregaItens, __submitEntregaItens,
-  promptRecebimentoItens, __submitRecebimentoItens
+  promptRecebimentoItens, __submitRecebimentoItens,
+  toggleTodosCheckbox
 };
 
 init();

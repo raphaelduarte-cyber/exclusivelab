@@ -77,6 +77,12 @@ O painel valida o token recebido direto no backend (Apps Script, ver
 profissionais do cadastro — qualquer pessoa logada continua podendo cadastrar,
 editar, ativar/desativar profissionais normalmente.
 
+**Administradores também podem avançar/editar qualquer etapa e finalizar
+qualquer caso a qualquer momento**, mesmo pulando pendências (lotes
+incompletos, relatório não impresso, aprovação externa, financeiro em
+aberto etc.) — ver seção 2.4-D. Usuários comuns continuam travados pelas
+mesmas regras de sempre; nenhum comportamento muda pra eles.
+
 A sessão fica em `localStorage`: sobrevive a fechar a aba ou reiniciar o
 navegador, então em computadores de uso individual (a maioria dos casos hoje)
 não é preciso logar de novo toda vez. Um link "sair" no cabeçalho encerra a
@@ -253,8 +259,12 @@ tooltip explicando o bloqueio).
 **Placas ainda não incluídas em nenhum lote** ficam disponíveis na área
 "Placas pendentes para novo lote", com o botão **Criar novo lote**: o
 operador marca (checkbox individual, não faixa obrigatória) exatamente quais
-placas — superiores e inferiores — vão compor o próximo lote. Um caso pode
-ter vários lotes simultâneos em estágios diferentes.
+placas — superiores e inferiores — vão compor o próximo lote. Todas as
+placas pendentes já vêm **marcadas por padrão** (o caso comum é formar o
+lote com tudo que está disponível) — um link "marcar todas / desmarcar
+todas" acima da grade (`checkboxGridHTML`/`toggleTodosCheckbox`) ajuda
+quando o lote precisa ser parcial. Um caso pode ter vários lotes
+simultâneos em estágios diferentes.
 
 **Criar o lote já registra a impressão.** Não existe um botão separado de
 "Registrar modelos impressos": ao confirmar a criação do lote, o sistema
@@ -444,25 +454,60 @@ itens de contenção/modelo):
   (`canAdvanceGeneric`) — só a ação nomeada resolve.
 
 Na ficha, com o caso em "Entrega / Financeiro", aparece o botão
-**"Finalizar caso externo"** (`finalizarCasoExterno`) — **restrito a
-administradores**:
-
-- Quem não é administrador (`podeExcluir()` falso) recebe o aviso: *"A
-  finalização de casos externos é permitida apenas para
-  administradores."* e nada muda — a pessoa continua podendo registrar
-  envio, entrega e sinalizar pagamento normalmente, só não pode finalizar.
-- Administrador recebe a confirmação: *"Atenção: este caso externo será
-  finalizado administrativamente. Confirme para continuar."* — só ao
-  confirmar o caso vira "Finalizado", com `dataConclusaoReal`/
-  `finalizadoPor` preenchidos e o histórico registrando a observação
-  **"Finalização administrativa"** (diferente do interno, que nunca tem
-  essa observação — assim dá pra distinguir os dois tipos de finalização
-  olhando só o histórico).
+**"Finalizar caso"** (`finalizarCasoAdmin`, ver seção 2.4-D) — restrito a
+administradores. Usuário comum continua podendo registrar envio, entrega
+e sinalizar pagamento normalmente enquanto o caso estiver nessa coluna,
+só não pode finalizar.
 
 Essa trava existe de propósito para casos externos: produção pronta não
 significa "resolvido" — falta confirmar entrega e fechamento financeiro
 com o cliente/clínica externa antes de arquivar o caso como concluído, e
 isso deve ser uma decisão de quem tem visão administrativa, não automática.
+
+### 2.4-D Administrador: avança/edita qualquer etapa e finaliza a qualquer momento
+
+Nenhuma das travas de fluxo do sistema (aprovação externa pendente,
+planejamento não definido, `BLOCK_GENERIC_ADVANCE` bloqueando o "Avançar"
+genérico em Produção/Aprovação/Entrega-Financeiro, relatório não
+impresso) tem exceção pra ninguém por padrão — inclusive pra quem é
+administrador. A única diferença de administrador é a flag
+`podeExcluir()`, e a partir desta versão ela também libera:
+
+- **`canAdvanceGeneric(caso)`** (index.html) devolve sempre `true` pra
+  administrador (exceto em "Finalizado", que é terminal) — o botão
+  "Avançar" nunca fica cinza pra quem é admin.
+- **`avancar(id)`** pula as duas checagens extras de negócio (aprovação
+  externa pendente, planejamento não definido) quando quem está logado é
+  administrador. Sempre que um avanço administrativo realmente pula uma
+  trava que bloquearia qualquer outra pessoa, o histórico do caso registra
+  a observação **"Avanço administrativo — pendência(s) ignorada(s)"** —
+  fica rastreável quem pulou o quê e quando.
+- **`calcularPendencias(caso)`** — nova função que lista em texto simples
+  tudo que ainda falta pro caso estar genuinamente completo (lotes fora
+  de "concluído", itens não recebidos, relatório do planejamento anexado
+  mas não impresso, aprovação externa pendente, financeiro em aberto).
+  Nunca bloqueia nada sozinha, é só leitura — aparece em dois lugares:
+  - Um box **"⚠ Pendências para finalizar"** na própria ficha do caso,
+    visível pra **qualquer usuário** (não só admin) sempre que a lista não
+    estiver vazia — ajuda a própria pessoa operando a entender exatamente
+    o que falta, sem tentativa e erro.
+  - Na confirmação do botão **"Finalizar caso"** (próximo item).
+- **"Finalizar caso"** (`finalizarCasoAdmin`) — substitui o antigo
+  "Finalizar caso externo": agora aparece **em qualquer caso, interno ou
+  externo, em qualquer etapa** (exceto já "Finalizado"), não só externo
+  em Entrega/Financeiro. Continua restrito a administrador — quem não é
+  recebe o aviso *"A finalização manual é permitida apenas para
+  administradores."*. Ao clicar, mostra a confirmação listando as
+  pendências atuais (ou uma confirmação simples, se não houver nenhuma) e,
+  ao confirmar, finaliza o caso na hora — preenchendo
+  `dataConclusaoReal`/`finalizadoPor` e registrando no histórico a
+  observação **"Finalização administrativa"** (sem pendências) ou
+  **"Finalização administrativa — pendência(s) ignorada(s): ..."**
+  (listando o que foi pulado), sempre distinguível de uma finalização
+  automática normal (que nunca leva essa observação).
+
+Usuário comum não vê nenhuma dessas mudanças — continua bloqueado
+exatamente pelas mesmas regras de sempre em todos os pontos.
 
 ### 2.5 Nomes dos botões de cada lote
 
@@ -502,9 +547,12 @@ estudo não têm planejamento. Dentro do próprio formulário "Definir placas
 do planejamento" (seção 2.6) existe um campo de upload de arquivo (PDF ou
 imagem, até 8MB) para o **relatório do planejamento** — o documento gerado
 pelo software de alinhadores com as instruções de impressão. É **opcional
-nesse momento**: salvar o planejamento não trava esperando o arquivo (dá
-pra anexar depois, ver abaixo) — mas ele **se torna obrigatório mais
-adiante**, antes de o caso poder finalizar (ver próximo parágrafo).
+de verdade**: salvar o planejamento não trava esperando o arquivo (dá pra
+anexar depois, ver abaixo), e um caso sem nenhum relatório anexado
+finaliza normalmente quando a produção terminar — ninguém fica travado só
+por não ter anexado nada. A regra do próximo parágrafo só vale **quando
+um relatório existe**: aí sim, ele precisa ser marcado como impresso
+antes do caso finalizar.
 
 **O arquivo em si não é guardado na planilha.** Uma célula do Google
 Sheets tem limite de 50.000 caracteres, e um relatório real em base64
@@ -529,12 +577,15 @@ espírito de "o banco guarda só o essencial" já usado no resto do sistema.
   numa aba nova** (pra já poder imprimir) e marca como impresso na mesma
   ação (`marcarRelatorioImpresso`, que registra responsável/data/hora).
   `concluirProducao` (chamada tanto pelo recebimento de lotes quanto pelo
-  de itens) **não finaliza o caso nem avança pra Entrega/Financeiro
-  enquanto o relatório não for marcado como impresso** — mesmo que todos
-  os lotes já tenham sido produzidos, entregues e recebidos, o caso fica
-  retido em Produção com um aviso no histórico até isso acontecer; se os
-  lotes já estavam completos, marcar como impresso conclui a produção
-  imediatamente na mesma ação.
+  de itens): **se existe um relatório anexado e ele ainda não foi
+  marcado como impresso**, não finaliza o caso nem avança pra
+  Entrega/Financeiro — mesmo que todos os lotes já tenham sido
+  produzidos, entregues e recebidos, o caso fica retido em Produção com
+  um aviso no histórico até isso acontecer; se os lotes já estavam
+  completos, marcar como impresso conclui a produção imediatamente na
+  mesma ação. Se **nenhum** relatório foi anexado, essa checagem nem
+  entra em jogo — o caso finaliza normalmente assim que a produção
+  terminar.
 - **Limpeza automática do Drive ao finalizar.** Assim que o caso vira
   "Finalizado" — seja pelo caminho automático interno
   (`concluirProducao`) ou pela finalização administrativa de caso externo
