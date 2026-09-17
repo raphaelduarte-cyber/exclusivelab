@@ -236,25 +236,44 @@ percorre sozinha todo o funil de produção:
 8. Recebimento pela ASB / cliente externo
 ```
 
-O estágio atual de cada lote (`loteEtapaAtual`) é **sempre calculado**, nunca
-guardado como campo solto — evita que a etapa visível fique dessincronizada
-do que realmente foi registrado:
+**Confecção, entrega e recebimento são ações por placa dentro do lote** —
+não é mais tudo-ou-nada pro lote inteiro. Um lote de 10 placas pode ter,
+ao mesmo tempo, algumas placas ainda aguardando confecção, outras já
+confeccionadas aguardando entrega, e outras já entregues aguardando
+recebimento — cada ação (`promptFinalizacaoLote`/`promptEnvioLote`/
+`promptRecebimentoLote`) mostra só as placas elegíveis naquele momento
+(mesmo padrão de checkbox com "marcar/desmarcar todas" já usado em
+"Criar novo lote", pré-marcando todas por padrão) e registra um evento
+cobrindo só o subconjunto escolhido — mesmo espírito da conferência de
+impressão, que já era por placa desde o início. "Confeccionar" continua
+sendo uma ação única por placa (não quebrada nos 4 sub-passos
+plastificação/corte/acabamento/conferência individualmente) — esses 4
+continuam existindo só como checklist agrupado dentro da ação de
+confecção de contenção (seção 2.4-B/itens), não por placa de alinhador.
+
+O estágio atual de cada lote (`loteEtapaAtual`) continua **sempre
+calculado**, nunca guardado como campo solto, mas agora é só um resumo
+("qual é o gargalo mais adiantado que ainda tem placa pendente") —
+usado no badge do lote, no dashboard e nos alertas. A ficha do caso
+mostra o detalhe completo por placa (todas as seções que se aplicam ao
+mesmo tempo), não só o resumo:
 
 - `impressao` — enquanto qualquer placa do lote não estiver **conferida e
   marcada OK** (inclui placas nunca conferidas, marcadas para reimprimir, ou
   já reimpressas mas ainda não reconferidas). Rotulado na tela como
   "Aguardando conferência da impressão".
-- `finalizacao` — todas as placas conferidas e OK; faltam os 4 checks
-  (plastificação, corte, acabamento, conferência final).
-- `envio` — finalização completa, aguardando ser enviado.
-- `recebimento` — enviado, aguardando confirmação de recebimento.
-- `concluido` — recebido. Sai da lista de **lotes ativos** e passa para o
-  **histórico de lotes entregues** do caso.
+- `finalizacao` — pelo menos uma placa já conferida OK ainda não foi
+  confeccionada.
+- `envio` — pelo menos uma placa confeccionada ainda não foi enviada.
+- `recebimento` — pelo menos uma placa enviada ainda não foi recebida.
+- `concluido` — **todas** as placas do lote já foram recebidas. Só aí o
+  lote sai da lista de **lotes ativos** e passa para o **histórico de
+  lotes entregues** do caso.
 
-**Nenhum lote pode ir para confecção de placas sem que todas as suas placas
-estejam conferidas e marcadas OK.** Enquanto isso não acontecer, o botão
-**Confecção de placas** aparece visível porém desabilitado (cinza, com
-tooltip explicando o bloqueio).
+**Nenhuma placa pode ir para confecção sem estar conferida e marcada
+OK.** A ação "Confecção de placas" só aparece na ficha quando existe ao
+menos uma placa nessa condição — sem nenhuma pronta, a seção inteira
+fica oculta (em vez de um botão desabilitado).
 
 **Placas ainda não incluídas em nenhum lote** ficam disponíveis na área
 "Placas pendentes para novo lote", com o botão **Criar novo lote**: o
@@ -309,7 +328,7 @@ o tamanho de cada lote (ex.: só produzir 11 de 21 placas por enquanto)
 simplesmente escolhendo quais placas colocar nele.
 
 **Botão verde = ação de confirmação.** "Confecção de placas", "Salvar
-confecção do lote", "Entrega do lote à clínica" e "Recebimento pela ASB"
+confecção", "Entrega do lote à clínica" e "Recebimento pela ASB"
 usam a cor verde — reservada para ações positivas de confirmação — em vez de
 branco/neutro.
 
@@ -391,13 +410,17 @@ independente de a qual lote ela pertence:
 - 🔴 **Vermelho** — precisa reimprimir (conferida e reprovada).
 - 🟠 **Laranja** — foi impressa novamente, mas ainda aguarda nova conferência
   antes de poder virar OK. Estado intermediário entre vermelho e verde.
-- 🔵 **Azul** — confeccionada (o lote já passou por plastificação, corte,
-  acabamento e conferência), mas **ainda não foi entregue à clínica**.
-- 🟡 **Amarelo** — entregue à clínica, **aguardando confirmação de
-  recebimento pela ASB** (ou pelo cliente externo). Distinto de azul: azul é
-  "pronta no laboratório", amarelo é "já saiu do laboratório".
-- ⬛ **Cinza** — recebida pela ASB/cliente externo; saiu do fluxo ativo do
-  laboratório.
+- 🔵 **Azul** — essa placa específica já foi confeccionada
+  (`loteConfeccaoState`), mas **ainda não foi entregue à clínica**.
+  Confecção é por placa (seção 2.1): num mesmo lote, algumas placas podem
+  estar azuis enquanto outras ainda esperam confecção.
+- 🟡 **Amarelo** — essa placa já foi entregue à clínica
+  (`loteEnvioState`), **aguardando confirmação de recebimento pela ASB**
+  (ou pelo cliente externo). Distinto de azul: azul é "pronta no
+  laboratório", amarelo é "já saiu do laboratório". Também por placa —
+  um lote pode ter placas amarelas e azuis ao mesmo tempo.
+- ⬛ **Cinza** — essa placa já foi recebida pela ASB/cliente externo
+  (`loteRecebimentoState`); saiu do fluxo ativo do laboratório.
 
 A cor de cada placa (`placaStatus(caso, arco, número)`) é sempre recalculada
 a partir do lote que a contém — nunca é um campo salvo separadamente, então
@@ -511,18 +534,21 @@ exatamente pelas mesmas regras de sempre em todos os pontos.
 
 ### 2.5 Nomes dos botões de cada lote
 
-Dentro de cada lote (na ficha), os botões contextuais mudam conforme o
-estágio do lote, com os nomes:
+Dentro de cada lote (na ficha), os botões contextuais aparecem conforme
+existir placa elegível pra cada ação — mais de um pode aparecer ao mesmo
+tempo, já que confecção/entrega/recebimento são por placa (seção 2.1):
 
-1. **Conferir impressão do lote** (seletor OK/Reimprimir/Foi impresso novamente por placa) — único botão disponível enquanto o lote estiver na etapa `impressao`; concentra toda a lógica de reimpressão, não existem mais botões avulsos de "reimpressão necessária/concluída".
-2. **Confecção de placas** (os 4 checks: plastificação, corte, acabamento, conferência) — aparece **desabilitado** enquanto qualquer placa do lote não estiver conferida e marcada OK; habilita assim que todas estiverem.
-3. **Entrega do lote à clínica** (ou ao cliente/clínica externa) — aparece após a confecção estar completa.
-4. **Recebimento pela ASB** (ou pelo cliente externo) — aparece após a entrega ser registrada.
+1. **Conferir impressão do lote** (seletor OK/Reimprimir/Foi impresso novamente por placa) — aparece enquanto alguma placa do lote ainda não estiver conferida e marcada OK; concentra toda a lógica de reimpressão, não existem botões avulsos de "reimpressão necessária/concluída".
+2. **Confecção de placas** — aparece quando existe ao menos uma placa conferida OK ainda não confeccionada; abre um modal só com essas placas (pré-marcadas, "marcar/desmarcar todas" disponível), confirma um subconjunto por vez.
+3. **Entrega do lote à clínica** (ou ao cliente/clínica externa) — aparece quando existe ao menos uma placa confeccionada ainda não enviada; mesmo padrão de seleção por placa.
+4. **Recebimento pela ASB** (ou pelo cliente externo) — aparece quando existe ao menos uma placa enviada ainda não recebida.
 
 Não existe botão de "Registrar modelos impressos": criar o lote já registra
-a impressão das placas escolhidas (seção 2.1). Cada botão só aparece quando
-o lote está no estágio correspondente, e só controla as placas daquele lote
-específico.
+a impressão das placas escolhidas (seção 2.1). Cada ação só oferece as
+placas daquele lote específico que já estão prontas pra ela — se nenhuma
+estiver, a seção correspondente simplesmente não aparece (e tentar abrir
+o modal direto mostra um aviso, ex.: "Não há placas prontas para
+confecção neste lote.").
 
 ### 2.6 "Definir/editar placas do planejamento" — disponível até o primeiro lote existir
 
@@ -719,16 +745,41 @@ Lote {
 
   eventosImpressao: EventoImpressao[]   // ver abaixo — histórico fino de impressão/reimpressão/pendência do lote
 
-  plastificacao: ChecklistItem
-  corte: ChecklistItem
-  acabamento: ChecklistItem
-  conferencia: ChecklistItem
-  // ChecklistItem = { concluida: boolean, observacao: string, responsavel: string|null, data: date|null, hora: string|null }
-
-  envio: { enviado: boolean, data: date, responsavel: string, observacao: string } | null
-  recebimento: { recebido: boolean, data: date, responsavel: string, observacao: string } | null
+  // Confecção/entrega/recebimento são por placa — mesmo formato de
+  // EventoImpressao (id, criadoEm, superiores, inferiores, responsavel,
+  // data, observacao), cada evento cobrindo só o subconjunto de placas
+  // confirmado naquela submissão. Uma placa está confeccionada/enviada/
+  // recebida se aparece em QUALQUER evento da lista correspondente — não
+  // existe campo solto "concluído" no lote inteiro (ver
+  // loteConfeccaoState/loteEnvioState/loteRecebimentoState no index.html).
+  eventosConfeccao: EventoConfeccaoEnvioRecebimento[]
+  eventosEnvio: EventoConfeccaoEnvioRecebimento[]
+  eventosRecebimento: EventoConfeccaoEnvioRecebimento[]
 
   observacoes: string
+
+  // Campos abaixo só existem em lotes criados ANTES desta versão (antes de
+  // confecção/entrega/recebimento virarem por placa) — lidos como fallback
+  // ("lote inteiro já concluído nesse campo" = "todas as placas do lote
+  // cobertas"), nunca mais escritos por lotes novos. Nenhuma migração de
+  // dados foi necessária; os dois formatos convivem.
+  plastificacao?: ChecklistItem
+  corte?: ChecklistItem
+  acabamento?: ChecklistItem
+  conferencia?: ChecklistItem
+  // ChecklistItem = { concluida: boolean, observacao: string, responsavel: string|null, data: date|null, hora: string|null }
+  envio?: { enviado: boolean, data: date, responsavel: string, observacao: string } | null
+  recebimento?: { recebido: boolean, data: date, responsavel: string, observacao: string } | null
+}
+
+EventoConfeccaoEnvioRecebimento {
+  id: string
+  criadoEm: datetime
+  superiores: number[]             // placas individuais cobertas por este evento
+  inferiores: number[]
+  responsavel: string
+  data: date
+  observacao: string
 }
 
 EventoImpressao {

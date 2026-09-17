@@ -848,13 +848,81 @@ function computeLoteImpressaoState(lote){
     completo
   };
 }
+// Só usada como fallback (ver loteConfeccaoState) pra lotes criados antes
+// desta versão, quando confecção/entrega/recebimento eram campos do lote
+// inteiro em vez de eventos por placa.
 function loteFinalizacaoOk(lote){ return FINALIZACAO_ITENS.every(([k])=>lote[k]?.concluida); }
-// Estágio atual do lote — derivado, nunca guardado como campo separado.
+
+/* -------------------------------------------------------------------------
+   Confecção/entrega/recebimento POR PLACA dentro do lote — mesmo padrão de
+   eventos por placa já usado em computeLoteImpressaoState (eventosImpressao),
+   só que aqui cada lista é mais simples (não tem "tipo": confeccionar/
+   entregar/receber é sempre uma ação única por placa, sem sub-etapas).
+   Lotes criados antes desta versão não têm essas listas — nesse caso caem
+   no fallback do campo antigo do lote inteiro (loteFinalizacaoOk/lote.envio.
+   enviado/lote.recebimento.recebido), tratando "lote inteiro concluído
+   naquele campo" como "toda placa do lote coberta". Nenhuma migração de
+   dados é necessária: as duas formas convivem, lotes antigos continuam
+   funcionando normalmente.
+   ------------------------------------------------------------------------- */
+function loteConfeccaoState(lote){
+  const sup = new Set(), inf = new Set();
+  (lote.eventosConfeccao||[]).forEach(e=>{ (e.superiores||[]).forEach(n=>sup.add(n)); (e.inferiores||[]).forEach(n=>inf.add(n)); });
+  if (!(lote.eventosConfeccao||[]).length && loteFinalizacaoOk(lote)){
+    lote.superiores.forEach(n=>sup.add(n)); lote.inferiores.forEach(n=>inf.add(n));
+  }
+  return {sup, inf};
+}
+function loteEnvioState(lote){
+  const sup = new Set(), inf = new Set();
+  (lote.eventosEnvio||[]).forEach(e=>{ (e.superiores||[]).forEach(n=>sup.add(n)); (e.inferiores||[]).forEach(n=>inf.add(n)); });
+  if (!(lote.eventosEnvio||[]).length && lote.envio?.enviado){
+    lote.superiores.forEach(n=>sup.add(n)); lote.inferiores.forEach(n=>inf.add(n));
+  }
+  return {sup, inf};
+}
+function loteRecebimentoState(lote){
+  const sup = new Set(), inf = new Set();
+  (lote.eventosRecebimento||[]).forEach(e=>{ (e.superiores||[]).forEach(n=>sup.add(n)); (e.inferiores||[]).forEach(n=>inf.add(n)); });
+  if (!(lote.eventosRecebimento||[]).length && lote.recebimento?.recebido){
+    lote.superiores.forEach(n=>sup.add(n)); lote.inferiores.forEach(n=>inf.add(n));
+  }
+  return {sup, inf};
+}
+// Placas conferidas OK mas ainda não confeccionadas / confeccionadas mas
+// ainda não enviadas / enviadas mas ainda não recebidas — o que cada ação
+// (Confecção/Entrega/Recebimento) tem disponível pra oferecer agora.
+function lotePlacasPendentesConfeccao(lote){
+  const st = computeLoteImpressaoState(lote); const conf = loteConfeccaoState(lote);
+  return { sup: [...st.okSup].filter(n=>!conf.sup.has(n)), inf: [...st.okInf].filter(n=>!conf.inf.has(n)) };
+}
+function lotePlacasPendentesEnvio(lote){
+  const conf = loteConfeccaoState(lote); const env = loteEnvioState(lote);
+  return { sup: [...conf.sup].filter(n=>!env.sup.has(n)), inf: [...conf.inf].filter(n=>!env.inf.has(n)) };
+}
+function lotePlacasPendentesRecebimento(lote){
+  const env = loteEnvioState(lote); const rec = loteRecebimentoState(lote);
+  return { sup: [...env.sup].filter(n=>!rec.sup.has(n)), inf: [...env.inf].filter(n=>!rec.inf.has(n)) };
+}
+// Lote 100% concluído = toda placa dele já foi recebida.
+function loteCompleto(lote){
+  const rec = loteRecebimentoState(lote);
+  return lote.superiores.every(n=>rec.sup.has(n)) && lote.inferiores.every(n=>rec.inf.has(n));
+}
+// Resumo de UMA etapa por lote — usado só onde faz sentido um resumo único
+// (dashboard, alertas, badge do card): o gargalo mais adiantado que ainda
+// tem placa pendente. "concluido" continua significando exatamente
+// loteCompleto; os estágios intermediários agora podem coexistir de fato
+// (ver loteBlockHTML, que mostra todos ao mesmo tempo quando aplicável) —
+// esta função só escolhe qual mostrar quando só cabe um resumo.
 function loteEtapaAtual(lote){
   if (!computeLoteImpressaoState(lote).completo) return "impressao";
-  if (!loteFinalizacaoOk(lote)) return "finalizacao";
-  if (!lote.envio?.enviado) return "envio";
-  if (!lote.recebimento?.recebido) return "recebimento";
+  const pendConf = lotePlacasPendentesConfeccao(lote);
+  if (pendConf.sup.length || pendConf.inf.length) return "finalizacao";
+  const pendEnv = lotePlacasPendentesEnvio(lote);
+  if (pendEnv.sup.length || pendEnv.inf.length) return "envio";
+  const pendRec = lotePlacasPendentesRecebimento(lote);
+  if (pendRec.sup.length || pendRec.inf.length) return "recebimento";
   return "concluido";
 }
 function algumaReimpressaoPendenteCaso(caso){
@@ -880,7 +948,7 @@ function completoTotal(caso){
   if (pend.sup.length || pend.inf.length) return false;
   const lotes = caso.lotes || [];
   if (!lotes.length) return false;
-  return lotes.every(l => loteEtapaAtual(l)==="concluido");
+  return lotes.every(loteCompleto);
 }
 
 // Rótulo legível por status de item/placa individual (usado só pra montar
@@ -1012,10 +1080,16 @@ function algumaProducaoConcluidaParcial(caso){
 function placaStatus(caso, arco, n){
   const lote = (caso.lotes||[]).find(l => (arco==="sup"?l.superiores:l.inferiores).includes(n));
   if (!lote) return "branco";
-  const etapa = loteEtapaAtual(lote);
-  if (etapa==="concluido") return "cinza";
-  if (etapa==="recebimento") return "amarelo";
-  if (etapa==="envio") return "azul";
+  // Confecção/entrega/recebimento são por placa (ver loteConfeccaoState/
+  // loteEnvioState/loteRecebimentoState) — cada placa do lote pode estar
+  // numa etapa diferente das outras, então checa a placa específica, não
+  // um resumo do lote inteiro.
+  const rec = loteRecebimentoState(lote);
+  if ((arco==="sup"?rec.sup:rec.inf).has(n)) return "cinza";
+  const env = loteEnvioState(lote);
+  if ((arco==="sup"?env.sup:env.inf).has(n)) return "amarelo";
+  const conf = loteConfeccaoState(lote);
+  if ((arco==="sup"?conf.sup:conf.inf).has(n)) return "azul";
   const st = computeLoteImpressaoState(lote);
   const reimprimir = arco==="sup" ? st.reimprimirSup : st.reimprimirInf;
   if (reimprimir.has(n)) return "vermelho";
@@ -1148,37 +1222,47 @@ function estaArquivado(caso){
 // Data/responsável de envio e recebimento no nível do CASO — derivados do
 // último lote (alinhadores) ou último evento (itens), nunca guardados soltos.
 // Usado só pela tela "Histórico de enviados à clínica" (visão resumida).
+// Junta os eventos de envio/recebimento de TODOS os lotes de um caso —
+// cada lote pode ter a lista de eventos por placa (formato novo) ou, se
+// foi criado antes desta versão, só o campo lote-inteiro antigo (tratado
+// aqui como um evento só, cobrindo o lote inteiro).
+function todosEventosLotes(caso, chaveEventos, chaveAntiga, flagAntiga){
+  return (caso.lotes||[]).flatMap(l=>{
+    if (l[chaveEventos] && l[chaveEventos].length) return l[chaveEventos];
+    return (l[chaveAntiga] && l[chaveAntiga][flagAntiga]) ? [l[chaveAntiga]] : [];
+  });
+}
 function dataUltimoEnvio(caso){
   if (ehTipoItens(caso)){
     const evs = caso.eventosEntregaItens||[];
     return evs.length ? evs[evs.length-1].data : null;
   }
-  const enviados = (caso.lotes||[]).filter(l=>l.envio?.enviado).map(l=>l.envio.data).filter(Boolean);
-  return enviados.length ? enviados.sort().slice(-1)[0] : null;
+  const datas = todosEventosLotes(caso, "eventosEnvio", "envio", "enviado").map(e=>e.data).filter(Boolean);
+  return datas.length ? datas.sort().slice(-1)[0] : null;
 }
 function dataUltimoRecebimento(caso){
   if (ehTipoItens(caso)){
     const evs = caso.eventosRecebimentoItens||[];
     return evs.length ? evs[evs.length-1].data : null;
   }
-  const recebidos = (caso.lotes||[]).filter(l=>l.recebimento?.recebido).map(l=>l.recebimento.data).filter(Boolean);
-  return recebidos.length ? recebidos.sort().slice(-1)[0] : null;
+  const datas = todosEventosLotes(caso, "eventosRecebimento", "recebimento", "recebido").map(e=>e.data).filter(Boolean);
+  return datas.length ? datas.sort().slice(-1)[0] : null;
 }
 function responsavelUltimoEnvio(caso){
   if (ehTipoItens(caso)){
     const evs = caso.eventosEntregaItens||[];
     return evs.length ? (evs[evs.length-1].responsavel||"") : "";
   }
-  const enviados = (caso.lotes||[]).filter(l=>l.envio?.enviado).sort((a,b)=>(a.envio.data||"").localeCompare(b.envio.data||""));
-  return enviados.length ? (enviados[enviados.length-1].envio.responsavel||"") : "";
+  const eventos = todosEventosLotes(caso, "eventosEnvio", "envio", "enviado").sort((a,b)=>(a.data||"").localeCompare(b.data||""));
+  return eventos.length ? (eventos[eventos.length-1].responsavel||"") : "";
 }
 function responsavelUltimoRecebimento(caso){
   if (ehTipoItens(caso)){
     const evs = caso.eventosRecebimentoItens||[];
     return evs.length ? (evs[evs.length-1].responsavel||"") : "";
   }
-  const recebidos = (caso.lotes||[]).filter(l=>l.recebimento?.recebido).sort((a,b)=>(a.recebimento.data||"").localeCompare(b.recebimento.data||""));
-  return recebidos.length ? (recebidos[recebidos.length-1].recebimento.responsavel||"") : "";
+  const eventos = todosEventosLotes(caso, "eventosRecebimento", "recebimento", "recebido").sort((a,b)=>(a.data||"").localeCompare(b.data||""));
+  return eventos.length ? (eventos[eventos.length-1].responsavel||"") : "";
 }
 // Um caso "já foi enviado ou entregue à clínica" quando existe pelo menos
 // um envio ou recebimento registrado, em qualquer lote/item.
@@ -1354,7 +1438,7 @@ function renderIndicators(){
     if (c.statusAtual==="Finalizado") finalizados++;
     placasSup += totalRealSup(c); placasInf += totalRealInf(c);
     let recSup=0, recInf=0;
-    (c.lotes||[]).forEach(l=>{ if (l.recebimento?.recebido){ recSup+=l.superiores.length; recInf+=l.inferiores.length; } });
+    (c.lotes||[]).forEach(l=>{ const rec = loteRecebimentoState(l); recSup+=rec.sup.size; recInf+=rec.inf.size; });
     placasRecebidasTot += recSup+recInf;
     placasPendentesTot += Math.max(0, totalRealPlacas(c) - (recSup+recInf));
     if (c.prioridade==="urgente" && c.statusAtual!=="Finalizado") urgentes++;
@@ -2390,15 +2474,22 @@ function getActionsForCaso(caso){
 // Renderiza UM lote ativo (ainda não concluído) com seus controles de acordo
 // com o estágio em que ele está — impressão/reimpressão, finalização, envio
 // ou aguardando recebimento.
+// Um lote pode ter placas em vários estágios ao mesmo tempo agora (ex.:
+// 4 placas já entregues enquanto 6 ainda aguardam confecção) — por isso
+// mostra cada seção só se houver placa pendente ali (mesmo padrão
+// `.length ? bloco : ""` do fluxo de itens), em vez de escolher uma
+// etapa única pro lote inteiro.
 function loteBlockHTML(caso, lote){
-  const etapa = loteEtapaAtual(lote);
   const st = computeLoteImpressaoState(lote);
+  const pendConf = lotePlacasPendentesConfeccao(lote);
+  const pendEnvio = lotePlacasPendentesEnvio(lote);
+  const pendReceb = lotePlacasPendentesRecebimento(lote);
   let corpo = "";
-  if (etapa==="impressao"){
+  if (!st.completo){
     const totalPlacas = lote.superiores.length + lote.inferiores.length;
     const totalOk = st.okSup.size + st.okInf.size;
     const conferenciaStatus = totalOk===totalPlacas ? "concluída" : (totalOk>0 ? "em andamento" : "pendente");
-    corpo = `
+    corpo += `
       <div class="readonly-grid">
         <div><span class="k">Conferência da impressão</span><span class="v">${conferenciaStatus}</span></div>
         <div><span class="k">Placas OK</span><span class="v">Sup. ${fmtRanges([...st.okSup],"nenhuma")} · Inf. ${fmtRanges([...st.okInf],"nenhuma")}</span></div>
@@ -2407,22 +2498,29 @@ function loteBlockHTML(caso, lote){
       </div>
       <div class="actions-grid" style="margin-top:6px;">
         <button class="btn small primary" onclick="App.promptConferenciaImpressaoLote('${caso.id}','${lote.id}')">Conferir impressão do lote</button>
-        <button class="btn small ready" disabled title="Bloqueado até todas as placas do lote estarem conferidas e marcadas OK">Confecção de placas</button>
       </div>`;
-  } else if (etapa==="finalizacao"){
-    corpo = `
-      <div class="readonly-grid">
-        ${FINALIZACAO_ITENS.map(([k,label])=>`<div><span class="k">${label}</span><span class="v">${lote[k]?.concluida?"✅ concluído":"⏳ pendente"}${lote[k]?.observacao?` — ${esc(lote[k].observacao)}`:""}</span></div>`).join("")}
+  }
+  if (pendConf.sup.length || pendConf.inf.length){
+    corpo += `
+      <div class="readonly-grid" style="margin-top:8px;">
+        <div><span class="k">Prontas para confecção</span><span class="v">Sup. ${fmtRanges(pendConf.sup,"nenhuma")} · Inf. ${fmtRanges(pendConf.inf,"nenhuma")}</span></div>
       </div>
       <div class="actions-grid" style="margin-top:6px;">
         <button class="btn small ready" onclick="App.promptFinalizacaoLote('${caso.id}','${lote.id}')">Confecção de placas</button>
       </div>`;
-  } else if (etapa==="envio"){
-    corpo = `<div class="actions-grid" style="margin-top:6px;">
-      <button class="btn small ready" onclick="App.promptEnvioLote('${caso.id}','${lote.id}')">Entrega do lote à clínica</button>
-    </div>`;
-  } else if (etapa==="recebimento"){
-    corpo = `<div class="warn-box">Enviado em ${fmtDate(lote.envio?.data)} por ${esc(lote.envio?.responsavel)}. Aguardando recebimento.</div>
+  }
+  if (pendEnvio.sup.length || pendEnvio.inf.length){
+    corpo += `
+      <div class="readonly-grid" style="margin-top:8px;">
+        <div><span class="k">Confeccionadas, prontas para entrega</span><span class="v">Sup. ${fmtRanges(pendEnvio.sup,"nenhuma")} · Inf. ${fmtRanges(pendEnvio.inf,"nenhuma")}</span></div>
+      </div>
+      <div class="actions-grid" style="margin-top:6px;">
+        <button class="btn small ready" onclick="App.promptEnvioLote('${caso.id}','${lote.id}')">Entrega do lote à clínica</button>
+      </div>`;
+  }
+  if (pendReceb.sup.length || pendReceb.inf.length){
+    corpo += `
+      <div class="warn-box" style="margin-top:8px;">Aguardando recebimento — Sup. ${fmtRanges(pendReceb.sup,"nenhuma")} · Inf. ${fmtRanges(pendReceb.inf,"nenhuma")}</div>
       <div class="actions-grid" style="margin-top:6px;">
         <button class="btn small ready" onclick="App.promptRecebimentoLote('${caso.id}','${lote.id}')">Recebimento pela ASB</button>
       </div>`;
@@ -2431,19 +2529,31 @@ function loteBlockHTML(caso, lote){
   <div class="impressao-panel">
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <b>Lote ${lote.numero}</b>
-      <span class="badge" style="background:var(--blue-light);color:var(--blue);">${LOTE_ETAPA_LABEL[etapa]}</span>
+      <span class="badge" style="background:var(--blue-light);color:var(--blue);">${LOTE_ETAPA_LABEL[loteEtapaAtual(lote)]}</span>
     </div>
     <div class="progress-line">Superior: ${fmtRanges(lote.superiores,"nenhuma")} · Inferior: ${fmtRanges(lote.inferiores,"nenhuma")}</div>
     ${corpo}
   </div>`;
 }
+// Último evento (mais recente por data) de uma lista de eventos por placa
+// de envio/recebimento de um lote, com fallback pro campo antigo do lote
+// inteiro (lotes criados antes desta versão nunca têm a lista de eventos).
+function ultimoEventoLote(eventos, campoAntigo){
+  const lista = eventos||[];
+  if (lista.length) return lista.slice().sort((a,b)=> (a.data||"").localeCompare(b.data||""))[lista.length-1];
+  return campoAntigo || null;
+}
 function historicoLotesHTML(caso){
-  const concluidos = (caso.lotes||[]).filter(l=>loteEtapaAtual(l)==="concluido");
+  const concluidos = (caso.lotes||[]).filter(loteCompleto);
   if (!concluidos.length) return `<div class="alert-empty">Nenhum lote entregue ainda.</div>`;
   return `<table class="hist"><tr><th>Lote</th><th>Superior</th><th>Inferior</th><th>Envio</th><th>Recebimento</th></tr>
-  ${concluidos.map(l=>`<tr><td>Lote ${l.numero}</td><td>${fmtRanges(l.superiores,"—")}</td><td>${fmtRanges(l.inferiores,"—")}</td>
-    <td>${fmtDate(l.envio?.data)} — ${esc(l.envio?.responsavel)||""}</td>
-    <td>${fmtDate(l.recebimento?.data)} — ${esc(l.recebimento?.responsavel)||""}</td></tr>`).join("")}
+  ${concluidos.map(l=>{
+    const ultEnvio = ultimoEventoLote(l.eventosEnvio, l.envio);
+    const ultRecebimento = ultimoEventoLote(l.eventosRecebimento, l.recebimento);
+    return `<tr><td>Lote ${l.numero}</td><td>${fmtRanges(l.superiores,"—")}</td><td>${fmtRanges(l.inferiores,"—")}</td>
+    <td>${fmtDate(ultEnvio?.data)} — ${esc(ultEnvio?.responsavel)||""}</td>
+    <td>${fmtDate(ultRecebimento?.data)} — ${esc(ultRecebimento?.responsavel)||""}</td></tr>`;
+  }).join("")}
   </table>`;
 }
 function lotesProducaoSectionHTML(caso){
@@ -2700,11 +2810,10 @@ function __submitCriarLote(id){
       responsavel: responsavelCriacao, data: document.getElementById("p-data").value,
       observacao: "Impressão automática na criação do lote"
     }],
-    plastificacao:{concluida:false,observacao:"",responsavel:null,data:null,hora:null},
-    corte:{concluida:false,observacao:"",responsavel:null,data:null,hora:null},
-    acabamento:{concluida:false,observacao:"",responsavel:null,data:null,hora:null},
-    conferencia:{concluida:false,observacao:"",responsavel:null,data:null,hora:null},
-    envio: null, recebimento: null,
+    // Confecção/entrega/recebimento são registrados por placa, conforme
+    // forem acontecendo (ver eventosConfeccao/eventosEnvio/eventosRecebimento
+    // abaixo — mesmo padrão de eventosImpressao, sem campo lote-inteiro).
+    eventosConfeccao: [], eventosEnvio: [], eventosRecebimento: [],
     observacoes: document.getElementById("p-obs").value
   });
   logHistorico(caso, caso.statusAtual, caso.statusAtual, `Lote ${numero} criado e impresso: superior ${fmtRanges(superiores,"nenhum")} / inferior ${fmtRanges(inferiores,"nenhum")}`);
@@ -2775,68 +2884,92 @@ function __submitConferenciaImpressaoLote(casoId, loteId){
 }
 
 /* ---- Finalização do lote (plastificação, corte, acabamento, conferência) ---- */
+// Confecção é uma ação por placa: cada submissão marca como confeccionado
+// só o subconjunto de placas selecionado (padrão: todas as prontas), não o
+// lote inteiro de uma vez — permite validar aos poucos (ex.: a auxiliar
+// confeccionou só 1,2,3,5 de um lote de 10 até agora).
 function promptFinalizacaoLote(casoId, loteId){
   const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);
+  const pend = lotePlacasPendentesConfeccao(lote);
+  if (!pend.sup.length && !pend.inf.length){ toast("Não há placas prontas para confecção neste lote."); return; }
   openModal(`Confecção de placas — Lote ${lote.numero}`, `
-    <p style="font-size:12px;color:var(--text-light);">Lote ${lote.numero}: superior ${fmtRanges(lote.superiores,"nenhuma")} · inferior ${fmtRanges(lote.inferiores,"nenhuma")}. Marque cada parte conforme for concluída. As observações são opcionais.</p>
-    ${FINALIZACAO_ITENS.map(([k,label])=>`
-      <div class="field full" style="margin-bottom:10px;">
-        <label style="text-transform:none;font-size:13px;display:flex;align-items:center;gap:6px;">
-          <input type="checkbox" id="fin-${k}" ${lote[k]?.concluida?"checked":""}> ${label} concluído(a)
-        </label>
-        <textarea id="fin-${k}-obs" placeholder="Observação (opcional)">${esc(lote[k]?.observacao||"")}</textarea>
-      </div>
-    `).join("")}
+    <p style="font-size:12px;color:var(--text-light);">Marque as placas confeccionadas nesta bancada. Não precisa ser o lote inteiro de uma vez.</p>
+    ${pend.sup.length ? `<div class="field full"><label>Superior</label>${checkboxGridHTML("finc-sup", pend.sup)}</div>` : ""}
+    ${pend.inf.length ? `<div class="field full"><label>Inferior</label>${checkboxGridHTML("finc-inf", pend.inf)}</div>` : ""}
+    <div class="form-grid" style="margin-top:10px;">
+      <div class="field"><label>Responsável</label>${profissionalSelectHTML("p-resp", OPERADOR)}</div>
+      <div class="field"><label>Data</label><input type="date" id="p-data" value="${todayISO()}"></div>
+      <div class="field full"><label>Observação</label><textarea id="p-obs"></textarea></div>
+    </div>
   `, `<button class="btn outline" onclick="App.abrirFicha('${casoId}')">Cancelar</button>
-      <button class="btn ready" onclick="App.__submitFinalizacaoLote('${casoId}','${loteId}')">Salvar confecção do lote</button>`);
+      <button class="btn ready" onclick="App.__submitFinalizacaoLote('${casoId}','${loteId}')">Salvar confecção</button>`);
 }
 function __submitFinalizacaoLote(casoId, loteId){
   const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);
-  FINALIZACAO_ITENS.forEach(([k,label])=>{
-    const chk = document.getElementById(`fin-${k}`).checked;
-    const obs = document.getElementById(`fin-${k}-obs`).value;
-    const prev = lote[k] || {concluida:false};
-    if (chk && !prev.concluida){
-      lote[k] = { concluida:true, observacao:obs, responsavel:OPERADOR, data:todayISO(), hora:nowTime() };
-      logHistorico(caso, caso.statusAtual, caso.statusAtual, `Lote ${lote.numero} — ${label} concluído(a)${obs?": "+obs:""}`);
-    } else if (!chk && prev.concluida){
-      lote[k] = { concluida:false, observacao:obs, responsavel:null, data:null, hora:null };
-      logHistorico(caso, caso.statusAtual, caso.statusAtual, `Lote ${lote.numero} — ${label} desmarcado(a)`);
-    } else {
-      lote[k] = { ...prev, observacao:obs };
-    }
+  const pend = lotePlacasPendentesConfeccao(lote);
+  const superiores = pend.sup.filter(n=>document.getElementById(`finc-sup-${n}`)?.checked);
+  const inferiores = pend.inf.filter(n=>document.getElementById(`finc-inf-${n}`)?.checked);
+  if (!superiores.length && !inferiores.length){ toast("Selecione ao menos uma placa."); return; }
+  lote.eventosConfeccao = lote.eventosConfeccao || [];
+  lote.eventosConfeccao.push({
+    id: uuid(), criadoEm: new Date().toISOString(), superiores, inferiores,
+    responsavel: document.getElementById("p-resp").value, data: document.getElementById("p-data").value,
+    hora: nowTime(), observacao: document.getElementById("p-obs").value
   });
-  persist(caso).then(()=>{ abrirFicha(casoId); toast("Lote atualizado."); });
+  logHistorico(caso, caso.statusAtual, caso.statusAtual, `Lote ${lote.numero} — confecção registrada: superior ${fmtRanges(superiores,"nenhuma")} / inferior ${fmtRanges(inferiores,"nenhuma")}`);
+  persist(caso).then(()=>{ abrirFicha(casoId); toast("Confecção registrada."); });
 }
 
 /* ---- Envio do lote (para a clínica / cliente externo) ---- */
+// Entrega também é por placa: só as placas já confeccionadas selecionadas
+// aqui saem "enviadas" — o resto do lote continua disponível pra confeccionar
+// e entregar depois, sem precisar esperar o lote inteiro.
 function promptEnvioLote(casoId, loteId){
   const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);
   const destino = caso.tipoCaso==="externo" ? "ao cliente / clínica externa" : "à clínica";
+  const pend = lotePlacasPendentesEnvio(lote);
+  if (!pend.sup.length && !pend.inf.length){ toast("Não há placas confeccionadas prontas para entrega neste lote."); return; }
   openModal(`Entrega do Lote ${lote.numero} ${destino}`, `
-    <p style="font-size:12px;color:var(--text-light);">Lote ${lote.numero}: superior ${fmtRanges(lote.superiores,"nenhuma")} · inferior ${fmtRanges(lote.inferiores,"nenhuma")}.</p>
-    <div class="form-grid">
+    ${pend.sup.length ? `<div class="field full"><label>Superior</label>${checkboxGridHTML("env-sup", pend.sup)}</div>` : ""}
+    ${pend.inf.length ? `<div class="field full"><label>Inferior</label>${checkboxGridHTML("env-inf", pend.inf)}</div>` : ""}
+    <div class="form-grid" style="margin-top:10px;">
       <div class="field"><label>Responsável pela entrega</label>${profissionalSelectHTML("p-resp", OPERADOR)}</div>
       <div class="field"><label>Data</label><input type="date" id="p-data" value="${todayISO()}"></div>
       <div class="field full"><label>Observação</label><textarea id="p-obs">${esc(lote.observacoes||"")}</textarea></div>
     </div>
   `, `<button class="btn outline" onclick="App.abrirFicha('${casoId}')">Cancelar</button>
-      <button class="btn ready" onclick="App.__submitEnvioLote('${casoId}','${loteId}')">Registrar entrega do lote</button>`);
+      <button class="btn ready" onclick="App.__submitEnvioLote('${casoId}','${loteId}')">Registrar entrega</button>`);
 }
 function __submitEnvioLote(casoId, loteId){
   const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);
-  lote.envio = { enviado:true, data:document.getElementById("p-data").value, responsavel:document.getElementById("p-resp").value, observacao:document.getElementById("p-obs").value };
-  logHistorico(caso, caso.statusAtual, caso.statusAtual, `Lote ${lote.numero} — enviado`);
-  persist(caso).then(()=>{ abrirFicha(casoId); toast("Entrega do lote registrada."); });
+  const pend = lotePlacasPendentesEnvio(lote);
+  const superiores = pend.sup.filter(n=>document.getElementById(`env-sup-${n}`)?.checked);
+  const inferiores = pend.inf.filter(n=>document.getElementById(`env-inf-${n}`)?.checked);
+  if (!superiores.length && !inferiores.length){ toast("Selecione ao menos uma placa."); return; }
+  lote.eventosEnvio = lote.eventosEnvio || [];
+  lote.eventosEnvio.push({
+    id: uuid(), criadoEm: new Date().toISOString(), superiores, inferiores,
+    responsavel: document.getElementById("p-resp").value, data: document.getElementById("p-data").value,
+    observacao: document.getElementById("p-obs").value
+  });
+  logHistorico(caso, caso.statusAtual, caso.statusAtual, `Lote ${lote.numero} — entrega registrada: superior ${fmtRanges(superiores,"nenhuma")} / inferior ${fmtRanges(inferiores,"nenhuma")}`);
+  persist(caso).then(()=>{ abrirFicha(casoId); toast("Entrega registrada."); });
 }
 
 /* ---- Recebimento do lote pela ASB / cliente externo ---- */
+// Recebimento também é por placa — mesmo espírito das duas ações
+// anteriores. Continua não finalizando o caso sozinho quando há mais
+// placas/lotes pendentes (ver completoTotal logo abaixo).
 function promptRecebimentoLote(casoId, loteId){
   const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);
   const quem = caso.tipoCaso==="externo" ? "pelo cliente / clínica externa" : "pela ASB";
+  const pend = lotePlacasPendentesRecebimento(lote);
+  if (!pend.sup.length && !pend.inf.length){ toast("Não há placas aguardando recebimento neste lote."); return; }
   openModal(`Recebimento ${quem} — Lote ${lote.numero}`, `
-    <p style="font-size:12px;color:var(--text-light);">Lote ${lote.numero}: superior ${fmtRanges(lote.superiores,"nenhuma")} · inferior ${fmtRanges(lote.inferiores,"nenhuma")}. Receber este lote não finaliza o caso sozinho se ainda houver outros lotes/placas pendentes.</p>
-    <div class="form-grid">
+    <p style="font-size:12px;color:var(--text-light);">Receber estas placas não finaliza o caso sozinho se ainda houver outras pendentes.</p>
+    ${pend.sup.length ? `<div class="field full"><label>Superior</label>${checkboxGridHTML("rcb-sup", pend.sup)}</div>` : ""}
+    ${pend.inf.length ? `<div class="field full"><label>Inferior</label>${checkboxGridHTML("rcb-inf", pend.inf)}</div>` : ""}
+    <div class="form-grid" style="margin-top:10px;">
       <div class="field"><label>Responsável pelo recebimento</label>${profissionalSelectHTML("p-resp", OPERADOR)}</div>
       <div class="field"><label>Data</label><input type="date" id="p-data" value="${todayISO()}"></div>
       <div class="field full"><label>Observação</label><textarea id="p-obs"></textarea></div>
@@ -2887,8 +3020,17 @@ function concluirProducao(caso, motivoFinalizacao){
 }
 function __submitRecebimentoLote(casoId, loteId){
   const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);
-  lote.recebimento = { recebido:true, data:document.getElementById("p-data").value, responsavel:document.getElementById("p-resp").value, observacao:document.getElementById("p-obs").value };
-  logHistorico(caso, caso.statusAtual, caso.statusAtual, `Lote ${lote.numero} — recebido`);
+  const pend = lotePlacasPendentesRecebimento(lote);
+  const superiores = pend.sup.filter(n=>document.getElementById(`rcb-sup-${n}`)?.checked);
+  const inferiores = pend.inf.filter(n=>document.getElementById(`rcb-inf-${n}`)?.checked);
+  if (!superiores.length && !inferiores.length){ toast("Selecione ao menos uma placa."); return; }
+  lote.eventosRecebimento = lote.eventosRecebimento || [];
+  lote.eventosRecebimento.push({
+    id: uuid(), criadoEm: new Date().toISOString(), superiores, inferiores,
+    responsavel: document.getElementById("p-resp").value, data: document.getElementById("p-data").value,
+    observacao: document.getElementById("p-obs").value
+  });
+  logHistorico(caso, caso.statusAtual, caso.statusAtual, `Lote ${lote.numero} — recebimento registrado: superior ${fmtRanges(superiores,"nenhuma")} / inferior ${fmtRanges(inferiores,"nenhuma")}`);
   if (completoTotal(caso)){
     concluirProducao(caso, "Todos os lotes produzidos, enviados e recebidos — caso finalizado");
   }
