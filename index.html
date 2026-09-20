@@ -286,6 +286,7 @@ table.hist th{color:var(--text-light); font-weight:700; font-size:10.5px; text-t
   <div class="header-row header-row-bottom">
     <div class="search-box"><input id="busca" type="text" placeholder="Buscar por paciente ou nº do caso..." oninput="App.setBusca(this.value)"></div>
     <div class="topbar-actions">
+      <button class="btn primary small" id="btn-fila-confeccao" onclick="App.abrirFilaConfeccao()">📋 Fila de confecção</button>
       <button class="btn outline small" onclick="App.__clickAtualizarDados()">🔄 Atualizar dados</button>
       <button class="btn outline small" onclick="App.abrirHistoricoEnviados()">📜 Histórico de enviados à clínica</button>
       <button class="btn outline small" onclick="App.exportar('csv')">Exportar CSV</button>
@@ -1006,6 +1007,82 @@ function calcularPendencias(caso){
 }
 
 /* =========================================================================
+   FILA DE CONFECÇÃO — uma lista única, já em ordem de prioridade, do que a
+   funcionária tem pra confeccionar agora (placas conferidas OK e ainda não
+   confeccionadas, de todos os casos de alinhadores em Produção). Sempre
+   calculada na hora, nunca guardada. Cada tarefa = (caso, lote, bloco),
+   onde bloco é "inicial" (placas 0 a 3) ou "demais" (4 em diante).
+   Ordem (desempata de cima pra baixo):
+     1. Camada: 1 externo · 2 interno atrasado · 3 interno no prazo, placas
+        0-3 · 4 interno no prazo, demais placas.
+     2. Atrasado antes de no prazo; entre no prazo, urgente primeiro; depois
+        o menor prazo restante (entre atrasados, o mais atrasado primeiro).
+     3. Casos mais antigos primeiro (FIFO); mesmo caso fica junto, com o
+        bloco 0-3 antes do resto e depois pelo número do lote.
+   ========================================================================= */
+const FILA_ULTIMA_PLACA_INICIAL = 3;
+function filaConfeccao(){
+  const tarefas = [];
+  CASOS.forEach(caso=>{
+    if (caso.statusAtual==="Finalizado" || !ehTipoAlinhadores(caso) || STATUS_TO_COL[caso.statusAtual]!=="producao") return;
+    const d = computeDerived(caso);
+    (caso.lotes||[]).forEach(lote=>{
+      const pend = lotePlacasPendentesConfeccao(lote);
+      [["inicial", n=>n<=FILA_ULTIMA_PLACA_INICIAL], ["demais", n=>n>FILA_ULTIMA_PLACA_INICIAL]].forEach(([bloco, teste])=>{
+        const sup = pend.sup.filter(teste), inf = pend.inf.filter(teste);
+        if (!sup.length && !inf.length) return;
+        const camada = caso.tipoCaso==="externo" ? 1 : (d.atrasado ? 2 : (bloco==="inicial" ? 3 : 4));
+        const motivos = [];
+        if (caso.tipoCaso==="externo") motivos.push("Externo");
+        if (d.atrasado) motivos.push(d.diasRestantes<0 ? `Atrasado ${-d.diasRestantes}d` : "Atrasado");
+        if (caso.prioridade==="urgente") motivos.push("Urgente");
+        if (bloco==="inicial") motivos.push("Placas 0-3");
+        tarefas.push({ caso, lote, bloco, sup, inf, camada, d, motivos });
+      });
+    });
+  });
+  tarefas.sort((a,b)=>
+    a.camada-b.camada
+    || (a.d.atrasado?0:1)-(b.d.atrasado?0:1)
+    || (a.d.atrasado ? 0 : ((a.caso.prioridade==="urgente"?0:1)-(b.caso.prioridade==="urgente"?0:1)))
+    || a.d.diasRestantes-b.d.diasRestantes
+    || (a.caso.dataEntrada||"").localeCompare(b.caso.dataEntrada||"")
+    || String(a.caso.id).localeCompare(String(b.caso.id))
+    || (a.bloco==="inicial"?0:1)-(b.bloco==="inicial"?0:1)
+    || a.lote.numero-b.lote.numero
+  );
+  return tarefas;
+}
+function abrirFilaConfeccao(){
+  const fila = filaConfeccao();
+  const linhas = fila.map((t,i)=>{
+    const c = t.caso;
+    const prazo = t.d.diasRestantes<0 ? `${-t.d.diasRestantes}d de atraso` : `${t.d.diasRestantes}d restantes`;
+    return `
+    <div class="impressao-panel" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <div style="font-size:18px;font-weight:800;color:var(--gold-dark);min-width:34px;">${i+1}º</div>
+      <div style="flex:1;min-width:220px;">
+        <div><b>${esc(c.paciente)||"(sem nome)"}</b> <span style="font-size:11px;color:var(--text-light);">#${esc(c.numeroCaso)||"—"} · Lote ${t.lote.numero} · ${c.tipoCaso==="externo"?"Externo":"Interno"}</span></div>
+        <div class="progress-line">Confeccionar: Sup. ${fmtRanges(t.sup,"—")} · Inf. ${fmtRanges(t.inf,"—")} — prazo ${fmtDate(c.dataPrevistaEntrega)} (${prazo})</div>
+        <div style="margin-top:3px;">${t.motivos.map(m=>`<span class="badge ${m.startsWith("Externo")?"externo":(m.startsWith("Atrasado")?"atrasado":(m==="Urgente"?"urgente":""))}" ${m==="Placas 0-3"?'style="background:var(--gold-light);color:var(--gold-dark);"':""}>${esc(m)}</span>`).join(" ")}</div>
+      </div>
+      <button class="btn small ready" onclick="App.confeccionarDaFila('${c.id}','${t.lote.id}','${t.bloco}')">Confeccionar</button>
+    </div>`;
+  }).join("");
+  openModal(`📋 Fila de confecção — ${fila.length} ${fila.length===1?"tarefa":"tarefas"}`, `
+    <p style="font-size:12px;color:var(--text-light);margin-bottom:8px;">Faça de cima pra baixo. Ordem: externos primeiro · depois os mais atrasados · depois as placas 0-3 dos internos · depois o restante. Só aparecem placas já conferidas e ainda não confeccionadas.</p>
+    ${linhas || `<div class="alert-empty">Nada pronto pra confeccionar agora. ✅</div>`}
+  `, `<button class="btn outline" onclick="App.closeModal()">Fechar</button>`, "modal-wide");
+}
+// Abre a confecção do lote já com só as placas daquela tarefa marcadas; ao
+// salvar/cancelar, volta pra fila (ela segue tarefa por tarefa).
+function confeccionarDaFila(casoId, loteId, bloco){
+  const t = filaConfeccao().find(x=>x.caso.id===casoId && x.lote.id===loteId && x.bloco===bloco);
+  if (!t){ toast("Essa tarefa já foi concluída."); abrirFilaConfeccao(); return; }
+  promptFinalizacaoLote(casoId, loteId, {sup:t.sup, inf:t.inf}, true);
+}
+
+/* =========================================================================
    PRODUÇÃO POR ITENS — usada por Contenção e Modelo de estudo. Mais simples
    que o modelo de lotes dos alinhadores: não existe agrupamento em lotes,
    cada item (ex. "Superior — via 1") é rastreado individualmente por eventos
@@ -1718,6 +1795,8 @@ function render(){
   renderFilters();
   renderAlerts();
   renderKanban();
+  const btnFila = document.getElementById("btn-fila-confeccao");
+  if (btnFila) btnFila.textContent = `📋 Fila de confecção (${filaConfeccao().length})`;
 }
 
 /* =========================================================================
@@ -2888,23 +2967,26 @@ function __submitConferenciaImpressaoLote(casoId, loteId){
 // só o subconjunto de placas selecionado (padrão: todas as prontas), não o
 // lote inteiro de uma vez — permite validar aos poucos (ex.: a auxiliar
 // confeccionou só 1,2,3,5 de um lote de 10 até agora).
-function promptFinalizacaoLote(casoId, loteId){
+// `pre` (opcional) = placas a vir pré-marcadas (usado pela Fila de
+// confecção); `daFila` faz cancelar/salvar voltarem pra fila em vez da ficha.
+function promptFinalizacaoLote(casoId, loteId, pre, daFila){
   const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);
   const pend = lotePlacasPendentesConfeccao(lote);
   if (!pend.sup.length && !pend.inf.length){ toast("Não há placas prontas para confecção neste lote."); return; }
+  const voltar = daFila ? "App.abrirFilaConfeccao()" : `App.abrirFicha('${casoId}')`;
   openModal(`Confecção de placas — Lote ${lote.numero}`, `
     <p style="font-size:12px;color:var(--text-light);">Marque as placas confeccionadas nesta bancada. Não precisa ser o lote inteiro de uma vez.</p>
-    ${pend.sup.length ? `<div class="field full"><label>Superior</label>${checkboxGridHTML("finc-sup", pend.sup)}</div>` : ""}
-    ${pend.inf.length ? `<div class="field full"><label>Inferior</label>${checkboxGridHTML("finc-inf", pend.inf)}</div>` : ""}
+    ${pend.sup.length ? `<div class="field full"><label>Superior</label>${checkboxGridHTML("finc-sup", pend.sup, pre ? new Set(pre.sup) : undefined)}</div>` : ""}
+    ${pend.inf.length ? `<div class="field full"><label>Inferior</label>${checkboxGridHTML("finc-inf", pend.inf, pre ? new Set(pre.inf) : undefined)}</div>` : ""}
     <div class="form-grid" style="margin-top:10px;">
       <div class="field"><label>Responsável</label>${profissionalSelectHTML("p-resp", OPERADOR)}</div>
       <div class="field"><label>Data</label><input type="date" id="p-data" value="${todayISO()}"></div>
       <div class="field full"><label>Observação</label><textarea id="p-obs"></textarea></div>
     </div>
-  `, `<button class="btn outline" onclick="App.abrirFicha('${casoId}')">Cancelar</button>
-      <button class="btn ready" onclick="App.__submitFinalizacaoLote('${casoId}','${loteId}')">Salvar confecção</button>`);
+  `, `<button class="btn outline" onclick="${voltar}">Cancelar</button>
+      <button class="btn ready" onclick="App.__submitFinalizacaoLote('${casoId}','${loteId}'${daFila?",true":""})">Salvar confecção</button>`);
 }
-function __submitFinalizacaoLote(casoId, loteId){
+function __submitFinalizacaoLote(casoId, loteId, daFila){
   const caso = findCaso(casoId); const lote = caso.lotes.find(l=>l.id===loteId);
   const pend = lotePlacasPendentesConfeccao(lote);
   const superiores = pend.sup.filter(n=>document.getElementById(`finc-sup-${n}`)?.checked);
@@ -2917,7 +2999,7 @@ function __submitFinalizacaoLote(casoId, loteId){
     hora: nowTime(), observacao: document.getElementById("p-obs").value
   });
   logHistorico(caso, caso.statusAtual, caso.statusAtual, `Lote ${lote.numero} — confecção registrada: superior ${fmtRanges(superiores,"nenhuma")} / inferior ${fmtRanges(inferiores,"nenhuma")}`);
-  persist(caso).then(()=>{ abrirFicha(casoId); toast("Confecção registrada."); });
+  persist(caso).then(()=>{ if (daFila) abrirFilaConfeccao(); else abrirFicha(casoId); toast("Confecção registrada."); });
 }
 
 /* ---- Envio do lote (para a clínica / cliente externo) ---- */
@@ -3701,7 +3783,7 @@ window.App = {
   promptConfeccaoItens, __submitConfeccaoItens,
   promptEntregaItens, __submitEntregaItens,
   promptRecebimentoItens, __submitRecebimentoItens,
-  toggleTodosCheckbox
+  toggleTodosCheckbox, abrirFilaConfeccao, confeccionarDaFila
 };
 
 init();

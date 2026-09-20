@@ -566,6 +566,30 @@ antes de sobrescrever). Uma correção posterior (caso já avançado, ainda
 sem lote) só atualiza as placas e registra no histórico — não mexe na
 etapa atual do caso.
 
+### 2.6-A Fila de confecção — a ordem do dia da funcionária
+
+Botão **"📋 Fila de confecção (N)"** no topo: uma lista única, já em ordem
+(1º, 2º, 3º…), de tudo que está pronto pra confeccionar — placas
+conferidas OK e ainda não confeccionadas, de todos os casos de alinhadores
+em Produção (`filaConfeccao()`, sempre recalculada, nada é guardado). Cada
+linha é uma tarefa (caso + lote + bloco de placas) com selos do motivo da
+posição e um botão **Confeccionar** que abre a confecção já com só aquelas
+placas marcadas e, ao salvar, volta pra fila com a próxima subindo.
+
+Regra de prioridade (desempata de cima pra baixo):
+1. **Camada:** 1 = caso externo · 2 = interno atrasado · 3 = interno no
+   prazo, placas 0-3 · 4 = interno no prazo, demais placas. (Bloco "0-3" =
+   placas 0, 1, 2 e 3 — superior e inferior; ajustável em
+   `FILA_ULTIMA_PLACA_INICIAL`.)
+2. **Dentro da camada:** atrasado antes de no prazo; entre atrasados, o
+   mais atrasado primeiro; entre no prazo, urgente primeiro e depois o
+   menor prazo restante.
+3. Casos mais antigos primeiro; o mesmo caso fica junto, com o bloco 0-3
+   antes do resto.
+
+Contenção/modelo de estudo, casos finalizados e casos fora de Produção não
+entram na fila.
+
 ### 2.7 Relatório do planejamento (upload) + impressão como etapa da produção
 
 Só existe para alinhadores (`ehTipoAlinhadores`) — contenção/modelo de
