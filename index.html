@@ -1037,12 +1037,18 @@ function filaConfeccao(){
         if (d.atrasado) motivos.push(d.diasRestantes<0 ? `Atrasado ${-d.diasRestantes}d` : "Atrasado");
         if (caso.prioridade==="urgente") motivos.push("Urgente");
         if (bloco==="inicial") motivos.push("Placas 0-3");
-        tarefas.push({ caso, lote, bloco, sup, inf, camada, d, motivos });
+        const posManual = caso.filaPosicao && caso.filaPosicao[lote.id+":"+bloco];
+        tarefas.push({ caso, lote, bloco, sup, inf, camada, d, motivos, posManual: (typeof posManual==="number") ? posManual : null });
       });
     });
   });
+  // Ordem manual do administrador (arrastar na fila) vale antes de qualquer
+  // regra automática; tarefas novas, sem posição manual, ficam no fim, na
+  // ordem automática. Sem nenhuma posição manual, é só a ordem automática.
+  const cmpManual = (a,b)=> (a.posManual!=null && b.posManual!=null) ? a.posManual-b.posManual : ((a.posManual!=null?0:1)-(b.posManual!=null?0:1));
   tarefas.sort((a,b)=>
-    a.camada-b.camada
+    cmpManual(a,b)
+    || a.camada-b.camada
     || (a.d.atrasado?0:1)-(b.d.atrasado?0:1)
     || (a.d.atrasado ? 0 : ((a.caso.prioridade==="urgente"?0:1)-(b.caso.prioridade==="urgente"?0:1)))
     || a.d.diasRestantes-b.d.diasRestantes
@@ -1055,11 +1061,15 @@ function filaConfeccao(){
 }
 function abrirFilaConfeccao(){
   const fila = filaConfeccao();
+  const admin = podeExcluir();
+  const temManual = fila.some(t=>t.posManual!=null);
   const linhas = fila.map((t,i)=>{
     const c = t.caso;
     const prazo = t.d.diasRestantes<0 ? `${-t.d.diasRestantes}d de atraso` : `${t.d.diasRestantes}d restantes`;
+    const chave = `${c.id}|${t.lote.id}|${t.bloco}`;
     return `
-    <div class="impressao-panel" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+    <div class="impressao-panel fila-linha" ${admin?`draggable="true" data-chave="${chave}" ondragstart="App.filaDragStart(event,'${chave}')" ondragover="App.filaDragOver(event)" ondragleave="App.filaDragLeave(event)" ondrop="App.filaDrop(event,'${chave}')"`:""} style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;${admin?"cursor:grab;":""}">
+      ${admin?`<div title="Arraste para mudar a prioridade" style="font-size:18px;color:var(--text-light);user-select:none;">⠿</div>`:""}
       <div style="font-size:18px;font-weight:800;color:var(--gold-dark);min-width:34px;">${i+1}º</div>
       <div style="flex:1;min-width:220px;">
         <div><b>${esc(c.paciente)||"(sem nome)"}</b> <span style="font-size:11px;color:var(--text-light);">#${esc(c.numeroCaso)||"—"} · Lote ${t.lote.numero} · ${c.tipoCaso==="externo"?"Externo":"Interno"}</span></div>
@@ -1070,9 +1080,57 @@ function abrirFilaConfeccao(){
     </div>`;
   }).join("");
   openModal(`📋 Fila de confecção — ${fila.length} ${fila.length===1?"tarefa":"tarefas"}`, `
-    <p style="font-size:12px;color:var(--text-light);margin-bottom:8px;">Faça de cima pra baixo. Ordem: externos primeiro · depois os mais atrasados · depois as placas 0-3 dos internos · depois o restante. Só aparecem placas já conferidas e ainda não confeccionadas.</p>
+    <p style="font-size:12px;color:var(--text-light);margin-bottom:8px;">Faça de cima pra baixo. ${temManual
+      ? "<b>Ordem definida pelo administrador</b> (tarefas novas, sem posição, aparecem no fim)."
+      : "Ordem: externos primeiro · depois os mais atrasados · depois as placas 0-3 dos internos · depois o restante."} Só aparecem placas já conferidas e ainda não confeccionadas.${admin?" <b>Administrador:</b> arraste as linhas para mudar a prioridade.":""}</p>
     ${linhas || `<div class="alert-empty">Nada pronto pra confeccionar agora. ✅</div>`}
-  `, `<button class="btn outline" onclick="App.closeModal()">Fechar</button>`, "modal-wide");
+  `, `${admin && temManual ? `<button class="btn outline" onclick="App.restaurarOrdemFila()">↺ Voltar à ordem automática</button>` : ""}<button class="btn outline" onclick="App.closeModal()">Fechar</button>`, "modal-wide");
+}
+// Arrastar e soltar (só administrador): a linha arrastada vai pra posição da
+// linha onde foi solta; a ordem inteira da fila passa a ser manual e é salva
+// em caso.filaPosicao (chave "loteId:bloco"), então todo mundo vê a mesma
+// ordem. Salva só os casos cujas posições mudaram.
+let FILA_DRAG_CHAVE = null;
+function filaDragStart(ev, chave){ FILA_DRAG_CHAVE = chave; ev.dataTransfer.effectAllowed = "move"; ev.dataTransfer.setData("text/plain", chave); }
+function filaDragOver(ev){ ev.preventDefault(); ev.dataTransfer.dropEffect = "move"; const el = ev.currentTarget; if (el) el.style.outline = "2px dashed var(--gold-dark)"; }
+function filaDragLeave(ev){ const el = ev.currentTarget; if (el) el.style.outline = ""; }
+async function filaDrop(ev, chaveAlvo){
+  ev.preventDefault();
+  const el = ev.currentTarget; if (el) el.style.outline = "";
+  const origem = FILA_DRAG_CHAVE; FILA_DRAG_CHAVE = null;
+  if (!podeExcluir()){ toast("Só administradores podem reordenar a fila."); return; }
+  if (!origem || origem===chaveAlvo) return;
+  const fila = filaConfeccao();
+  const chaveDe = t=>`${t.caso.id}|${t.lote.id}|${t.bloco}`;
+  const de = fila.findIndex(t=>chaveDe(t)===origem), para = fila.findIndex(t=>chaveDe(t)===chaveAlvo);
+  if (de<0 || para<0) return;
+  const [movida] = fila.splice(de,1);
+  fila.splice(para,0,movida);
+  await salvarOrdemFila(fila);
+}
+async function salvarOrdemFila(fila){
+  const alterados = new Map();
+  fila.forEach((t,i)=>{
+    const k = `${t.lote.id}:${t.bloco}`, pos = i+1;
+    t.caso.filaPosicao = t.caso.filaPosicao || {};
+    if (t.caso.filaPosicao[k]!==pos){ t.caso.filaPosicao[k] = pos; alterados.set(t.caso.id, t.caso); }
+  });
+  try{
+    for (const c of alterados.values()) await STORAGE.upsert(c);
+    await loadCasos();
+    toast("Ordem da fila salva.");
+  }catch(err){ console.error(err); toast("Falha ao salvar a ordem da fila."); }
+  abrirFilaConfeccao();
+}
+async function restaurarOrdemFila(){
+  if (!podeExcluir()){ toast("Só administradores podem reordenar a fila."); return; }
+  if (!confirm("Voltar a fila para a ordem automática? A ordem manual será descartada.")) return;
+  try{
+    for (const c of CASOS){ if (c.filaPosicao && Object.keys(c.filaPosicao).length){ delete c.filaPosicao; await STORAGE.upsert(c); } }
+    await loadCasos();
+    toast("Fila na ordem automática.");
+  }catch(err){ console.error(err); toast("Falha ao restaurar a ordem."); }
+  abrirFilaConfeccao();
 }
 // Abre a confecção do lote já com só as placas daquela tarefa marcadas; ao
 // salvar/cancelar, volta pra fila (ela segue tarefa por tarefa).
@@ -3783,7 +3841,8 @@ window.App = {
   promptConfeccaoItens, __submitConfeccaoItens,
   promptEntregaItens, __submitEntregaItens,
   promptRecebimentoItens, __submitRecebimentoItens,
-  toggleTodosCheckbox, abrirFilaConfeccao, confeccionarDaFila
+  toggleTodosCheckbox, abrirFilaConfeccao, confeccionarDaFila,
+  filaDragStart, filaDragOver, filaDragLeave, filaDrop, restaurarOrdemFila
 };
 
 init();

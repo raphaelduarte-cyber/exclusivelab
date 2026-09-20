@@ -590,6 +590,14 @@ Regra de prioridade (desempata de cima pra baixo):
 Contenção/modelo de estudo, casos finalizados e casos fora de Produção não
 entram na fila.
 
+**Ordem manual (só administrador):** o administrador pode **arrastar as
+linhas** da fila (alça ⠿) para mudar a prioridade. A ordem inteira passa a
+ser manual e é salva em `caso.filaPosicao` (chave `"loteId:bloco"`), então
+todos os usuários veem a mesma fila. Tarefas novas (sem posição manual)
+aparecem no fim, na ordem automática, até o admin arrastá-las. O botão
+**"↺ Voltar à ordem automática"** descarta a ordem manual. Usuário comum
+só vê a ordem, não arrasta.
+
 ### 2.7 Relatório do planejamento (upload) + impressão como etapa da produção
 
 Só existe para alinhadores (`ehTipoAlinhadores`) — contenção/modelo de
