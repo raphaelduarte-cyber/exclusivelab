@@ -169,6 +169,9 @@ h1,h2,h3,h4{margin:0;}
 .info-box{background:var(--blue-light); border:1px solid var(--blue); border-radius:10px; padding:9px 11px; font-size:12px; color:#1e3a8a; margin:8px 0;}
 .obs-producao-box{background:var(--gold-light); border:2px solid var(--gold-dark); border-radius:10px; padding:9px 11px; font-size:12.5px; color:var(--graphite); margin:8px 0; font-weight:600;}
 .obs-producao-box .tag{display:block; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; color:var(--gold-dark); margin-bottom:3px;}
+/* Fila de confecção: caso externo com cor própria (azul) pra chamar atenção. */
+.fila-linha.fila-externo{background:var(--blue-light); border:2px solid var(--blue); border-left-width:8px;}
+.fila-linha.fila-externo .badge.externo{background:var(--blue); color:#fff;}
 .obs-producao-box.relatorio-pendente{background:var(--blue-light); border-color:var(--blue);}
 .obs-producao-box.relatorio-pendente .tag{color:var(--blue);}
 .fin-alerta-box{border-radius:8px; padding:8px 11px; margin:8px 0; font-size:12.5px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; text-align:center;}
@@ -1042,10 +1045,14 @@ function filaConfeccao(){
       });
     });
   });
-  // Ordem manual do administrador (arrastar na fila) vale antes de qualquer
-  // regra automática; tarefas novas, sem posição manual, ficam no fim, na
-  // ordem automática. Sem nenhuma posição manual, é só a ordem automática.
-  const cmpManual = (a,b)=> (a.posManual!=null && b.posManual!=null) ? a.posManual-b.posManual : ((a.posManual!=null?0:1)-(b.posManual!=null?0:1));
+  // Ordem manual do administrador (arrastar na fila) vale sobre a automática.
+  // Tarefas NOVAS, sem posição manual: se são de caso externo ou atrasado
+  // (camadas 1-2) entram no TOPO, na ordem automática — um externo novo não
+  // pode ficar escondido atrás de uma ordem antiga; as demais vão pro fim
+  // até o administrador posicionar. Sem posição manual nenhuma, é só a
+  // ordem automática.
+  const grupoManual = t => t.posManual!=null ? 1 : (t.camada<=2 ? 0 : 2);
+  const cmpManual = (a,b)=> grupoManual(a)-grupoManual(b) || (grupoManual(a)===1 ? a.posManual-b.posManual : 0);
   tarefas.sort((a,b)=>
     cmpManual(a,b)
     || a.camada-b.camada
@@ -1059,6 +1066,38 @@ function filaConfeccao(){
   );
   return tarefas;
 }
+// Casos de alinhadores que ainda NÃO têm nada pronto pra confeccionar mas
+// vão chegar: ainda em planejamento/aprovação, em produção sem lote criado,
+// com placas sem lote ou com lote ainda na impressão/conferência. Só
+// informativo (não entra na fila acima) — garante que um caso novo,
+// principalmente externo, já apareça pra funcionária antes de ficar pronto.
+// Mesma ordem de prioridade: externo → atrasado → menor prazo restante.
+function casosACaminhoDaConfeccao(){
+  const jaNaFila = new Set(filaConfeccao().map(t=>t.caso.id));
+  const lista = [];
+  CASOS.forEach(caso=>{
+    if (caso.statusAtual==="Finalizado" || caso.statusAtual===STATUS_ENTREGA_FINANCEIRO || !ehTipoAlinhadores(caso) || jaNaFila.has(caso.id)) return;
+    const d = computeDerived(caso);
+    let situacao = null;
+    if (STATUS_TO_COL[caso.statusAtual]!=="producao"){
+      situacao = `Etapa atual: ${caso.statusAtual}`;
+    } else if (!(caso.lotes||[]).length){
+      situacao = "Em produção — lote ainda não criado";
+    } else {
+      const pend = placasPendentesNovoLote(caso);
+      const emImpressao = caso.lotes.filter(l=>loteEtapaAtual(l)==="impressao").map(l=>`Lote ${l.numero}`);
+      if (emImpressao.length) situacao = `${emImpressao.join(", ")}: aguardando conferência da impressão`;
+      else if (pend.sup.length || pend.inf.length) situacao = "Placas ainda sem lote";
+    }
+    if (situacao) lista.push({ caso, d, situacao });
+  });
+  lista.sort((a,b)=>
+    (a.caso.tipoCaso==="externo"?0:1)-(b.caso.tipoCaso==="externo"?0:1)
+    || (a.d.atrasado?0:1)-(b.d.atrasado?0:1)
+    || a.d.diasRestantes-b.d.diasRestantes
+  );
+  return lista;
+}
 function abrirFilaConfeccao(){
   const fila = filaConfeccao();
   const admin = podeExcluir();
@@ -1068,7 +1107,7 @@ function abrirFilaConfeccao(){
     const prazo = t.d.diasRestantes<0 ? `${-t.d.diasRestantes}d de atraso` : `${t.d.diasRestantes}d restantes`;
     const chave = `${c.id}|${t.lote.id}|${t.bloco}`;
     return `
-    <div class="impressao-panel fila-linha" ${admin?`draggable="true" data-chave="${chave}" ondragstart="App.filaDragStart(event,'${chave}')" ondragover="App.filaDragOver(event)" ondragleave="App.filaDragLeave(event)" ondrop="App.filaDrop(event,'${chave}')"`:""} style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;${admin?"cursor:grab;":""}">
+    <div class="impressao-panel fila-linha ${c.tipoCaso==="externo"?"fila-externo":""}" ${admin?`draggable="true" data-chave="${chave}" ondragstart="App.filaDragStart(event,'${chave}')" ondragover="App.filaDragOver(event)" ondragleave="App.filaDragLeave(event)" ondrop="App.filaDrop(event,'${chave}')"`:""} style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;${admin?"cursor:grab;":""}">
       ${admin?`<div title="Arraste para mudar a prioridade" style="font-size:18px;color:var(--text-light);user-select:none;">⠿</div>`:""}
       <div style="font-size:18px;font-weight:800;color:var(--gold-dark);min-width:34px;">${i+1}º</div>
       <div style="flex:1;min-width:220px;">
@@ -1079,11 +1118,29 @@ function abrirFilaConfeccao(){
       <button class="btn small ready" onclick="App.confeccionarDaFila('${c.id}','${t.lote.id}','${t.bloco}')">Confeccionar</button>
     </div>`;
   }).join("");
+  const aCaminho = casosACaminhoDaConfeccao();
+  const linhasCaminho = aCaminho.map(x=>{
+    const c = x.caso; const ext = c.tipoCaso==="externo";
+    const prazo = x.d.diasRestantes<0 ? `${-x.d.diasRestantes}d de atraso` : `${x.d.diasRestantes}d restantes`;
+    return `
+    <div class="impressao-panel fila-linha ${ext?"fila-externo":""}" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;opacity:.92;">
+      <div style="flex:1;min-width:220px;">
+        <div><b>${esc(c.paciente)||"(sem nome)"}</b> <span style="font-size:11px;color:var(--text-light);">#${esc(c.numeroCaso)||"—"} · ${ext?"Externo":"Interno"}</span> ${ext?'<span class="badge externo">Externo</span>':""}${x.d.atrasado?' <span class="badge atrasado">Atrasado</span>':""}</div>
+        <div class="progress-line">${esc(x.situacao)} — prazo ${fmtDate(c.dataPrevistaEntrega)} (${prazo})</div>
+      </div>
+      <button class="btn small outline" onclick="App.abrirFicha('${c.id}')">Ver ficha</button>
+    </div>`;
+  }).join("");
   openModal(`📋 Fila de confecção — ${fila.length} ${fila.length===1?"tarefa":"tarefas"}`, `
+    <div id="fila-conteudo">
     <p style="font-size:12px;color:var(--text-light);margin-bottom:8px;">Faça de cima pra baixo. ${temManual
-      ? "<b>Ordem definida pelo administrador</b> (tarefas novas, sem posição, aparecem no fim)."
-      : "Ordem: externos primeiro · depois os mais atrasados · depois as placas 0-3 dos internos · depois o restante."} Só aparecem placas já conferidas e ainda não confeccionadas.${admin?" <b>Administrador:</b> arraste as linhas para mudar a prioridade.":""}</p>
+      ? "<b>Ordem definida pelo administrador</b> (tarefas novas de casos externos/atrasados entram no topo; as demais, no fim, até o administrador posicionar)."
+      : "Ordem: externos primeiro · depois os mais atrasados · depois as placas 0-3 dos internos · depois o restante."} Só aparecem placas já conferidas e ainda não confeccionadas. <span style="color:var(--blue);font-weight:700;">Linhas azuis = caso externo.</span>${admin?" <b>Administrador:</b> arraste as linhas para mudar a prioridade.":""}</p>
     ${linhas || `<div class="alert-empty">Nada pronto pra confeccionar agora. ✅</div>`}
+    ${aCaminho.length ? `<div class="section-title" style="margin-top:14px;">A caminho da confecção (${aCaminho.length}) — ainda não estão prontos</div>
+      <p style="font-size:12px;color:var(--text-light);margin-bottom:6px;">Casos que ainda passam por planejamento, aprovação, impressão ou conferência. Quando as placas ficarem conferidas, entram na fila acima.</p>
+      ${linhasCaminho}` : ""}
+    </div>
   `, `${admin && temManual ? `<button class="btn outline" onclick="App.restaurarOrdemFila()">↺ Voltar à ordem automática</button>` : ""}<button class="btn outline" onclick="App.closeModal()">Fechar</button>`, "modal-wide");
 }
 // Arrastar e soltar (só administrador): a linha arrastada vai pra posição da
@@ -1855,6 +1912,14 @@ function render(){
   renderKanban();
   const btnFila = document.getElementById("btn-fila-confeccao");
   if (btnFila) btnFila.textContent = `📋 Fila de confecção (${filaConfeccao().length})`;
+  // Fila aberta na tela: atualiza sozinha quando os dados mudam (polling de
+  // 20s, "Atualizar dados"), sem perder a posição da rolagem e sem
+  // interromper um arraste em andamento.
+  if (document.getElementById("fila-conteudo") && !FILA_DRAG_CHAVE){
+    const ov = document.querySelector(".modal-overlay"); const st = ov ? ov.scrollTop : 0;
+    abrirFilaConfeccao();
+    const ov2 = document.querySelector(".modal-overlay"); if (ov2) ov2.scrollTop = st;
+  }
 }
 
 /* =========================================================================

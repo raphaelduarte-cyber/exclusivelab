@@ -588,13 +588,20 @@ Regra de prioridade (desempata de cima pra baixo):
    antes do resto.
 
 Contenção/modelo de estudo, casos finalizados e casos fora de Produção não
-entram na fila.
+entram na fila principal. **Casos externos aparecem em azul** (linha e
+selo), pra chamar atenção de quem está confeccionando. Abaixo da fila há a
+seção **"A caminho da confecção"**: casos de alinhadores que ainda não têm
+nada pronto (em planejamento/aprovação, sem lote ou com lote na impressão/
+conferência), na mesma ordem de prioridade (externo primeiro) — assim um
+caso novo já aparece antes de ficar pronto. A fila aberta se atualiza
+sozinha com os dados novos (polling de 20s).
 
 **Ordem manual (só administrador):** o administrador pode **arrastar as
 linhas** da fila (alça ⠿) para mudar a prioridade. A ordem inteira passa a
 ser manual e é salva em `caso.filaPosicao` (chave `"loteId:bloco"`), então
 todos os usuários veem a mesma fila. Tarefas novas (sem posição manual)
-aparecem no fim, na ordem automática, até o admin arrastá-las. O botão
+de caso **externo ou atrasado entram no topo**, na ordem automática; as
+demais aparecem no fim até o admin arrastá-las. O botão
 **"↺ Voltar à ordem automática"** descarta a ordem manual. Usuário comum
 só vê a ordem, não arrasta.
 
